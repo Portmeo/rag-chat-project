@@ -7,22 +7,33 @@ export function useStreamingRAG() {
   const [sources, setSources] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const streamQuery = useCallback(async (question: string) => {
+  const streamQuery = useCallback(async (question: string): Promise<{ content: string; sources: any[] }> => {
     setIsStreaming(true);
     setStreamedContent('');
     setSources([]);
     setError(null);
 
+    let accumulatedContent = '';
+    let finalSources: any[] = [];
+
     try {
       await queryRAGStream(question, {
-        onToken: (chunk) => setStreamedContent(prev => prev + chunk),
-        onSources: (newSources) => setSources(newSources),
+        onToken: (chunk) => {
+          accumulatedContent += chunk;
+          setStreamedContent(accumulatedContent);
+        },
+        onSources: (newSources) => {
+          finalSources = newSources;
+          setSources(newSources);
+        },
         onComplete: () => setIsStreaming(false),
         onError: (errorMsg) => {
           setError(errorMsg);
           setIsStreaming(false);
         },
       });
+
+      return { content: accumulatedContent, sources: finalSources };
     } catch (err: any) {
       setError(err.message);
       setIsStreaming(false);

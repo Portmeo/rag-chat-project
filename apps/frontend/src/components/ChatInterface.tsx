@@ -24,12 +24,12 @@ export default function ChatInterface() {
     reset();
 
     try {
-      await streamQuery(questionText);
+      const result = await streamQuery(questionText);
 
       const assistantMessage: Message = {
         role: 'assistant',
-        content: streamedContent,
-        sources: sources,
+        content: result.content,
+        sources: result.sources,
       };
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (err: any) {
