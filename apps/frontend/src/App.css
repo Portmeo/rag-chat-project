@@ -74,7 +74,7 @@ header p {
   max-width: 900px;
   width: 100%;
   margin: 0 auto;
-  padding: 1px;
+  padding: 10px;
 }
 
 .file-upload {
