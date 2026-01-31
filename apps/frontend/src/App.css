@@ -307,7 +307,6 @@ header p {
 
 /* Upload Page */
 .upload-page {
-  width: 100%;
   display: flex;
   flex-direction: column;
   padding: 2rem;
@@ -369,7 +368,6 @@ header p {
 
 /* Chat Page */
 .chat-page {
-  width: 100%;
   display: flex;
   flex-direction: column;
   flex: 1;
