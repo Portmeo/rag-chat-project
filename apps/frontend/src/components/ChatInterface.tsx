@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useStreamingRAG } from '../hooks/useStreamingRAG';
 
 interface Message {
@@ -11,6 +11,15 @@ export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const { isStreaming, streamedContent, sources, streamQuery, reset } = useStreamingRAG();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, streamedContent]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,6 +91,7 @@ export default function ChatInterface() {
             </div>
           </div>
         )}
+        <div ref={messagesEndRef} />
       </div>
 
       <form onSubmit={handleSubmit} className="input-form">

@@ -1,0 +1,139 @@
+{
+  "summary": {
+    "total_cases": 5,
+    "successful": 5,
+    "failed": 0,
+    "avg_faithfulness": 0.5,
+    "avg_answer_relevancy": 0.8,
+    "avg_context_precision": 0.4,
+    "avg_context_recall": 1,
+    "avg_latency_ms": 38061.2
+  },
+  "by_category": {
+    "Básica": {
+      "count": 5,
+      "avg_faithfulness": 0.5,
+      "avg_answer_relevancy": 0.8,
+      "avg_context_precision": 0.4,
+      "avg_context_recall": 1
+    }
+  },
+  "detailed_results": [
+    {
+      "test_case_id": "basica_1",
+      "question": "¿Qué versión de Angular se usa?",
+      "generated_answer": "No encuentro esa información en los documentos proporcionados. El documento solo menciona la versión de NgRx, pero no la versión de Angular que se utiliza.",
+      "retrieved_contexts": [
+        "",
+        "",
+        "",
+        ""
+      ],
+      "retrieved_sources": [
+        "02-gestion-estado-ngrx.md",
+        "03-microfrontends-web-components.md",
+        "03-microfrontends-web-components.md",
+        "01-arquitectura-general.md"
+      ],
+      "faithfulness_score": 0.5,
+      "answer_relevancy_score": 0.5,
+      "context_precision_score": 0,
+      "context_recall_score": 1,
+      "latency_ms": 50590,
+      "timestamp": "2026-01-31T10:33:18.689Z"
+    },
+    {
+      "test_case_id": "basica_2",
+      "question": "¿Qué versión de Ionic se usa?",
+      "generated_answer": "Según las dependencias principales, la versión de Ionic utilizada es `^6.7.5`.",
+      "retrieved_contexts": [
+        "",
+        "",
+        "",
+        ""
+      ],
+      "retrieved_sources": [
+        "03-microfrontends-web-components.md",
+        "02-gestion-estado-ngrx.md",
+        "01-arquitectura-general.md",
+        "01-arquitectura-general.md"
+      ],
+      "faithfulness_score": 0.5,
+      "answer_relevancy_score": 0.9,
+      "context_precision_score": 1,
+      "context_recall_score": 1,
+      "latency_ms": 46073,
+      "timestamp": "2026-01-31T10:34:04.762Z"
+    },
+    {
+      "test_case_id": "basica_3",
+      "question": "stack tecnológico del proyecto",
+      "generated_answer": "El stack tecnológico del proyecto Asyb-Portal es:\n\n* Framework Principal: Ionic 6\n* Frontend Framework: Angular 15\n* Runtime de Capacidades Nativas: Capacitor 6.1.2\n* Gestión de Estado: NgRx (Patrón Flux)\n* Lenguaje: TypeScript 4.9\n* Node.js: 16.x o superior",
+      "retrieved_contexts": [
+        "",
+        "",
+        "",
+        ""
+      ],
+      "retrieved_sources": [
+        "01-arquitectura-general.md",
+        "01-arquitectura-general.md",
+        "03-microfrontends-web-components.md",
+        "01-arquitectura-general.md"
+      ],
+      "faithfulness_score": 0.5,
+      "answer_relevancy_score": 0.9,
+      "context_precision_score": 0,
+      "context_recall_score": 1,
+      "latency_ms": 45351,
+      "timestamp": "2026-01-31T10:34:50.114Z"
+    },
+    {
+      "test_case_id": "basica_4",
+      "question": "¿Qué versión de NgRx se utiliza?",
+      "generated_answer": "La versión de NgRx utilizada es la 15.4.0, según se menciona en la introducción del documento: \"Asyb-Portal utiliza **NgRx** (versión 15.4.0) para implementar el patrón **Flux** en Angular.\"",
+      "retrieved_contexts": [
+        "",
+        "",
+        "",
+        ""
+      ],
+      "retrieved_sources": [
+        "02-gestion-estado-ngrx.md",
+        "03-microfrontends-web-components.md",
+        "01-arquitectura-general.md",
+        "07-ci-cd-deployment.md"
+      ],
+      "faithfulness_score": 0.5,
+      "answer_relevancy_score": 0.9,
+      "context_precision_score": 0,
+      "context_recall_score": 1,
+      "latency_ms": 28331,
+      "timestamp": "2026-01-31T10:35:18.446Z"
+    },
+    {
+      "test_case_id": "basica_5",
+      "question": "¿Qué framework de componentes UI se usa?",
+      "generated_answer": "Web Components personalizados.",
+      "retrieved_contexts": [
+        "",
+        "",
+        "",
+        ""
+      ],
+      "retrieved_sources": [
+        "01-arquitectura-general.md",
+        "01-arquitectura-general.md",
+        "03-microfrontends-web-components.md",
+        "03-microfrontends-web-components.md"
+      ],
+      "faithfulness_score": 0.5,
+      "answer_relevancy_score": 0.8,
+      "context_precision_score": 1,
+      "context_recall_score": 1,
+      "latency_ms": 19961,
+      "timestamp": "2026-01-31T10:35:38.408Z"
+    }
+  ],
+  "timestamp": "2026-01-31T10:35:38.408Z"
+}

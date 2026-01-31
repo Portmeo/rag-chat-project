@@ -1,0 +1,51 @@
+{
+  "version": "1.0",
+  "description": "5 queries básicas para test rápido de RAGAS",
+  "test_cases": [
+    {
+      "id": "basica_1",
+      "category": "Básica",
+      "question": "¿Qué versión de Angular se usa?",
+      "ground_truth_answer": "Angular 15",
+      "expected_contexts": ["01-arquitectura-general.md"],
+      "must_contain_keywords": ["Angular 15"],
+      "difficulty": "easy"
+    },
+    {
+      "id": "basica_2",
+      "category": "Básica",
+      "question": "¿Qué versión de Ionic se usa?",
+      "ground_truth_answer": "Ionic 6",
+      "expected_contexts": ["01-arquitectura-general.md"],
+      "must_contain_keywords": ["Ionic 6"],
+      "difficulty": "easy"
+    },
+    {
+      "id": "basica_3",
+      "category": "Básica",
+      "question": "stack tecnológico del proyecto",
+      "ground_truth_answer": "Angular 15, Ionic 6, NgRx",
+      "expected_contexts": ["01-arquitectura-general.md"],
+      "must_contain_keywords": ["Angular", "Ionic"],
+      "difficulty": "easy"
+    },
+    {
+      "id": "basica_4",
+      "category": "Básica",
+      "question": "¿Qué versión de NgRx se utiliza?",
+      "ground_truth_answer": "NgRx 15.4.0",
+      "expected_contexts": ["02-gestion-estado-ngrx.md"],
+      "must_contain_keywords": ["NgRx", "15"],
+      "difficulty": "easy"
+    },
+    {
+      "id": "basica_5",
+      "category": "Básica",
+      "question": "¿Qué framework de componentes UI se usa?",
+      "ground_truth_answer": "Ionic 6",
+      "expected_contexts": ["01-arquitectura-general.md"],
+      "must_contain_keywords": ["Ionic"],
+      "difficulty": "easy"
+    }
+  ]
+}
