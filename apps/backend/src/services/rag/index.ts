@@ -68,6 +68,25 @@ export async function addDocumentToVectorStore(
   return { success: true, chunksCount: docs.length };
 }
 
+// Filter sources based on rerank score threshold
+function filterSourcesByRelevance(relevantDocs: Document[]): DocumentMetadata[] {
+  if (!RERANKER_CONFIG.enabled) {
+    // If reranker is disabled, don't show sources to prevent weak matches
+    console.log(`\n📊 Reranker disabled - sources hidden to prevent showing weak matches`);
+    return [];
+  }
+
+  // Filter by rerank score threshold
+  const filtered = relevantDocs.filter(doc => {
+    const rerankScore = (doc as any).rerankScore;
+    return rerankScore !== undefined && rerankScore >= RERANKER_CONFIG.minScore;
+  });
+
+  console.log(`\n📊 Sources filtered by rerank score: ${relevantDocs.length} → ${filtered.length} (threshold: ${RERANKER_CONFIG.minScore})`);
+
+  return filtered.map(doc => doc.metadata as DocumentMetadata);
+}
+
 // Shared function to retrieve relevant documents
 async function retrieveRelevantDocuments(question: string) {
   const collectionExists = await checkCollectionExists();
@@ -207,7 +226,7 @@ export async function queryRAG(question: string): Promise<RAGResponse> {
 
     return {
       answer,
-      sources: relevantDocs.map((doc: Document) => doc.metadata as DocumentMetadata),
+      sources: filterSourcesByRelevance(relevantDocs),
     };
   } catch (error: any) {
     console.error('Error in queryRAG:', error);
@@ -241,11 +260,17 @@ export async function* queryRAGStream(question: string) {
 
     console.log('\n✅ Streaming completed');
 
-    // Send sources after completion
-    yield {
-      event: 'sources',
-      data: { sources: relevantDocs.map(doc => doc.metadata as DocumentMetadata) },
-    };
+    // Filter and send sources
+    const sources = filterSourcesByRelevance(relevantDocs);
+
+    if (sources.length > 0) {
+      yield {
+        event: 'sources',
+        data: { sources },
+      };
+    } else {
+      console.log('⚠️  No sources to show');
+    }
 
     yield { event: 'done', data: { complete: true } };
 

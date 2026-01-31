@@ -1,17 +1,69 @@
 import { useState, useEffect, useRef } from 'react';
 import { useStreamingRAG } from '../hooks/useStreamingRAG';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+interface Source {
+  filename: string;
+  [key: string]: unknown;
+}
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
-  sources?: any[];
+  sources?: Source[];
 }
 
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const { isStreaming, streamedContent, sources, streamQuery, reset } = useStreamingRAG();
+  const { isStreaming, streamedContent, streamQuery, reset } = useStreamingRAG();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const MarkdownComponents = {
+    code({ inline, className, children, ...props }: { inline?: boolean; className?: string; children?: React.ReactNode }) {
+      const match = /language-(\w+)/.exec(className || '');
+      return !inline && match ? (
+        <SyntaxHighlighter
+          style={vscDarkPlus}
+          language={match[1]}
+          PreTag="div"
+          {...props}
+        >
+          {String(children).replace(/\n$/, '')}
+        </SyntaxHighlighter>
+      ) : (
+        <code className={className} {...props}>
+          {children}
+        </code>
+      );
+    },
+    p({ children }: { children?: React.ReactNode }) {
+      return <span style={{ display: 'inline' }}>{children}</span>;
+    },
+  };
+
+  const RegularMarkdownComponents = {
+    code({ inline, className, children, ...props }: { inline?: boolean; className?: string; children?: React.ReactNode }) {
+      const match = /language-(\w+)/.exec(className || '');
+      return !inline && match ? (
+        <SyntaxHighlighter
+          style={vscDarkPlus}
+          language={match[1]}
+          PreTag="div"
+          {...props}
+        >
+          {String(children).replace(/\n$/, '')}
+        </SyntaxHighlighter>
+      ) : (
+        <code className={className} {...props}>
+          {children}
+        </code>
+      );
+    },
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -41,10 +93,10 @@ export default function ChatInterface() {
         sources: result.sources,
       };
       setMessages((prev) => [...prev, assistantMessage]);
-    } catch (err: any) {
+    } catch (err) {
       const errorMessage: Message = {
         role: 'assistant',
-        content: `Error: ${err.message}`,
+        content: `Error: ${err instanceof Error ? err.message : 'An unknown error occurred'}`,
       };
       setMessages((prev) => [...prev, errorMessage]);
     }
@@ -60,7 +112,15 @@ export default function ChatInterface() {
         ) : (
           messages.map((msg, idx) => (
             <div key={idx} className={`message ${msg.role}`}>
-              <div className="message-content">{msg.content}</div>
+              <div className="message-content">
+                {msg.role === 'assistant' ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={RegularMarkdownComponents}>
+                    {msg.content}
+                  </ReactMarkdown>
+                ) : (
+                  msg.content
+                )}
+              </div>
               {msg.sources && msg.sources.length > 0 && (
                 <div className="sources">
                   <strong>Sources:</strong>
@@ -86,7 +146,9 @@ export default function ChatInterface() {
         {isStreaming && (
           <div className="message assistant streaming">
             <div className="message-content">
-              {streamedContent || 'Thinking...'}
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>
+                {`${streamedContent || 'Thinking...'}`}
+              </ReactMarkdown>
               <span className="streaming-indicator">▋</span>
             </div>
           </div>

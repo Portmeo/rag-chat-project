@@ -89,4 +89,5 @@ export const RERANKER_CONFIG = {
   enabled: process.env.USE_RERANKER === 'true',
   retrievalTopK: parseInt(process.env.RERANKER_RETRIEVAL_TOP_K || '20'), // Retrieve Top 20-25 candidates
   finalTopK: parseInt(process.env.RERANKER_FINAL_TOP_K || '5'),           // Rerank to Top 5
+  minScore: parseFloat(process.env.MIN_RERANK_SCORE || '0.3'),            // Minimum score to show sources
 } as const;
