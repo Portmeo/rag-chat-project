@@ -1,0 +1,25 @@
+{
+  "name": "rag-chat-project",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run --filter '*' dev",
+    "dev:frontend": "bun run --filter frontend dev",
+    "dev:backend": "bun run --filter backend dev",
+    "build": "bun run --filter '*' build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f qdrant"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "RAG Chat Application with Ollama and Qdrant",
+  "dependencies": {
+    "sharp": "^0.34.5"
+  }
+}
