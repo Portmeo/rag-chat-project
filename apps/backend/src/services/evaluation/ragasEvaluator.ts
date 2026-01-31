@@ -1,13 +1,13 @@
-import { ChatOllama } from '@langchain/ollama';
+import { Ollama } from '@langchain/community/llms/ollama';
 import { queryRAG } from '../rag';
 import type { EvaluationTestCase, EvaluationResult } from './types';
 
 export class RAGASEvaluator {
-  private llm: ChatOllama;
+  private llm: Ollama;
 
   constructor() {
     // Use same LLM for evaluation but with lower temperature for consistency
-    this.llm = new ChatOllama({
+    this.llm = new Ollama({
       baseUrl: 'http://localhost:11434',
       model: 'llama3.1:8b',
       temperature: 0.1, // Low temperature for consistent scoring
@@ -89,8 +89,9 @@ Responde SOLO con un número decimal entre 0.0 y 1.0 (ej: 0.85)`;
 
     try {
       const response = await this.llm.invoke(prompt);
-      const content = response.content.toString().trim();
-      const score = this.extractScore(content);
+      // Ollama returns string directly, not an object with .content
+      const content = typeof response === 'string' ? response : response.toString();
+      const score = this.extractScore(content.trim());
       return score;
     } catch (error) {
       console.error('Error calculating faithfulness:', error);
@@ -118,8 +119,8 @@ Responde SOLO con un número decimal entre 0.0 y 1.0 (ej: 0.75)`;
 
     try {
       const response = await this.llm.invoke(prompt);
-      const content = response.content.toString().trim();
-      const score = this.extractScore(content);
+      const content = typeof response === 'string' ? response : response.toString();
+      const score = this.extractScore(content.trim());
       return score;
     } catch (error) {
       console.error('Error calculating answer relevancy:', error);
@@ -147,8 +148,8 @@ Responde SOLO con un número decimal entre 0.0 y 1.0 (ej: 0.60)`;
 
     try {
       const response = await this.llm.invoke(prompt);
-      const content = response.content.toString().trim();
-      const score = this.extractScore(content);
+      const content = typeof response === 'string' ? response : response.toString();
+      const score = this.extractScore(content.trim());
       return score;
     } catch (error) {
       console.error('Error calculating context precision:', error);

@@ -1,12 +1,36 @@
 import path from 'path';
+import { existsSync } from 'fs';
 import { RAGASEvaluator } from '../services/evaluation/ragasEvaluator';
 import { loadDataset, validateDataset } from '../services/evaluation/datasetLoader';
 import { generateReport, saveReport, printReportSummary } from '../services/evaluation/reportGenerator';
 
+// Find project root by looking for package.json
+function findProjectRoot(): string {
+  let currentDir = process.cwd();
+
+  // Try going up from apps/backend
+  const possibleRoots = [
+    path.resolve(currentDir, '../..'),  // From apps/backend
+    path.resolve(currentDir, '..'),     // From apps
+    currentDir,                          // Already at root
+  ];
+
+  for (const root of possibleRoots) {
+    const datasetPath = path.join(root, 'benchmark/evaluation/datasets/golden_qa.json');
+    if (existsSync(datasetPath)) {
+      return root;
+    }
+  }
+
+  // Fallback to 2 levels up
+  return path.resolve(currentDir, '../..');
+}
+
 export async function runEvaluation({ body, set }: any) {
   try {
+    const projectRoot = findProjectRoot();
     const {
-      datasetPath = path.join(process.cwd(), 'benchmark/evaluation/datasets/golden_qa.json'),
+      datasetPath = path.join(projectRoot, 'benchmark/evaluation/datasets/golden_qa.json'),
       saveResults = true,
     } = body || {};
 
@@ -35,7 +59,7 @@ export async function runEvaluation({ body, set }: any) {
     if (saveResults) {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
       const outputPath = path.join(
-        process.cwd(),
+        projectRoot,
         'benchmark/evaluation/results',
         `ragas_${timestamp}.json`
       );

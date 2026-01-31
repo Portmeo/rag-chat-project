@@ -1,6 +1,7 @@
 import { Ollama } from '@langchain/community/llms/ollama';
 import { OllamaEmbeddings } from '@langchain/community/embeddings/ollama';
 import { OLLAMA_CONFIG } from '../../config/ollama';
+import { InstructionPrefixedEmbeddings } from './instructionPrefixedEmbeddings';
 
 export const CHUNK_CONFIG = {
   SIZE: parseInt(process.env.CHUNK_SIZE || '1000'),
@@ -52,10 +53,24 @@ Pregunta original: {question}
 Devuelve solo las 3 preguntas alternativas, una por línea, sin numeración ni formato adicional.`,
 } as const;
 
-export const embeddings = new OllamaEmbeddings({
-  model: OLLAMA_CONFIG.embeddingsModel,
-  baseUrl: OLLAMA_CONFIG.baseUrl,
-});
+export const EMBEDDINGS_CONFIG = {
+  enabled: process.env.USE_INSTRUCTION_PREFIX === 'true',
+  queryPrefix: process.env.EMBEDDING_QUERY_PREFIX ||
+    'Represent this sentence for searching relevant passages: ',
+  documentPrefix: process.env.EMBEDDING_DOCUMENT_PREFIX || '',
+} as const;
+
+export const embeddings = EMBEDDINGS_CONFIG.enabled
+  ? new InstructionPrefixedEmbeddings({
+      model: OLLAMA_CONFIG.embeddingsModel,
+      baseUrl: OLLAMA_CONFIG.baseUrl,
+      queryPrefix: EMBEDDINGS_CONFIG.queryPrefix,
+      documentPrefix: EMBEDDINGS_CONFIG.documentPrefix,
+    })
+  : new OllamaEmbeddings({
+      model: OLLAMA_CONFIG.embeddingsModel,
+      baseUrl: OLLAMA_CONFIG.baseUrl,
+    });
 
 export const llm = new Ollama({
   model: OLLAMA_CONFIG.model,

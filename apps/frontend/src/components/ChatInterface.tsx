@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { queryRAG } from '../services/api';
+import { useStreamingRAG } from '../hooks/useStreamingRAG';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -10,23 +10,26 @@ interface Message {
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
+  const { isStreaming, streamedContent, sources, streamQuery, reset } = useStreamingRAG();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || loading) return;
+    if (!input.trim() || isStreaming) return;
 
     const userMessage: Message = { role: 'user', content: input };
     setMessages((prev) => [...prev, userMessage]);
+
+    const questionText = input;
     setInput('');
-    setLoading(true);
+    reset();
 
     try {
-      const result = await queryRAG(input);
+      await streamQuery(questionText);
+
       const assistantMessage: Message = {
         role: 'assistant',
-        content: result.answer,
-        sources: result.sources,
+        content: streamedContent,
+        sources: sources,
       };
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (err: any) {
@@ -35,8 +38,6 @@ export default function ChatInterface() {
         content: `Error: ${err.message}`,
       };
       setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -73,9 +74,12 @@ export default function ChatInterface() {
             </div>
           ))
         )}
-        {loading && (
-          <div className="message assistant loading">
-            <div className="message-content">Thinking...</div>
+        {isStreaming && (
+          <div className="message assistant streaming">
+            <div className="message-content">
+              {streamedContent || 'Thinking...'}
+              <span className="streaming-indicator">▋</span>
+            </div>
           </div>
         )}
       </div>
@@ -86,9 +90,9 @@ export default function ChatInterface() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask a question about your documents..."
-          disabled={loading}
+          disabled={isStreaming}
         />
-        <button type="submit" disabled={loading || !input.trim()}>
+        <button type="submit" disabled={isStreaming || !input.trim()}>
           Send
         </button>
       </form>
