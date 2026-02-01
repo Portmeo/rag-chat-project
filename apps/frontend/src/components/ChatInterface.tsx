@@ -190,18 +190,6 @@ export default function ChatInterface() {
 
   return (
     <div className="flex flex-col h-full max-w-5xl mx-auto w-full">
-      <div className="flex items-center justify-between p-4 border-b">
-        <h2 className="text-2xl font-bold">RAG Chat</h2>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowClearDialog(true)}
-          disabled={messages.length === 0 || isStreaming}
-        >
-          <Trash2 className="h-4 w-4 mr-2" />
-          Clear Chat
-        </Button>
-      </div>
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-4">
           {messages.length === 0 ? (
@@ -305,17 +293,27 @@ export default function ChatInterface() {
             disabled={isStreaming}
             className="flex-1 min-h-[60px] max-h-[200px]"
           />
-          {isStreaming ? (
-            <Button type="button" onClick={stopStreaming} variant="destructive">
-              <Square className="h-4 w-4 mr-2" />
-              Stop
+          <div className="flex flex-col gap-2">
+            {isStreaming ? (
+              <Button type="button" onClick={stopStreaming} variant="destructive" size="icon">
+                <Square className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button type="submit" disabled={!input.trim()} size="icon">
+                <Send className="h-4 w-4" />
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => setShowClearDialog(true)}
+              disabled={messages.length === 0 || isStreaming}
+              title="Clear chat"
+            >
+              <Trash2 className="h-4 w-4" />
             </Button>
-          ) : (
-            <Button type="submit" disabled={!input.trim()}>
-              <Send className="h-4 w-4 mr-2" />
-              Send
-            </Button>
-          )}
+          </div>
         </form>
         <p className="text-xs text-muted-foreground">
           Press Enter to send, Shift+Enter for new line, Ctrl+K to clear, Esc to stop

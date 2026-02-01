@@ -70,7 +70,7 @@ export default function Sidebar() {
             <Menu className="h-5 w-5" />
           </Button>
           {!isCollapsed && (
-            <div className="flex-1 ml-2 animate-in fade-in">
+            <div className="flex-1 ml-2 overflow-hidden">
               <h2 className="text-lg font-semibold whitespace-nowrap">RAG Chat</h2>
               <p className="text-sm text-muted-foreground whitespace-nowrap">Technical Docs</p>
             </div>
@@ -82,13 +82,13 @@ export default function Sidebar() {
             <Button
               variant={location.pathname === '/chat' ? 'default' : 'ghost'}
               className={cn(
-                'w-full justify-start',
+                'w-full justify-start transition-all',
                 isCollapsed && 'justify-center px-2'
               )}
             >
               <MessageSquare className="h-5 w-5 shrink-0" />
               {!isCollapsed && (
-                <span className="ml-2 transition-opacity duration-300 whitespace-nowrap animate-in fade-in">
+                <span className="ml-2 whitespace-nowrap">
                   Chat
                 </span>
               )}
@@ -98,13 +98,13 @@ export default function Sidebar() {
             <Button
               variant={location.pathname === '/upload' ? 'default' : 'ghost'}
               className={cn(
-                'w-full justify-start',
+                'w-full justify-start transition-all',
                 isCollapsed && 'justify-center px-2'
               )}
             >
               <Upload className="h-5 w-5 shrink-0" />
               {!isCollapsed && (
-                <span className="ml-2 transition-opacity duration-300 whitespace-nowrap animate-in fade-in">
+                <span className="ml-2 whitespace-nowrap">
                   Upload
                 </span>
               )}
