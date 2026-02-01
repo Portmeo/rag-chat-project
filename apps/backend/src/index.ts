@@ -26,11 +26,13 @@ const fastify = Fastify({
 
 // Register plugins
 await fastify.register(cors, {
-  origin: (origin, callback) => {
-    // Allow all origins in development
-    callback(null, true);
-  },
+  origin: true,
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Disposition'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204,
 });
 await fastify.register(multipart, {
   limits: {
