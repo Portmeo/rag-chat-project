@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getDocuments, clearDocuments } from '@/services/api';
+import { getDocuments, clearDocuments, deleteDocument } from '@/services/api';
 import FileUpload from '@/components/FileUpload';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -20,6 +20,9 @@ export default function UploadPage() {
   const [error, setError] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
   const [showClearDialog, setShowClearDialog] = useState(false);
+  const [deletingFile, setDeletingFile] = useState<string | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [fileToDelete, setFileToDelete] = useState<Document | null>(null);
 
   const fetchDocuments = async () => {
     try {
@@ -40,6 +43,22 @@ export default function UploadPage() {
 
   const handleFileUploaded = () => {
     fetchDocuments();
+  };
+
+  const handleDeleteDocument = async () => {
+    if (!fileToDelete) return;
+
+    try {
+      setDeletingFile(fileToDelete.filename);
+      await deleteDocument(fileToDelete.filename);
+      await fetchDocuments();
+      setShowDeleteDialog(false);
+      setFileToDelete(null);
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete document');
+    } finally {
+      setDeletingFile(null);
+    }
   };
 
   const handleClearAll = async () => {
@@ -119,6 +138,7 @@ export default function UploadPage() {
                     <TableRow>
                       <TableHead>Document</TableHead>
                       <TableHead>Upload Date</TableHead>
+                      <TableHead className="w-[100px]">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -137,6 +157,23 @@ export default function UploadPage() {
                         <TableCell className="text-muted-foreground">
                           {formatDate(doc.uploadDate)}
                         </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setFileToDelete(doc);
+                              setShowDeleteDialog(true);
+                            }}
+                            disabled={deletingFile === doc.filename}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            {deletingFile === doc.filename && (
+                              <span className="ml-2">Deleting...</span>
+                            )}
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -146,6 +183,36 @@ export default function UploadPage() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Document</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{fileToDelete?.filename}"? This will remove all chunks from the vector store.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeleteDialog(false);
+                setFileToDelete(null);
+              }}
+              disabled={deletingFile !== null}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteDocument}
+              disabled={deletingFile !== null}
+            >
+              {deletingFile ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>
         <DialogContent>

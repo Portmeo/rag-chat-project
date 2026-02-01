@@ -1,7 +1,7 @@
 import { unlink, writeFile, readFile, readdir } from 'fs/promises';
 import { join } from 'path';
 import { processDocument } from '../services/documentProcessor';
-import { addDocumentToVectorStore, listDocuments, clearBM25Cache } from '../services/rag';
+import { addDocumentToVectorStore, listDocuments, clearBM25Cache, deleteDocumentFromVectorStore } from '../services/rag';
 import { clearQdrant } from '../repositories/qdrantRepository';
 import { HTTP_STATUS } from '../shared/http';
 import { MESSAGES } from '../shared/messages';
@@ -67,6 +67,34 @@ export async function downloadDocument({ params, set }: any) {
     console.error('Error downloading document:', error);
     set.status = HTTP_STATUS.INTERNAL_SERVER_ERROR;
     return { error: 'Document not found' };
+  }
+}
+
+export async function deleteDocument({ params, set }: any) {
+  try {
+    const filename = decodeURIComponent(params.filename);
+
+    // Delete from Qdrant first (source of truth)
+    const result = await deleteDocumentFromVectorStore(filename);
+
+    // Delete file from disk
+    const filePath = join(DOCUMENTS_DIR, filename);
+    try {
+      await unlink(filePath);
+    } catch (error: any) {
+      // File might not exist on disk - just warn, don't fail
+      console.warn(`File not found on disk: ${filename}`);
+    }
+
+    return {
+      message: MESSAGES.DOCUMENT_DELETED,
+      filename,
+      chunksDeleted: result.chunksDeleted,
+    };
+  } catch (error: any) {
+    console.error(MESSAGES.ERROR_DELETING_DOC, error);
+    set.status = HTTP_STATUS.INTERNAL_SERVER_ERROR;
+    return { error: error.message };
   }
 }
 

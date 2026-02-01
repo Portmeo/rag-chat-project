@@ -1,7 +1,7 @@
 import { Elysia, t } from 'elysia';
 import { cors } from '@elysiajs/cors';
 import { initQdrant, qdrantClient, COLLECTION_NAME } from './repositories/qdrantRepository';
-import { uploadDocument, getDocuments, clearDocuments, downloadDocument } from './controllers/documentController';
+import { uploadDocument, getDocuments, clearDocuments, downloadDocument, deleteDocument } from './controllers/documentController';
 import { queryChat, queryChatStream } from './controllers/chatController';
 import { runEvaluation } from './controllers/evaluationController';
 import { STATUS, MESSAGES } from './shared/messages';
@@ -41,6 +41,7 @@ const app = new Elysia()
       file: t.File(),
     }),
   })
+  .delete('/api/documents/:filename', deleteDocument)
   .delete('/api/documents', clearDocuments)
   .post('/api/chat/query', queryChat, {
     body: t.Object({

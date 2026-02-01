@@ -328,3 +328,37 @@ export async function clearBM25Cache(): Promise<void> {
   bm25RetrieverCache = null;
   console.log('🗑️  BM25 cache cleared');
 }
+
+export async function deleteDocumentFromVectorStore(filename: string): Promise<{ success: boolean; chunksDeleted: number }> {
+  try {
+    const collectionExists = await checkCollectionExists();
+
+    if (!collectionExists) {
+      return { success: true, chunksDeleted: 0 };
+    }
+
+    // Delete all chunks with matching filename
+    const deleteResult = await qdrantClient.delete(COLLECTION_NAME, {
+      filter: {
+        must: [
+          {
+            key: 'metadata.filename',
+            match: { value: filename },
+          },
+        ],
+      },
+    });
+
+    const chunksDeleted = deleteResult.operation_id ? deleteResult.operation_id : 0;
+
+    console.log(`🗑️  Deleted ${chunksDeleted} chunks for file: ${filename}`);
+
+    // Rebuild BM25 cache after deletion
+    await rebuildBM25Cache();
+
+    return { success: true, chunksDeleted: typeof chunksDeleted === 'number' ? chunksDeleted : 0 };
+  } catch (error: any) {
+    console.error(`Error deleting document from vector store:`, error);
+    throw new Error(`Failed to delete document from vector store: ${error.message}`);
+  }
+}
