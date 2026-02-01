@@ -51,25 +51,28 @@ export default function Sidebar() {
 
       <aside
         className={cn(
-          'fixed md:relative h-full bg-card border-r border-border z-50 transition-all duration-300',
+          'fixed md:relative h-full bg-card border-r border-border z-50 transition-all duration-300 overflow-hidden',
           'flex flex-col',
           isCollapsed ? 'w-16' : 'w-64',
           isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         )}
       >
-        <div className="flex items-center justify-between p-4 border-b border-border">
+        <div className={cn(
+          "flex items-center border-b border-border transition-all duration-300",
+          isCollapsed ? "justify-center p-2" : "justify-between p-4"
+        )}>
           <Button
             variant="ghost"
             size="icon"
             onClick={toggleSidebar}
-            className="hidden md:flex"
+            className="hidden md:flex shrink-0"
           >
             <Menu className="h-5 w-5" />
           </Button>
           {!isCollapsed && (
-            <div className="flex-1 ml-2">
-              <h2 className="text-lg font-semibold">RAG Chat</h2>
-              <p className="text-sm text-muted-foreground">Technical Docs</p>
+            <div className="flex-1 ml-2 animate-in fade-in">
+              <h2 className="text-lg font-semibold whitespace-nowrap">RAG Chat</h2>
+              <p className="text-sm text-muted-foreground whitespace-nowrap">Technical Docs</p>
             </div>
           )}
         </div>
@@ -83,8 +86,12 @@ export default function Sidebar() {
                 isCollapsed && 'justify-center px-2'
               )}
             >
-              <MessageSquare className="h-5 w-5" />
-              {!isCollapsed && <span className="ml-2">Chat</span>}
+              <MessageSquare className="h-5 w-5 shrink-0" />
+              {!isCollapsed && (
+                <span className="ml-2 transition-opacity duration-300 whitespace-nowrap animate-in fade-in">
+                  Chat
+                </span>
+              )}
             </Button>
           </Link>
           <Link to="/upload">
@@ -95,8 +102,12 @@ export default function Sidebar() {
                 isCollapsed && 'justify-center px-2'
               )}
             >
-              <Upload className="h-5 w-5" />
-              {!isCollapsed && <span className="ml-2">Upload</span>}
+              <Upload className="h-5 w-5 shrink-0" />
+              {!isCollapsed && (
+                <span className="ml-2 transition-opacity duration-300 whitespace-nowrap animate-in fade-in">
+                  Upload
+                </span>
+              )}
             </Button>
           </Link>
         </nav>

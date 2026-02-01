@@ -8,7 +8,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Layout />}>
-          <Route index element={<Navigate to="/upload" replace />} />
+          <Route index element={<Navigate to="/chat" replace />} />
           <Route path="upload" element={<UploadPage />} />
           <Route path="chat" element={<ChatPage />} />
         </Route>

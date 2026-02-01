@@ -135,25 +135,19 @@ export default function ChatInterface() {
                   msg.role === 'user' ? 'justify-end' : 'justify-start'
                 )}
               >
-                <Card
-                  className={cn(
-                    'max-w-[85%]',
-                    msg.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted'
-                  )}
-                >
-                  <CardContent>
-                    {msg.role === 'assistant' ? (
-                      <div className="prose prose-sm max-w-none dark:prose-invert">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={RegularMarkdownComponents}>
-                          {msg.content}
-                        </ReactMarkdown>
-                      </div>
-                    ) : (
+                {msg.role === 'user' ? (
+                  <Card className="max-w-[85%] bg-primary text-primary-foreground">
+                    <CardContent>
                       <p className="whitespace-pre-wrap">{msg.content}</p>
-                    )}
-
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="max-w-[85%]">
+                    <div className="prose prose-sm max-w-none dark:prose-invert">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={RegularMarkdownComponents}>
+                        {msg.content}
+                      </ReactMarkdown>
+                    </div>
                     {msg.sources && msg.sources.length > 0 && (
                       <div className="mt-4 pt-3 border-t border-border">
                         <p className="text-sm font-semibold mb-2">Sources:</p>
@@ -175,29 +169,25 @@ export default function ChatInterface() {
                         </div>
                       </div>
                     )}
-                  </CardContent>
-                </Card>
+                  </div>
+                )}
               </div>
             ))
           )}
 
           {isStreaming && (
             <div className="flex justify-start">
-              <Card className="max-w-[85%] bg-muted">
-                <CardContent>
-                  <div className="prose prose-sm max-w-none dark:prose-invert">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>
-                      {`${streamedContent || 'Thinking...'}`}
-                    </ReactMarkdown>
-                    <span
-                      className="inline-block w-2 h-5 bg-current ml-1"
-                      style={{ animation: 'blink 1s infinite' }}
-                    >
-                      ▋
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="max-w-[85%]">
+                <div className="prose prose-sm max-w-none dark:prose-invert">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>
+                    {`${streamedContent || 'Thinking...'}`}
+                  </ReactMarkdown>
+                  <span
+                    className="inline-block w-0.5 h-4 bg-current ml-1 align-middle"
+                    style={{ animation: 'blink 1s infinite' }}
+                  />
+                </div>
+              </div>
             </div>
           )}
           <div ref={messagesEndRef} />
