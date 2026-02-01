@@ -5,6 +5,9 @@
  * Runs in isolated thread to avoid blocking main event loop.
  */
 
+// Disable sharp BEFORE importing transformers
+process.env.TRANSFORMERS_DISABLE_SHARP = '1';
+
 import { pipeline, env } from '@xenova/transformers';
 import { parentPort } from 'worker_threads';
 

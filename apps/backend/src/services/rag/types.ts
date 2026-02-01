@@ -1,10 +1,15 @@
-import type { TechnicalMetadata } from '../documentProcessor/templates';
+import type { TechnicalMetadata } from '../documentProcessor/templates/types';
 
+export type { TechnicalMetadata };
 export type DocumentMetadata = TechnicalMetadata;
+
+export interface RAGSource extends DocumentMetadata {
+  rerankScore?: number; // Rerank score if available
+}
 
 export interface RAGResponse {
   answer: string;
-  sources: DocumentMetadata[];
+  sources: RAGSource[];
 }
 
 export interface AddDocumentResult {

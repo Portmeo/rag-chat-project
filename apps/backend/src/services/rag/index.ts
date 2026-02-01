@@ -4,17 +4,76 @@ import { BaseRetriever } from 'langchain/schema/retriever';
 import { BM25Retriever } from './bm25Retriever';
 import { EnsembleRetriever } from './ensembleRetriever';
 import { qdrantClient, COLLECTION_NAME } from '../../repositories/qdrantRepository';
-import { embeddings, llm, MESSAGES, SIMILARITY_SEARCH_CONFIG, TEXT_SEPARATORS, BM25_CONFIG, RERANKER_CONFIG } from './config';
+import { embeddings, llm, MESSAGES, SIMILARITY_SEARCH_CONFIG, TEXT_SEPARATORS, BM25_CONFIG, RERANKER_CONFIG, PARENT_RETRIEVER_CONFIG } from './config';
 import { createTextSplitter, buildPrompt, checkCollectionExists, getFileExtension, generateMultipleQueries, getAllDocumentsFromQdrant, limitHistory } from './helpers';
 import { extractTechnicalMetadata } from '../documentProcessor/templates';
-import type { DocumentMetadata, RAGResponse, AddDocumentResult, ConversationMessage } from './types';
+import type { TechnicalMetadata } from '../documentProcessor/templates/types';
+import type { DocumentMetadata, RAGResponse, RAGSource, AddDocumentResult, ConversationMessage } from './types';
 import { rerankDocuments } from './reranker';
+import { createParentChildChunks } from './parentChildChunker';
 
 // ============================================================================
 // CACHE BM25
 // ============================================================================
 
 let bm25RetrieverCache: BM25Retriever | null = null;
+
+// ============================================================================
+// PARENT CONTENT CACHE
+// ============================================================================
+
+/**
+ * Cache de contenido de parent chunks
+ * Map<parent_doc_id, parent_content>
+ */
+const parentContentCache = new Map<string, string>();
+
+/**
+ * Rebuild parent cache from Qdrant
+ * Se ejecuta al inicio del servidor o cuando se limpia la caché
+ */
+async function rebuildParentCache(): Promise<void> {
+  if (!PARENT_RETRIEVER_CONFIG.enabled) {
+    return;
+  }
+
+  console.log('🔄 Rebuilding parent content cache...');
+
+  const allDocuments = await getAllDocumentsFromQdrant();
+
+  // Agrupar children por parent_doc_id
+  const parentGroups = new Map<string, Document[]>();
+
+  for (const doc of allDocuments) {
+    const meta = doc.metadata as TechnicalMetadata;
+
+    if (meta.parent_child?.parent_doc_id) {
+      const parentId = meta.parent_child.parent_doc_id;
+
+      if (!parentGroups.has(parentId)) {
+        parentGroups.set(parentId, []);
+      }
+
+      parentGroups.get(parentId)!.push(doc);
+    }
+  }
+
+  // Reconstruir parent content concatenando children ordenados
+  for (const [parentId, children] of parentGroups.entries()) {
+    // Ordenar por child_index
+    children.sort((a, b) => {
+      const indexA = (a.metadata as TechnicalMetadata).parent_child?.child_index || 0;
+      const indexB = (b.metadata as TechnicalMetadata).parent_child?.child_index || 0;
+      return indexA - indexB;
+    });
+
+    // Concatenar contenido (simple approach)
+    const parentContent = children.map(c => c.pageContent).join('');
+    parentContentCache.set(parentId, parentContent);
+  }
+
+  console.log(`✅ Parent cache rebuilt with ${parentContentCache.size} entries`);
+}
 
 async function rebuildBM25Cache(): Promise<void> {
   if (!BM25_CONFIG.enabled) {
@@ -36,6 +95,95 @@ async function rebuildBM25Cache(): Promise<void> {
     documents: allDocuments,
     k: SIMILARITY_SEARCH_CONFIG.MAX_RESULTS,
   });
+
+  // Rebuild parent cache as well
+  await rebuildParentCache();
+}
+
+/**
+ * Resuelve child chunks a parent chunks
+ * Recibe: Array de Documents (child chunks)
+ * Retorna: Array de Documents (parent chunks)
+ */
+function resolveParentChunks(childDocs: Document[]): Document[] {
+  if (!PARENT_RETRIEVER_CONFIG.enabled) {
+    return childDocs; // Si no está habilitado, retornar tal cual
+  }
+
+  // 1. Agrupar por parent_doc_id
+  const parentGroups = new Map<string, Document[]>();
+
+  for (const doc of childDocs) {
+    const meta = doc.metadata as TechnicalMetadata;
+
+    if (!meta.parent_child?.parent_doc_id) {
+      // No es un child chunk, mantener tal cual
+      parentGroups.set(`no_parent_${Math.random()}`, [doc]);
+      continue;
+    }
+
+    const parentId = meta.parent_child.parent_doc_id;
+
+    if (!parentGroups.has(parentId)) {
+      parentGroups.set(parentId, []);
+    }
+
+    parentGroups.get(parentId)!.push(doc);
+  }
+
+  // 2. Para cada parent, crear Document con contenido completo
+  const parentDocs: Document[] = [];
+
+  for (const [parentId, children] of parentGroups.entries()) {
+    if (parentId.startsWith('no_parent_')) {
+      parentDocs.push(children[0]);
+      continue;
+    }
+
+    // Obtener contenido del parent desde cache
+    const parentContent = parentContentCache.get(parentId);
+
+    if (!parentContent) {
+      console.warn(`⚠️ Parent content not found for ${parentId}, using children`);
+      // Fallback: concatenar children
+      parentDocs.push(...children);
+      continue;
+    }
+
+    // Crear Document con contenido del parent
+    // Mantener metadata del primer child (tiene mejores metadatos técnicos)
+    const firstChild = children[0];
+    const parentMeta = { ...firstChild.metadata } as TechnicalMetadata;
+
+    // Actualizar parent_child metadata
+    if (parentMeta.parent_child) {
+      parentMeta.parent_child.is_parent = true;
+      parentMeta.parent_child.parent_content = parentContent;
+    }
+
+    // Preservar rerank score del mejor child
+    const bestChild = children.reduce((best, current) => {
+      const bestScore = (best as any).rerankScore || 0;
+      const currentScore = (current as any).rerankScore || 0;
+      return currentScore > bestScore ? current : best;
+    }, children[0]);
+
+    const parentDoc: any = {
+      pageContent: parentContent,
+      metadata: parentMeta,
+    };
+
+    // Transferir rerank score si existe
+    if ((bestChild as any).rerankScore !== undefined) {
+      parentDoc.rerankScore = (bestChild as any).rerankScore;
+    }
+
+    parentDocs.push(parentDoc);
+  }
+
+  console.log(`📄 Resolved ${childDocs.length} children to ${parentDocs.length} parents`);
+
+  return parentDocs;
 }
 
 export async function addDocumentToVectorStore(
@@ -44,19 +192,43 @@ export async function addDocumentToVectorStore(
   uploadDate: string
 ): Promise<AddDocumentResult> {
   const extension = getFileExtension(filename);
-  const textSplitter = createTextSplitter(extension);
 
-  const chunks = await textSplitter.splitText(text);
+  let docs: Document[];
 
-  const docs: Document[] = chunks.map((chunk, index) => {
-    const metadata = extractTechnicalMetadata(chunk, filename, uploadDate, index);
-    metadata.total_chunks = chunks.length;
+  if (PARENT_RETRIEVER_CONFIG.enabled) {
+    // Parent Document Retriever: Indexar solo children
+    const { children, parentMap } = await createParentChildChunks(
+      text,
+      filename,
+      uploadDate,
+      extension
+    );
 
-    return {
-      pageContent: chunk,
-      metadata,
-    };
-  });
+    docs = children;
+
+    // Guardar parent map en cache global
+    for (const [parentDocId, parentContent] of parentMap.entries()) {
+      parentContentCache.set(parentDocId, parentContent);
+    }
+
+    console.log(`📦 Created ${docs.length} child chunks from ${parentMap.size} parent chunks`);
+  } else {
+    // Modo clásico: chunks únicos
+    const textSplitter = createTextSplitter(extension);
+    const chunks = await textSplitter.splitText(text);
+
+    docs = chunks.map((chunk, index) => {
+      const metadata = extractTechnicalMetadata(chunk, filename, uploadDate, index);
+      metadata.total_chunks = chunks.length;
+
+      return {
+        pageContent: chunk,
+        metadata,
+      };
+    });
+
+    console.log(`📦 Created ${docs.length} chunks (classic mode)`);
+  }
 
   await QdrantVectorStore.fromDocuments(docs, embeddings, {
     client: qdrantClient,
@@ -68,8 +240,16 @@ export async function addDocumentToVectorStore(
   return { success: true, chunksCount: docs.length };
 }
 
+// Convert docs to RAG sources
+function docsToSources(docs: Document[]): RAGSource[] {
+  return docs.map(doc => ({
+    ...(doc.metadata as DocumentMetadata),
+    rerankScore: (doc as any).rerankScore
+  }));
+}
+
 // Filter sources based on rerank score threshold
-function filterSourcesByRelevance(relevantDocs: Document[]): DocumentMetadata[] {
+function filterSourcesByRelevance(relevantDocs: Document[]): RAGSource[] {
   if (!RERANKER_CONFIG.enabled) {
     // If reranker is disabled, don't show sources to prevent weak matches
     console.log(`\n📊 Reranker disabled - sources hidden to prevent showing weak matches`);
@@ -84,7 +264,7 @@ function filterSourcesByRelevance(relevantDocs: Document[]): DocumentMetadata[] 
 
   console.log(`\n📊 Sources filtered by rerank score: ${relevantDocs.length} → ${filtered.length} (threshold: ${RERANKER_CONFIG.minScore})`);
 
-  return filtered.map(doc => doc.metadata as DocumentMetadata);
+  return docsToSources(filtered);
 }
 
 // Shared function to retrieve relevant documents
@@ -92,6 +272,7 @@ async function retrieveRelevantDocuments(
   question: string,
   history: ConversationMessage[] = []
 ) {
+  const startTime = Date.now();
   const collectionExists = await checkCollectionExists();
 
   if (!collectionExists) {
@@ -137,6 +318,7 @@ async function retrieveRelevantDocuments(
     retriever = vectorRetriever;
   }
 
+
   const queries = await generateMultipleQueries(question);
   console.log('Multi-query generated:', queries);
 
@@ -163,10 +345,17 @@ async function retrieveRelevantDocuments(
 
   console.log(`\n📄 Retrieved ${candidateDocs.length} candidate documents`);
 
+  // NUEVO: Resolver children a parents ANTES del reranking
+  if (PARENT_RETRIEVER_CONFIG.enabled) {
+    console.log(`\n🔄 Resolving ${candidateDocs.length} child chunks to parent chunks...`);
+    candidateDocs = resolveParentChunks(candidateDocs);
+  }
+
   // Apply reranking if enabled
   let relevantDocs: Document[];
 
   if (RERANKER_CONFIG.enabled) {
+
     console.log(`\n🔄 Reranking ${candidateDocs.length} documents to Top ${RERANKER_CONFIG.finalTopK}...`);
     try {
       relevantDocs = await rerankDocuments(question, candidateDocs, RERANKER_CONFIG.finalTopK);
@@ -175,6 +364,7 @@ async function retrieveRelevantDocuments(
       console.error('⚠️  Reranking failed, falling back to original retrieval:', error);
       relevantDocs = candidateDocs.slice(0, SIMILARITY_SEARCH_CONFIG.MAX_RESULTS);
     }
+
   } else {
     console.log('⏭️  Reranker disabled, using retrieval results directly');
     relevantDocs = candidateDocs;
@@ -211,11 +401,16 @@ async function retrieveRelevantDocuments(
   };
 }
 
+export interface QueryRAGOptions {
+  history?: ConversationMessage[];
+}
+
 export async function queryRAG(
   question: string,
-  history: ConversationMessage[] = []
+  options: QueryRAGOptions = {}
 ): Promise<RAGResponse> {
   try {
+    const { history = [] } = options;
     const limitedHistory = limitHistory(history);
     const retrieved = await retrieveRelevantDocuments(question, limitedHistory);
 
@@ -229,6 +424,7 @@ export async function queryRAG(
     const { relevantDocs, prompt } = retrieved;
 
     const answer = await llm.invoke(prompt);
+
     console.log('\n💬 LLM answer:', answer);
 
     return {
@@ -265,9 +461,9 @@ export async function* queryRAGStream(
     const stream = await llm.stream(prompt);
 
     for await (const chunk of stream) {
-      const content = chunk.content || chunk;
+      const content = typeof chunk === 'string' ? chunk : chunk.content || chunk;
       if (content) {
-        yield { event: 'token', data: { chunk: content } };
+        yield { event: 'token', data: { chunk: String(content) } };
       }
     }
 

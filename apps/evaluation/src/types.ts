@@ -1,11 +1,17 @@
 export interface EvaluationTestCase {
   id: string;
-  category: 'Básica' | 'Conceptual' | 'Relación' | 'Proceso' | 'Comparativa';
+  category: 'Básica' | 'Conceptual' | 'Relación' | 'Proceso' | 'Comparativa' | 'Edge Cases' | 'Multi-Hop';
+  sub_category?: string;
   question: string;
   ground_truth_answer: string;
   expected_contexts: string[];
   must_contain_keywords: string[];
   difficulty: 'easy' | 'medium' | 'hard';
+
+  // V2 fields
+  requires_multi_hop?: boolean;
+  expected_hallucination_risk?: 'low' | 'medium' | 'high';
+  expected_behavior?: string;
 }
 
 export interface EvaluationResult {
@@ -15,11 +21,31 @@ export interface EvaluationResult {
   retrieved_contexts: string[];
   retrieved_sources: string[];
 
-  // RAGAS Metrics
+  // Core RAGAS Metrics
   faithfulness_score: number;
   answer_relevancy_score: number;
   context_precision_score: number;
   context_recall_score: number;
+
+  // Additional RAGAS Metrics
+  context_relevancy_score?: number;
+  context_entity_recall_score?: number;
+  answer_correctness_score?: number;
+  answer_similarity_score?: number;
+  answer_completeness_score?: number;
+  context_noise_ratio?: number;
+
+  // Hallucination Detection
+  hallucination_score?: number;
+  hallucinations_detected?: string[];
+
+  // Performance Metrics
+  retrieval_latency_ms?: number;
+  reranking_latency_ms?: number;
+  generation_latency_ms?: number;
+  num_retrieved_docs?: number;
+  num_final_docs?: number;
+  avg_rerank_score?: number;
 
   latency_ms: number;
   timestamp: string;

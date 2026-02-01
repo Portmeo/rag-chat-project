@@ -1,0 +1,382 @@
+{
+  "metadata": {
+    "timestamp": "2026-02-01T08:51:01.321Z",
+    "dataset": "golden_qa_v2.json",
+    "total_cases": 5,
+    "config": {
+      "bm25_weight": 0.7,
+      "vector_weight": 0.3,
+      "use_reranker": true,
+      "reranker_retrieval_top_k": 20,
+      "reranker_final_top_k": 5,
+      "min_rerank_score": 0.3,
+      "chunk_size": 1000,
+      "chunk_overlap": 200
+    }
+  },
+  "summary": {
+    "total_cases": 5,
+    "successful": 5,
+    "failed": 0,
+    "avg_faithfulness": 0.6599999999999999,
+    "avg_answer_relevancy": 0.82,
+    "avg_context_precision": 0.65,
+    "avg_context_recall": 1,
+    "avg_latency_ms": 58651,
+    "avg_context_relevancy": 0.38,
+    "avg_answer_correctness": 0.7327461569192528,
+    "avg_hallucination_score": 0.44000000000000006,
+    "avg_retrieval_latency_ms": 3885.6,
+    "avg_reranking_latency_ms": 86.8,
+    "avg_generation_latency_ms": 9329.6
+  },
+  "by_category": {
+    "Básica": {
+      "count": 5,
+      "avg_faithfulness": 0.6599999999999999,
+      "avg_answer_relevancy": 0.82,
+      "avg_context_precision": 0.65,
+      "avg_context_recall": 1
+    }
+  },
+  "error_patterns": [
+    {
+      "pattern_name": "Alucinaciones en categorías Basica",
+      "frequency": 5,
+      "affected_categories": [
+        "Basica"
+      ],
+      "affected_test_cases": [
+        "basica_1",
+        "basica_2",
+        "basica_3",
+        "basica_4",
+        "basica_5"
+      ],
+      "common_characteristics": [
+        "Faithfulness < 0.7",
+        "Información no verificable en contextos"
+      ],
+      "recommended_action": "Mejorar prompt del LLM con instrucciones más estrictas sobre usar SOLO información de contextos. Considerar temperatura 0.0.",
+      "severity": "critical"
+    },
+    {
+      "pattern_name": "Latencia alta sistemática",
+      "frequency": 5,
+      "affected_categories": [
+        "Basica"
+      ],
+      "affected_test_cases": [
+        "basica_1",
+        "basica_2",
+        "basica_3",
+        "basica_4",
+        "basica_5"
+      ],
+      "common_characteristics": [
+        "Latency > 20s",
+        "Procesamiento lento"
+      ],
+      "recommended_action": "Optimizar reranking (considerar cache), reducir número de multi-queries, o usar modelo LLM más rápido.",
+      "severity": "medium"
+    }
+  ],
+  "recommendations": {
+    "high_priority": [
+      "Alucinaciones en categorías Basica (5 casos): Mejorar prompt del LLM con instrucciones más estrictas sobre usar SOLO información de contextos. Considerar temperatura 0.0."
+    ],
+    "medium_priority": [
+      "Latencia alta sistemática (5 casos): Optimizar reranking (considerar cache), reducir número de multi-queries, o usar modelo LLM más rápido."
+    ],
+    "low_priority": []
+  },
+  "detailed_results": [
+    {
+      "test_case_id": "basica_1",
+      "question": "¿Qué versiones de Angular e Ionic se usan en el proyecto?",
+      "generated_answer": "Según las dependencias principales proporcionadas en el contexto, se utiliza:\n\n- **Angular 15**: según la línea `\"@angular/core\": \"^15.2.8\"` del archivo `package.json`.\n- **Ionic 6.7.5**: según la línea `\"@ionic/angular\": \"^6.7.5\"` del mismo archivo.\n\nNo encuentro información específica sobre la versión de Ionic utilizada en el contexto, pero sí está claro que se utiliza Angular 15.",
+      "retrieved_contexts": [
+        "## Arquitectura de Microfrontends\n\nEl proyecto implementa una **arquitectura de microfrontends** utilizando Web Components personalizados. Cada microfrontend es un paquete npm independiente que se integra dinámicamente.\n\n### Microfrontends Activos (11 total)\n\n| Paquete | Funcionalidad |\n|---------|---------------|\n| `@wc-sca/citation-hub` | Centro de citas médicas |\n| `@wc-sca/medical-dashboard` | Dashboard médico completo |\n| `@wc-sca/health-diary` | Diario personal de salud |\n| `@wc-sca/policy-management` | Gestión de pólizas |\n| `@wc-sca/virtual-card` | Tarjeta sanitaria virtual |\n| `@wc-sca/dhs-refund` | Sistema de reembolsos |\n\n### Integración de Web Components\n\n```typescript\n// Ejemplo de integración de un microfrontend\nimport '@wc-sca/citation-hub';\n\n// En el template HTML\n<citation-hub\n  [userId]=\"currentUser.id\"\n  [locale]=\"'es-ES'\"\n  (appointmentBooked)=\"handleAppointmentBooked($event)\">\n</citation-hub>\n```",
+        "## Versionado\n\n### Bump Version\n\n```bash\n# Incrementar versión\nnpm version patch  # 5.0.0 → 5.0.1\nnpm version minor  # 5.0.0 → 5.1.0\nnpm version major  # 5.0.0 → 6.0.0\n\n# Actualizar también en Capacitor\n# capacitor.config.ts y archivos nativos\n```\n\n### Changelog\n\n```markdown\n# Changelog\n\n## [5.0.0] - 2026-01-31\n\n### Added\n- Nueva funcionalidad de telemedicina\n- Integración con Apple Health\n\n### Changed\n- Migración a Angular 15\n- Actualización de diseño del dashboard\n\n### Fixed\n- Corrección de bug en el proceso de login\n- Fix de crash en iOS 13\n```\n\n## Best Practices\n\n1. **Nunca commitear secrets** en el repositorio\n2. **Usar environment variables** para configuración sensible\n3. **Automatizar todo** lo posible\n4. **Tests en CI** antes de merge\n5. **Code review** obligatorio\n6. **Semantic versioning** estricto\n7. **Changelog** actualizado\n8. **Rollback plan** documentado",
+        "## Dependencias Principales\n\n```json\n{\n  \"@ionic/angular\": \"^6.7.5\",\n  \"@angular/core\": \"^15.2.8\",\n  \"@ngrx/store\": \"^15.4.0\",\n  \"@capacitor/core\": \"^6.1.2\",\n  \"rxjs\": \"^7.8.0\"\n}\n```\n\n## Performance\n\n### Métricas de Build\n\n- **Bundle inicial:** ~2.5 MB (gzipped)\n- **Tiempo de build (prod):** ~45 segundos\n- **Lazy chunks:** 15+ módulos bajo demanda\n\n### Optimizaciones Aplicadas\n\n- Lazy loading de módulos\n- Tree shaking automático\n- AOT compilation\n- Preloading strategy personalizada\n- Service Workers para cache",
+        "## Web Components en el Proyecto\n\n### Listado de Microfrontends Activos\n\n| Paquete npm | Función | Versión |\n|-------------|---------|---------|\n| `@wc-sca/citation-hub` | Centro de citas médicas | 2.5.1 |\n| `@wc-sca/medical-dashboard` | Dashboard médico completo | 3.1.0 |\n| `@wc-sca/health-diary` | Diario personal de salud | 1.8.2 |\n| `@wc-sca/policy-management` | Gestión de pólizas de seguros | 2.2.4 |\n| `@wc-sca/virtual-card` | Tarjeta sanitaria virtual | 1.5.0 |\n| `@wc-sca/dhs-refund` | Sistema de reembolsos DHS | 2.0.1 |\n| `@wc-sca/compauthorizationrequest` | Solicitudes de autorización | 1.9.3 |\n| `@wc-sca/contactability` | Sistema de contactabilidad | 1.4.0 |\n| `@wc-sca/dhs-card-duplication` | Duplicación de tarjetas DHS | 1.2.1 |\n| `@wc-sca/dhs-receipts-management` | Gestión de recibos DHS | 1.6.0 |\n| `@wc-sca/multirolcustomerregister` | Registro multirol de usuarios | 2.3.0 |"
+      ],
+      "retrieved_sources": [
+        "01-arquitectura-general.md",
+        "07-ci-cd-deployment.md",
+        "01-arquitectura-general.md",
+        "03-microfrontends-web-components.md"
+      ],
+      "faithfulness_score": 0.9,
+      "answer_relevancy_score": 0.9,
+      "context_precision_score": 0.5,
+      "context_recall_score": 1,
+      "context_relevancy_score": 0.5,
+      "answer_correctness_score": 0.7486016066941372,
+      "answer_similarity_score": 0.1081081081081081,
+      "answer_completeness_score": 0.9,
+      "hallucination_score": 0.6,
+      "hallucinations_detected": [
+        "La afirmación de que se utiliza Ionic 6.7.5 no está soportada por el contexto, ya que solo se menciona la versión de Angular.",
+        "No hay información específica sobre la versión de Capacitor utilizada en el contexto, pero sí se menciona que se debe actualizar también en Capacitor después de hacer un bump de versión."
+      ],
+      "retrieval_latency_ms": 6146,
+      "reranking_latency_ms": 119,
+      "generation_latency_ms": 11243,
+      "num_retrieved_docs": 20,
+      "num_final_docs": 4,
+      "latency_ms": 66196,
+      "timestamp": "2026-02-01T08:47:14.235Z",
+      "error_analysis": {
+        "error_types": [
+          "hallucination"
+        ],
+        "error_description": "Respuesta contiene alucinaciones (información no soportada por contextos). Alucinaciones detectadas: La afirmación de que se utiliza Ionic 6.7.5 no está soportada por el contexto, ya que solo se menciona la versión de Angular.; No hay información específica sobre la versión de Capacitor utilizada en el contexto, pero sí se menciona que se debe actualizar también en Capacitor después de hacer un bump de versión..",
+        "suggested_fix": "Revisar prompt del LLM para enfatizar uso estricto de contextos. Reducir temperatura a 0.0.",
+        "severity": "critical"
+      }
+    },
+    {
+      "test_case_id": "basica_2",
+      "question": "¿Qué versión de Angular se usa?",
+      "generated_answer": "No encuentro esa información en los documentos proporcionados. El documento menciona que NgRx es una biblioteca utilizada para implementar el patrón Flux en Angular, pero no especifica la versión de Angular.",
+      "retrieved_contexts": [
+        "# Gestión de Estado con NgRx\n\n## Introducción\n\nAsyb-Portal utiliza **NgRx** (versión 15.4.0) para implementar el patrón **Flux** en Angular. NgRx proporciona gestión de estado centralizada, predecible y reactiva usando RxJS.\n\n### ¿Por qué NgRx?\n\n- **Estado Centralizado:** Una única fuente de verdad\n- **Flujo Unidireccional:** Predecible y fácil de debuggear\n- **Trazabilidad:** Historial completo de cambios de estado\n- **DevTools:** Redux DevTools para debugging\n- **Side Effects Management:** Gestión elegante de llamadas asíncronas",
+        "## Web Components en el Proyecto\n\n### Listado de Microfrontends Activos\n\n| Paquete npm | Función | Versión |\n|-------------|---------|---------|\n| `@wc-sca/citation-hub` | Centro de citas médicas | 2.5.1 |\n| `@wc-sca/medical-dashboard` | Dashboard médico completo | 3.1.0 |\n| `@wc-sca/health-diary` | Diario personal de salud | 1.8.2 |\n| `@wc-sca/policy-management` | Gestión de pólizas de seguros | 2.2.4 |\n| `@wc-sca/virtual-card` | Tarjeta sanitaria virtual | 1.5.0 |\n| `@wc-sca/dhs-refund` | Sistema de reembolsos DHS | 2.0.1 |\n| `@wc-sca/compauthorizationrequest` | Solicitudes de autorización | 1.9.3 |\n| `@wc-sca/contactability` | Sistema de contactabilidad | 1.4.0 |\n| `@wc-sca/dhs-card-duplication` | Duplicación de tarjetas DHS | 1.2.1 |\n| `@wc-sca/dhs-receipts-management` | Gestión de recibos DHS | 1.6.0 |\n| `@wc-sca/multirolcustomerregister` | Registro multirol de usuarios | 2.3.0 |",
+        "## Configuración en angular.json\n\n### Assets de Web Components\n\nLos Web Components suelen tener assets (imágenes, fonts, estilos). Configurar en `angular.json`:\n\n```json\n{\n  \"projects\": {\n    \"asyb-portal\": {\n      \"architect\": {\n        \"build\": {\n          \"options\": {\n            \"assets\": [\n              \"src/favicon.ico\",\n              \"src/assets\",\n              {\n                \"glob\": \"**/*\",\n                \"input\": \"node_modules/@wc-sca/citation-hub/dist/assets\",\n                \"output\": \"/assets/wc/citation-hub\"\n              },\n              {\n                \"glob\": \"**/*\",\n                \"input\": \"node_modules/@wc-sca/medical-dashboard/dist/assets\",\n                \"output\": \"/assets/wc/medical-dashboard\"\n              }\n            ]\n          }\n        }\n      }\n    }\n  }\n}\n```",
+        "## Arquitectura de Microfrontends\n\nEl proyecto implementa una **arquitectura de microfrontends** utilizando Web Components personalizados. Cada microfrontend es un paquete npm independiente que se integra dinámicamente.\n\n### Microfrontends Activos (11 total)\n\n| Paquete | Funcionalidad |\n|---------|---------------|\n| `@wc-sca/citation-hub` | Centro de citas médicas |\n| `@wc-sca/medical-dashboard` | Dashboard médico completo |\n| `@wc-sca/health-diary` | Diario personal de salud |\n| `@wc-sca/policy-management` | Gestión de pólizas |\n| `@wc-sca/virtual-card` | Tarjeta sanitaria virtual |\n| `@wc-sca/dhs-refund` | Sistema de reembolsos |\n\n### Integración de Web Components\n\n```typescript\n// Ejemplo de integración de un microfrontend\nimport '@wc-sca/citation-hub';\n\n// En el template HTML\n<citation-hub\n  [userId]=\"currentUser.id\"\n  [locale]=\"'es-ES'\"\n  (appointmentBooked)=\"handleAppointmentBooked($event)\">\n</citation-hub>\n```"
+      ],
+      "retrieved_sources": [
+        "02-gestion-estado-ngrx.md",
+        "03-microfrontends-web-components.md",
+        "03-microfrontends-web-components.md",
+        "01-arquitectura-general.md"
+      ],
+      "faithfulness_score": 0.5,
+      "answer_relevancy_score": 0.5,
+      "context_precision_score": 0.5,
+      "context_recall_score": 1,
+      "context_relevancy_score": 0.2,
+      "answer_correctness_score": 0.6824283665338848,
+      "answer_similarity_score": 0,
+      "answer_completeness_score": 0.5,
+      "hallucination_score": 0,
+      "hallucinations_detected": [
+        "La versión de Angular utilizada en el proyecto no está especificada.",
+        "El número total de microfrontends activos es incorrecto (se menciona \"11 total\" pero solo se muestran 5).",
+        "No hay información sobre la funcionalidad del paquete `@wc-sca/dhs-refund`.",
+        "La versión de NgRx utilizada en el proyecto no está relacionada con la versión de Angular.",
+        "El número de microfrontends activos mencionado en [4] (11 total) es incorrecto, ya que solo se muestran 5."
+      ],
+      "retrieval_latency_ms": 3294,
+      "reranking_latency_ms": 63,
+      "generation_latency_ms": 7827,
+      "num_retrieved_docs": 20,
+      "num_final_docs": 4,
+      "latency_ms": 52419,
+      "timestamp": "2026-02-01T08:48:06.656Z",
+      "error_analysis": {
+        "error_types": [
+          "hallucination",
+          "incomplete",
+          "irrelevant",
+          "contradictory"
+        ],
+        "error_description": "Respuesta contiene alucinaciones (información no soportada por contextos). Alucinaciones detectadas: La versión de Angular utilizada en el proyecto no está especificada.; El número total de microfrontends activos es incorrecto (se menciona \"11 total\" pero solo se muestran 5).. Respuesta incompleta, no cubre todos los aspectos. Respuesta no es relevante para la pregunta. Contextos contienen mucha información irrelevante o contradictoria.",
+        "suggested_fix": "Revisar prompt del LLM para enfatizar uso estricto de contextos. Reducir temperatura a 0.0. Aumentar RERANKER_FINAL_TOP_K o mejorar multi-query generation. Revisar prompt de generación para enfocarse en la pregunta. Mejorar filtrado de contextos, ajustar reranker threshold.",
+        "severity": "critical"
+      }
+    },
+    {
+      "test_case_id": "basica_3",
+      "question": "¿Qué versión de Ionic se usa?",
+      "generated_answer": "La respuesta está en el contexto proporcionado. Según las dependencias principales, se utiliza la versión **18.4.0** de `@ionic/angular`, no 6.7.5. Veamos esto:\n```json\n{\n  \"@ionic/angular\": \"^18.4.0\",\n  \"@angular/core\": \"^15.2.8\",\n  \"@ngrx/store\": \"^15.4.0\",\n  \"@capacitor/core\": \"^6.1.2\",\n  \"rxjs\": \"^7.8.0\"\n}\n```",
+      "retrieved_contexts": [
+        "## Web Components en el Proyecto\n\n### Listado de Microfrontends Activos\n\n| Paquete npm | Función | Versión |\n|-------------|---------|---------|\n| `@wc-sca/citation-hub` | Centro de citas médicas | 2.5.1 |\n| `@wc-sca/medical-dashboard` | Dashboard médico completo | 3.1.0 |\n| `@wc-sca/health-diary` | Diario personal de salud | 1.8.2 |\n| `@wc-sca/policy-management` | Gestión de pólizas de seguros | 2.2.4 |\n| `@wc-sca/virtual-card` | Tarjeta sanitaria virtual | 1.5.0 |\n| `@wc-sca/dhs-refund` | Sistema de reembolsos DHS | 2.0.1 |\n| `@wc-sca/compauthorizationrequest` | Solicitudes de autorización | 1.9.3 |\n| `@wc-sca/contactability` | Sistema de contactabilidad | 1.4.0 |\n| `@wc-sca/dhs-card-duplication` | Duplicación de tarjetas DHS | 1.2.1 |\n| `@wc-sca/dhs-receipts-management` | Gestión de recibos DHS | 1.6.0 |\n| `@wc-sca/multirolcustomerregister` | Registro multirol de usuarios | 2.3.0 |",
+        "# Gestión de Estado con NgRx\n\n## Introducción\n\nAsyb-Portal utiliza **NgRx** (versión 15.4.0) para implementar el patrón **Flux** en Angular. NgRx proporciona gestión de estado centralizada, predecible y reactiva usando RxJS.\n\n### ¿Por qué NgRx?\n\n- **Estado Centralizado:** Una única fuente de verdad\n- **Flujo Unidireccional:** Predecible y fácil de debuggear\n- **Trazabilidad:** Historial completo de cambios de estado\n- **DevTools:** Redux DevTools para debugging\n- **Side Effects Management:** Gestión elegante de llamadas asíncronas",
+        "## Dependencias Principales\n\n```json\n{\n  \"@ionic/angular\": \"^6.7.5\",\n  \"@angular/core\": \"^15.2.8\",\n  \"@ngrx/store\": \"^15.4.0\",\n  \"@capacitor/core\": \"^6.1.2\",\n  \"rxjs\": \"^7.8.0\"\n}\n```\n\n## Performance\n\n### Métricas de Build\n\n- **Bundle inicial:** ~2.5 MB (gzipped)\n- **Tiempo de build (prod):** ~45 segundos\n- **Lazy chunks:** 15+ módulos bajo demanda\n\n### Optimizaciones Aplicadas\n\n- Lazy loading de módulos\n- Tree shaking automático\n- AOT compilation\n- Preloading strategy personalizada\n- Service Workers para cache",
+        "## Arquitectura de Microfrontends\n\nEl proyecto implementa una **arquitectura de microfrontends** utilizando Web Components personalizados. Cada microfrontend es un paquete npm independiente que se integra dinámicamente.\n\n### Microfrontends Activos (11 total)\n\n| Paquete | Funcionalidad |\n|---------|---------------|\n| `@wc-sca/citation-hub` | Centro de citas médicas |\n| `@wc-sca/medical-dashboard` | Dashboard médico completo |\n| `@wc-sca/health-diary` | Diario personal de salud |\n| `@wc-sca/policy-management` | Gestión de pólizas |\n| `@wc-sca/virtual-card` | Tarjeta sanitaria virtual |\n| `@wc-sca/dhs-refund` | Sistema de reembolsos |\n\n### Integración de Web Components\n\n```typescript\n// Ejemplo de integración de un microfrontend\nimport '@wc-sca/citation-hub';\n\n// En el template HTML\n<citation-hub\n  [userId]=\"currentUser.id\"\n  [locale]=\"'es-ES'\"\n  (appointmentBooked)=\"handleAppointmentBooked($event)\">\n</citation-hub>\n```"
+      ],
+      "retrieved_sources": [
+        "03-microfrontends-web-components.md",
+        "02-gestion-estado-ngrx.md",
+        "01-arquitectura-general.md",
+        "01-arquitectura-general.md"
+      ],
+      "faithfulness_score": 0.5,
+      "answer_relevancy_score": 0.9,
+      "context_precision_score": 0.75,
+      "context_recall_score": 1,
+      "context_relevancy_score": 0.2,
+      "answer_correctness_score": 0.6949669444590849,
+      "answer_similarity_score": 0,
+      "answer_completeness_score": 0.9,
+      "hallucination_score": 1,
+      "hallucinations_detected": [],
+      "retrieval_latency_ms": 2893,
+      "reranking_latency_ms": 59,
+      "generation_latency_ms": 11079,
+      "num_retrieved_docs": 20,
+      "num_final_docs": 4,
+      "latency_ms": 56394,
+      "timestamp": "2026-02-01T08:49:03.052Z",
+      "error_analysis": {
+        "error_types": [
+          "hallucination",
+          "contradictory"
+        ],
+        "error_description": "Respuesta contiene alucinaciones (información no soportada por contextos). Contextos contienen mucha información irrelevante o contradictoria.",
+        "suggested_fix": "Revisar prompt del LLM para enfatizar uso estricto de contextos. Reducir temperatura a 0.0. Mejorar filtrado de contextos, ajustar reranker threshold.",
+        "severity": "critical"
+      }
+    },
+    {
+      "test_case_id": "basica_4",
+      "question": "¿Cuál es el stack tecnológico del proyecto?",
+      "generated_answer": "El **stack tecnológico** del proyecto Asyb-Portal se describe en la sección \"Stack Tecnológico\" de los documentos proporcionados:\n\n*   **Framework Principal:** Ionic 6\n*   **Frontend Framework:** Angular 15\n*   **Runtime de Capacidades Nativas:** Capacitor 6.1.2\n*   **Gestión de Estado:** NgRx (Patrón Flux)\n*   **Lenguaje:** TypeScript 4.9\n*   **Node.js:** 16.x o superior",
+      "retrieved_contexts": [
+        "# Arquitectura General del Proyecto Asyb-Portal\n\n## Descripción del Proyecto\n\nAsyb-Portal es una **aplicación móvil híbrida** de servicios digitales de salud para Seguros Caixa Adeslas. La aplicación permite a los asegurados acceder a servicios médicos, gestionar pólizas, solicitar autorizaciones y realizar trámites de salud desde dispositivos móviles y web.\n\n### Stack Tecnológico\n\n- **Framework Principal:** Ionic 6\n- **Frontend Framework:** Angular 15\n- **Runtime de Capacidades Nativas:** Capacitor 6.1.2\n- **Gestión de Estado:** NgRx (Patrón Flux)\n- **Lenguaje:** TypeScript 4.9\n- **Node.js:** 16.x o superior",
+        "## Estructura del Proyecto\n\nEl proyecto sigue una **arquitectura modular** con separación clara de responsabilidades:\n\n### Directorio Core (`src/app/core/`)\n\nContiene servicios singleton y funcionalidades centrales:\n\n```typescript\ncore/\n├── services/           // Servicios globales\n│   ├── auth.service.ts\n│   ├── error-handler.service.ts\n│   └── http-interceptor.service.ts\n├── guards/            // Guards de rutas\n│   ├── auth.guard.ts\n│   └── role.guard.ts\n└── models/            // Interfaces y tipos compartidos\n    └── user.model.ts\n```\n\n**Características:**\n- Servicios singleton que se instancian una sola vez\n- Guards para protección de rutas\n- Modelos de datos globales",
+        "## Arquitectura de Microfrontends\n\nEl proyecto implementa una **arquitectura de microfrontends** utilizando Web Components personalizados. Cada microfrontend es un paquete npm independiente que se integra dinámicamente.\n\n### Microfrontends Activos (11 total)\n\n| Paquete | Funcionalidad |\n|---------|---------------|\n| `@wc-sca/citation-hub` | Centro de citas médicas |\n| `@wc-sca/medical-dashboard` | Dashboard médico completo |\n| `@wc-sca/health-diary` | Diario personal de salud |\n| `@wc-sca/policy-management` | Gestión de pólizas |\n| `@wc-sca/virtual-card` | Tarjeta sanitaria virtual |\n| `@wc-sca/dhs-refund` | Sistema de reembolsos |\n\n### Integración de Web Components\n\n```typescript\n// Ejemplo de integración de un microfrontend\nimport '@wc-sca/citation-hub';\n\n// En el template HTML\n<citation-hub\n  [userId]=\"currentUser.id\"\n  [locale]=\"'es-ES'\"\n  (appointmentBooked)=\"handleAppointmentBooked($event)\">\n</citation-hub>\n```",
+        "## Integración de Web Components\n\n### Instalación de un Microfrontend\n\n```bash\n# Añadir paquete al proyecto\nnpm install @wc-sca/citation-hub@2.5.1\n\n# Verificar instalación\nnpm list @wc-sca/citation-hub\n```\n\n### Importación en Angular\n\n```typescript\n// app.module.ts o feature.module.ts\nimport { CUSTOM_ELEMENTS_SCHEMA, NgModule } from '@angular/core';\n\n// Importar el Web Component\nimport '@wc-sca/citation-hub';\n\n@NgModule({\n  schemas: [CUSTOM_ELEMENTS_SCHEMA], // Importante para usar custom elements\n  // ...\n})\nexport class AppointmentsModule {}\n```\n\n### Uso en Templates\n\n```html\n<!-- appointments.component.html -->\n<citation-hub\n  [attr.user-id]=\"currentUser.id\"\n  [attr.locale]=\"'es-ES'\"\n  [attr.theme]=\"'adeslas'\"\n  (appointmentBooked)=\"onAppointmentBooked($event)\"\n  (error)=\"onError($event)\">\n</citation-hub>\n```"
+      ],
+      "retrieved_sources": [
+        "01-arquitectura-general.md",
+        "01-arquitectura-general.md",
+        "01-arquitectura-general.md",
+        "03-microfrontends-web-components.md"
+      ],
+      "faithfulness_score": 0.5,
+      "answer_relevancy_score": 0.9,
+      "context_precision_score": 0.75,
+      "context_recall_score": 1,
+      "context_relevancy_score": 0.8,
+      "answer_correctness_score": 0.7485350453971287,
+      "answer_similarity_score": 0.15384615384615385,
+      "answer_completeness_score": 0.9,
+      "hallucination_score": 0.19999999999999996,
+      "hallucinations_detected": [
+        "El proyecto Asyb-Portal utiliza una **arquitectura de microfrontends** con Web Components personalizados, pero no se proporciona información sobre la implementación de esta arquitectura en los contextos.",
+        "El proyecto utiliza **NgRx (Patrón Flux)** para la gestión de estado, pero no se proporciona información sobre su implementación o configuración en los contextos.",
+        "El proyecto utiliza **Capacitor 6.1.2** como runtime de capacidades nativas, pero solo se menciona en el contexto [1] sin detalles adicionales.",
+        "El lenguaje utilizado es **TypeScript 4.9**, pero no se proporciona información sobre su versión específica o cómo se utiliza en el proyecto en los contextos."
+      ],
+      "retrieval_latency_ms": 3950,
+      "reranking_latency_ms": 57,
+      "generation_latency_ms": 10770,
+      "num_retrieved_docs": 20,
+      "num_final_docs": 4,
+      "latency_ms": 64281,
+      "timestamp": "2026-02-01T08:50:07.335Z",
+      "error_analysis": {
+        "error_types": [
+          "hallucination"
+        ],
+        "error_description": "Respuesta contiene alucinaciones (información no soportada por contextos). Alucinaciones detectadas: El proyecto Asyb-Portal utiliza una **arquitectura de microfrontends** con Web Components personalizados, pero no se proporciona información sobre la implementación de esta arquitectura en los contextos.; El proyecto utiliza **NgRx (Patrón Flux)** para la gestión de estado, pero no se proporciona información sobre su implementación o configuración en los contextos..",
+        "suggested_fix": "Revisar prompt del LLM para enfatizar uso estricto de contextos. Reducir temperatura a 0.0.",
+        "severity": "critical"
+      }
+    },
+    {
+      "test_case_id": "basica_5",
+      "question": "¿Qué es NgRx?",
+      "generated_answer": "NgRx proporciona gestión de estado centralizada, predecible y reactiva usando RxJS.",
+      "retrieved_contexts": [
+        "# Gestión de Estado con NgRx\n\n## Introducción\n\nAsyb-Portal utiliza **NgRx** (versión 15.4.0) para implementar el patrón **Flux** en Angular. NgRx proporciona gestión de estado centralizada, predecible y reactiva usando RxJS.\n\n### ¿Por qué NgRx?\n\n- **Estado Centralizado:** Una única fuente de verdad\n- **Flujo Unidireccional:** Predecible y fácil de debuggear\n- **Trazabilidad:** Historial completo de cambios de estado\n- **DevTools:** Redux DevTools para debugging\n- **Side Effects Management:** Gestión elegante de llamadas asíncronas",
+        "## Arquitectura de Microfrontends\n\nEl proyecto implementa una **arquitectura de microfrontends** utilizando Web Components personalizados. Cada microfrontend es un paquete npm independiente que se integra dinámicamente.\n\n### Microfrontends Activos (11 total)\n\n| Paquete | Funcionalidad |\n|---------|---------------|\n| `@wc-sca/citation-hub` | Centro de citas médicas |\n| `@wc-sca/medical-dashboard` | Dashboard médico completo |\n| `@wc-sca/health-diary` | Diario personal de salud |\n| `@wc-sca/policy-management` | Gestión de pólizas |\n| `@wc-sca/virtual-card` | Tarjeta sanitaria virtual |\n| `@wc-sca/dhs-refund` | Sistema de reembolsos |\n\n### Integración de Web Components\n\n```typescript\n// Ejemplo de integración de un microfrontend\nimport '@wc-sca/citation-hub';\n\n// En el template HTML\n<citation-hub\n  [userId]=\"currentUser.id\"\n  [locale]=\"'es-ES'\"\n  (appointmentBooked)=\"handleAppointmentBooked($event)\">\n</citation-hub>\n```",
+        "## Módulos del Store\n\n### Configuración del Store Module\n\n```typescript\n// app.module.ts\nimport { StoreModule } from '@ngrx/store';\nimport { EffectsModule } from '@ngrx/effects';\nimport { StoreDevtoolsModule } from '@ngrx/store-devtools';\nimport { reducers } from './state/reducers';\nimport { AuthEffects } from './state/effects/auth.effects';\n\n@NgModule({\n  imports: [\n    StoreModule.forRoot(reducers),\n    EffectsModule.forRoot([AuthEffects]),\n    StoreDevtoolsModule.instrument({\n      maxAge: 25, // Retiene últimas 25 acciones\n      logOnly: environment.production\n    })\n  ]\n})\nexport class AppModule {}\n```",
+        "## Best Practices\n\n### 1. Wrapper Components\n\nCrear wrappers Angular para los Web Components:\n\n```typescript\n// wrappers/citation-hub-wrapper.component.ts\n@Component({\n  selector: 'app-citation-hub',\n  template: `\n    <citation-hub\n      [attr.user-id]=\"userId\"\n      [attr.locale]=\"locale\"\n      (appointmentBooked)=\"appointmentBooked.emit($event.detail)\"\n      (error)=\"handleError($event)\">\n    </citation-hub>\n  `\n})\nexport class CitationHubWrapperComponent {\n  @Input() userId!: string;\n  @Input() locale = 'es-ES';\n  @Output() appointmentBooked = new EventEmitter();\n\n  handleError(event: CustomEvent) {\n    console.error('Error en citation-hub:', event.detail);\n    // Manejo centralizado de errores\n  }\n}\n```"
+      ],
+      "retrieved_sources": [
+        "02-gestion-estado-ngrx.md",
+        "01-arquitectura-general.md",
+        "02-gestion-estado-ngrx.md",
+        "03-microfrontends-web-components.md"
+      ],
+      "faithfulness_score": 0.9,
+      "answer_relevancy_score": 0.9,
+      "context_precision_score": 0.75,
+      "context_recall_score": 1,
+      "context_relevancy_score": 0.2,
+      "answer_correctness_score": 0.7891988215120285,
+      "answer_similarity_score": 0.3333333333333333,
+      "answer_completeness_score": 0.9,
+      "hallucination_score": 0.3999999999999999,
+      "hallucinations_detected": [
+        "NgRx proporciona gestión de estado centralizada, predecible y reactiva usando RxJS. (No está soportado por el contexto [3], que solo muestra la configuración del Store Module)",
+        "El proyecto implementa una arquitectura de microfrontends utilizando Web Components personalizados. Cada microfrontend es un paquete npm independiente que se integra dinámicamente. (No está soportado por el contexto [2], que solo muestra los microfrontends activos y no menciona la integración dinámica)",
+        "NgRx proporciona gestión de estado centralizada, predecible y reactiva usando RxJS. (Igual al primero)"
+      ],
+      "retrieval_latency_ms": 3145,
+      "reranking_latency_ms": 136,
+      "generation_latency_ms": 5729,
+      "num_retrieved_docs": 20,
+      "num_final_docs": 4,
+      "latency_ms": 53965,
+      "timestamp": "2026-02-01T08:51:01.301Z",
+      "error_analysis": {
+        "error_types": [
+          "hallucination",
+          "contradictory"
+        ],
+        "error_description": "Respuesta contiene alucinaciones (información no soportada por contextos). Alucinaciones detectadas: NgRx proporciona gestión de estado centralizada, predecible y reactiva usando RxJS. (No está soportado por el contexto [3], que solo muestra la configuración del Store Module); El proyecto implementa una arquitectura de microfrontends utilizando Web Components personalizados. Cada microfrontend es un paquete npm independiente que se integra dinámicamente. (No está soportado por el contexto [2], que solo muestra los microfrontends activos y no menciona la integración dinámica). Contextos contienen mucha información irrelevante o contradictoria.",
+        "suggested_fix": "Revisar prompt del LLM para enfatizar uso estricto de contextos. Reducir temperatura a 0.0. Mejorar filtrado de contextos, ajustar reranker threshold.",
+        "severity": "critical"
+      }
+    }
+  ],
+  "best_performing_cases": [
+    {
+      "test_case_id": "basica_5",
+      "avg_score": 0.8875,
+      "question": "¿Qué es NgRx?"
+    },
+    {
+      "test_case_id": "basica_1",
+      "avg_score": 0.825,
+      "question": "¿Qué versiones de Angular e Ionic se usan en el proyecto?"
+    },
+    {
+      "test_case_id": "basica_3",
+      "avg_score": 0.7875,
+      "question": "¿Qué versión de Ionic se usa?"
+    },
+    {
+      "test_case_id": "basica_4",
+      "avg_score": 0.7875,
+      "question": "¿Cuál es el stack tecnológico del proyecto?"
+    },
+    {
+      "test_case_id": "basica_2",
+      "avg_score": 0.625,
+      "question": "¿Qué versión de Angular se usa?"
+    }
+  ],
+  "worst_performing_cases": [
+    {
+      "test_case_id": "basica_2",
+      "avg_score": 0.625,
+      "question": "¿Qué versión de Angular se usa?"
+    },
+    {
+      "test_case_id": "basica_4",
+      "avg_score": 0.7875,
+      "question": "¿Cuál es el stack tecnológico del proyecto?"
+    },
+    {
+      "test_case_id": "basica_3",
+      "avg_score": 0.7875,
+      "question": "¿Qué versión de Ionic se usa?"
+    },
+    {
+      "test_case_id": "basica_1",
+      "avg_score": 0.825,
+      "question": "¿Qué versiones de Angular e Ionic se usan en el proyecto?"
+    },
+    {
+      "test_case_id": "basica_5",
+      "avg_score": 0.8875,
+      "question": "¿Qué es NgRx?"
+    }
+  ]
+}

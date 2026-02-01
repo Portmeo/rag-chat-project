@@ -1,8 +1,7 @@
 #!/usr/bin/env bun
 import path from 'path';
-import { RAGASEvaluator } from '../../apps/backend/src/services/evaluation/ragasEvaluator';
-import { loadDataset, validateDataset } from '../../apps/backend/src/services/evaluation/datasetLoader';
-import { generateReport, saveReport, printReportSummary } from '../../apps/backend/src/services/evaluation/reportGenerator';
+import { RAGASEvaluator, loadDataset, validateDataset } from '../../apps/evaluation/src';
+import { ReportGenerator, printReportSummary } from '../../apps/evaluation/src/reportGenerator';
 
 async function main() {
   console.log('\n🚀 RAGAS Evaluation CLI');
@@ -37,13 +36,21 @@ async function main() {
 
     const totalTime = Date.now() - startTime;
 
-    // Generate report
-    const report = generateReport(results);
+    // Generate comprehensive report
+    const reportGenerator = new ReportGenerator();
+    const config = {
+      bm25_weight: parseFloat(process.env.BM25_WEIGHT || '0.7'),
+      vector_weight: parseFloat(process.env.VECTOR_WEIGHT || '0.3'),
+      use_reranker: process.env.USE_RERANKER === 'true'
+    };
+
+    const report = reportGenerator.generateReport(results, 'golden_qa.json', config);
 
     // Save results
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
     const outputPath = path.join(outputDir, `ragas_${timestamp}.json`);
-    await saveReport(report, outputPath);
+    await Bun.write(outputPath, JSON.stringify(report, null, 2));
+    console.log(`\n💾 Report saved to: ${outputPath}`);
 
     // Print summary
     printReportSummary(report);

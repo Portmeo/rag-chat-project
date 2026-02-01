@@ -1,7 +1,9 @@
 import type { Document } from 'langchain/document';
 import { BaseRetriever, type BaseRetrieverInput } from 'langchain/schema/retriever';
 import { CallbackManagerForRetrieverRun } from 'langchain/callbacks';
-import { TfIdf } from 'natural';
+import natural from 'natural';
+
+const { TfIdf } = natural;
 
 export interface BM25RetrieverInput extends BaseRetrieverInput {
   documents: Document[];

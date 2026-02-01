@@ -1,0 +1,409 @@
+{
+  "metadata": {
+    "timestamp": "2026-02-01T08:41:11.345Z",
+    "dataset": "golden_qa_v2.json",
+    "total_cases": 5,
+    "config": {
+      "bm25_weight": 0.7,
+      "vector_weight": 0.3,
+      "use_reranker": false,
+      "reranker_retrieval_top_k": 20,
+      "reranker_final_top_k": 5,
+      "min_rerank_score": 0.3,
+      "chunk_size": 1000,
+      "chunk_overlap": 200
+    }
+  },
+  "summary": {
+    "total_cases": 5,
+    "successful": 5,
+    "failed": 0,
+    "avg_faithfulness": 0.8400000000000001,
+    "avg_answer_relevancy": 0.9,
+    "avg_context_precision": 0.72,
+    "avg_context_recall": 1,
+    "avg_latency_ms": 87015.6,
+    "avg_context_relevancy": 0.54,
+    "avg_answer_correctness": 0.7490477774374757,
+    "avg_hallucination_score": 0.48,
+    "avg_retrieval_latency_ms": 5466.6,
+    "avg_reranking_latency_ms": 0,
+    "avg_generation_latency_ms": 11742.4
+  },
+  "by_category": {
+    "Básica": {
+      "count": 5,
+      "avg_faithfulness": 0.8400000000000001,
+      "avg_answer_relevancy": 0.9,
+      "avg_context_precision": 0.72,
+      "avg_context_recall": 1
+    }
+  },
+  "error_patterns": [
+    {
+      "pattern_name": "Alucinaciones en categorías Basica",
+      "frequency": 2,
+      "affected_categories": [
+        "Basica"
+      ],
+      "affected_test_cases": [
+        "basica_2",
+        "basica_4"
+      ],
+      "common_characteristics": [
+        "Faithfulness < 0.7",
+        "Información no verificable en contextos"
+      ],
+      "recommended_action": "Mejorar prompt del LLM con instrucciones más estrictas sobre usar SOLO información de contextos. Considerar temperatura 0.0.",
+      "severity": "critical"
+    },
+    {
+      "pattern_name": "Latencia alta sistemática",
+      "frequency": 5,
+      "affected_categories": [
+        "Basica"
+      ],
+      "affected_test_cases": [
+        "basica_1",
+        "basica_2",
+        "basica_3",
+        "basica_4",
+        "basica_5"
+      ],
+      "common_characteristics": [
+        "Latency > 20s",
+        "Procesamiento lento"
+      ],
+      "recommended_action": "Optimizar reranking (considerar cache), reducir número de multi-queries, o usar modelo LLM más rápido.",
+      "severity": "medium"
+    }
+  ],
+  "recommendations": {
+    "high_priority": [
+      "Alucinaciones en categorías Basica (2 casos): Mejorar prompt del LLM con instrucciones más estrictas sobre usar SOLO información de contextos. Considerar temperatura 0.0."
+    ],
+    "medium_priority": [
+      "Latencia alta sistemática (5 casos): Optimizar reranking (considerar cache), reducir número de multi-queries, o usar modelo LLM más rápido."
+    ],
+    "low_priority": []
+  },
+  "detailed_results": [
+    {
+      "test_case_id": "basica_1",
+      "question": "¿Qué versiones de Angular e Ionic se usan en el proyecto?",
+      "generated_answer": "Según el contexto proporcionado, las versiones utilizadas son:\n\n* **Angular:** \"~15.2.8\" que significa la versión 15.2.8.\n* **Ionic:** \"^6.7.5\", lo cual significa que se está utilizando Ionic en su versión 6.7.5.\n\nPor tanto, la respuesta correcta es:\n \n> \"El proyecto utiliza Angular 15.2.8 y Ionic 6.7.5.\"",
+      "retrieved_contexts": [
+        "## Dependencias Principales\n\n```json\n{\n  \"@ionic/angular\": \"^6.7.5\",\n  \"@angular/core\": \"^15.2.8\",\n  \"@ngrx/store\": \"^15.4.0\",\n  \"@capacitor/core\": \"^6.1.2\",\n  \"rxjs\": \"^7.8.0\"\n}\n```\n\n## Performance\n\n### Métricas de Build\n\n- **Bundle inicial:** ~2.5 MB (gzipped)\n- **Tiempo de build (prod):** ~45 segundos\n- **Lazy chunks:** 15+ módulos bajo demanda\n\n### Optimizaciones Aplicadas\n\n- Lazy loading de módulos\n- Tree shaking automático\n- AOT compilation\n- Preloading strategy personalizada\n- Service Workers para cache",
+        "# Arquitectura General del Proyecto Asyb-Portal\n\n## Descripción del Proyecto\n\nAsyb-Portal es una **aplicación móvil híbrida** de servicios digitales de salud para Seguros Caixa Adeslas. La aplicación permite a los asegurados acceder a servicios médicos, gestionar pólizas, solicitar autorizaciones y realizar trámites de salud desde dispositivos móviles y web.\n\n### Stack Tecnológico\n\n- **Framework Principal:** Ionic 6\n- **Frontend Framework:** Angular 15\n- **Runtime de Capacidades Nativas:** Capacitor 6.1.2\n- **Gestión de Estado:** NgRx (Patrón Flux)\n- **Lenguaje:** TypeScript 4.9\n- **Node.js:** 16.x o superior",
+        "## Plataformas Soportadas\n\n### Android\n- **API Mínima:** 27 (Android 8.1+)\n- **Target API:** 34 (Android 14)\n- **Firma:** Automática desde pipeline\n\n### iOS\n- **Versión Mínima:** iOS 13+\n- **Target:** iOS 17\n- **Firma:** Manual en Xcode\n\n### Web\n- **Navegadores:** Chrome 90+, Safari 14+, Firefox 88+\n- **PWA:** Habilitada con Service Workers\n\n## Configuración de Entornos\n\nEl proyecto soporta tres entornos:\n\n```typescript\n// src/environments/environment.ts\nexport const environment = {\n  production: false,\n  apiUrl: 'https://api-dev.adeslas.com',\n  version: '5.0.0',\n  firebase: {\n    apiKey: '...',\n    projectId: 'asyb-dev'\n  }\n};\n```\n\n**Comandos de build por entorno:**\n\n```bash\nnpm run build:dev   # Desarrollo\nnpm run build:pre   # Preproducción\nnpm run build:pro   # Producción\n```",
+        "## Configuración en angular.json\n\n### Assets de Web Components\n\nLos Web Components suelen tener assets (imágenes, fonts, estilos). Configurar en `angular.json`:\n\n```json\n{\n  \"projects\": {\n    \"asyb-portal\": {\n      \"architect\": {\n        \"build\": {\n          \"options\": {\n            \"assets\": [\n              \"src/favicon.ico\",\n              \"src/assets\",\n              {\n                \"glob\": \"**/*\",\n                \"input\": \"node_modules/@wc-sca/citation-hub/dist/assets\",\n                \"output\": \"/assets/wc/citation-hub\"\n              },\n              {\n                \"glob\": \"**/*\",\n                \"input\": \"node_modules/@wc-sca/medical-dashboard/dist/assets\",\n                \"output\": \"/assets/wc/medical-dashboard\"\n              }\n            ]\n          }\n        }\n      }\n    }\n  }\n}\n```",
+        "# Microfrontends y Web Components\n\n## Arquitectura de Microfrontends\n\nAsyb-Portal implementa una arquitectura de **microfrontends** usando **Web Components** personalizados. Esta arquitectura permite desarrollar, deployar y mantener funcionalidades de forma independiente.\n\n### Ventajas de la Arquitectura\n\n-\n\n **Independencia Tecnológica:** Cada microfrontend puede usar su stack\n- **Deploy Independiente:** Actualizar sin redeployar la app completa\n- **Equipos Autónomos:** Diferentes equipos trabajando en paralelo\n- **Escalabilidad:** Añadir features sin afectar el core\n- **Reutilización:** Mismo componente en múltiples apps",
+        "## Arquitectura de Microfrontends\n\nEl proyecto implementa una **arquitectura de microfrontends** utilizando Web Components personalizados. Cada microfrontend es un paquete npm independiente que se integra dinámicamente.\n\n### Microfrontends Activos (11 total)\n\n| Paquete | Funcionalidad |\n|---------|---------------|\n| `@wc-sca/citation-hub` | Centro de citas médicas |\n| `@wc-sca/medical-dashboard` | Dashboard médico completo |\n| `@wc-sca/health-diary` | Diario personal de salud |\n| `@wc-sca/policy-management` | Gestión de pólizas |\n| `@wc-sca/virtual-card` | Tarjeta sanitaria virtual |\n| `@wc-sca/dhs-refund` | Sistema de reembolsos |\n\n### Integración de Web Components\n\n```typescript\n// Ejemplo de integración de un microfrontend\nimport '@wc-sca/citation-hub';\n\n// En el template HTML\n<citation-hub\n  [userId]=\"currentUser.id\"\n  [locale]=\"'es-ES'\"\n  (appointmentBooked)=\"handleAppointmentBooked($event)\">\n</citation-hub>\n```",
+        "## Estructura del Proyecto\n\nEl proyecto sigue una **arquitectura modular** con separación clara de responsabilidades:\n\n### Directorio Core (`src/app/core/`)\n\nContiene servicios singleton y funcionalidades centrales:\n\n```typescript\ncore/\n├── services/           // Servicios globales\n│   ├── auth.service.ts\n│   ├── error-handler.service.ts\n│   └── http-interceptor.service.ts\n├── guards/            // Guards de rutas\n│   ├── auth.guard.ts\n│   └── role.guard.ts\n└── models/            // Interfaces y tipos compartidos\n    └── user.model.ts\n```\n\n**Características:**\n- Servicios singleton que se instancian una sola vez\n- Guards para protección de rutas\n- Modelos de datos globales",
+        "## Web Components en el Proyecto\n\n### Listado de Microfrontends Activos\n\n| Paquete npm | Función | Versión |\n|-------------|---------|---------|\n| `@wc-sca/citation-hub` | Centro de citas médicas | 2.5.1 |\n| `@wc-sca/medical-dashboard` | Dashboard médico completo | 3.1.0 |\n| `@wc-sca/health-diary` | Diario personal de salud | 1.8.2 |\n| `@wc-sca/policy-management` | Gestión de pólizas de seguros | 2.2.4 |\n| `@wc-sca/virtual-card` | Tarjeta sanitaria virtual | 1.5.0 |\n| `@wc-sca/dhs-refund` | Sistema de reembolsos DHS | 2.0.1 |\n| `@wc-sca/compauthorizationrequest` | Solicitudes de autorización | 1.9.3 |\n| `@wc-sca/contactability` | Sistema de contactabilidad | 1.4.0 |\n| `@wc-sca/dhs-card-duplication` | Duplicación de tarjetas DHS | 1.2.1 |\n| `@wc-sca/dhs-receipts-management` | Gestión de recibos DHS | 1.6.0 |\n| `@wc-sca/multirolcustomerregister` | Registro multirol de usuarios | 2.3.0 |"
+      ],
+      "retrieved_sources": [
+        "01-arquitectura-general.md",
+        "01-arquitectura-general.md",
+        "01-arquitectura-general.md",
+        "03-microfrontends-web-components.md",
+        "03-microfrontends-web-components.md",
+        "01-arquitectura-general.md",
+        "01-arquitectura-general.md",
+        "03-microfrontends-web-components.md"
+      ],
+      "faithfulness_score": 0.9,
+      "answer_relevancy_score": 0.9,
+      "context_precision_score": 0.8,
+      "context_recall_score": 1,
+      "context_relevancy_score": 0.8,
+      "answer_correctness_score": 0.7038200604787461,
+      "answer_similarity_score": 0.12121212121212122,
+      "answer_completeness_score": 0.9,
+      "hallucination_score": 1,
+      "hallucinations_detected": [],
+      "retrieval_latency_ms": 10697,
+      "reranking_latency_ms": 0,
+      "generation_latency_ms": 14588,
+      "num_retrieved_docs": 8,
+      "num_final_docs": 8,
+      "latency_ms": 114385,
+      "timestamp": "2026-02-01T08:35:50.614Z",
+      "error_analysis": {
+        "error_types": [],
+        "error_description": "Test case ejecutado exitosamente sin errores detectados.",
+        "suggested_fix": "Ninguna acción necesaria.",
+        "severity": "low"
+      }
+    },
+    {
+      "test_case_id": "basica_2",
+      "question": "¿Qué versión de Angular se usa?",
+      "generated_answer": "La respuesta a tu pregunta está en la sección \"Dependencias Principales\" del contexto proporcionado. Se especifica que la versión de Angular utilizada es:\n\n\"@angular/core\": \"^15.2.8\"\n\nEntonces, la respuesta sería: **Se utiliza la versión 15.2.8 de Angular**",
+      "retrieved_contexts": [
+        "## Configuración en angular.json",
+        "## Configuración en angular.json\n\n### Assets de Web Components\n\nLos Web Components suelen tener assets (imágenes, fonts, estilos). Configurar en `angular.json`:\n\n```json\n{\n  \"projects\": {\n    \"asyb-portal\": {\n      \"architect\": {\n        \"build\": {\n          \"options\": {\n            \"assets\": [\n              \"src/favicon.ico\",\n              \"src/assets\",\n              {\n                \"glob\": \"**/*\",\n                \"input\": \"node_modules/@wc-sca/citation-hub/dist/assets\",\n                \"output\": \"/assets/wc/citation-hub\"\n              },\n              {\n                \"glob\": \"**/*\",\n                \"input\": \"node_modules/@wc-sca/medical-dashboard/dist/assets\",\n                \"output\": \"/assets/wc/medical-dashboard\"\n              }\n            ]\n          }\n        }\n      }\n    }\n  }\n}\n```",
+        "### Implementación del Servicio\n\n```typescript\n// core/services/auth.service.ts\nimport { Injectable } from '@angular/core';\nimport { HttpClient } from '@angular/common/http';\nimport { BehaviorSubject, Observable } from 'rxjs';\nimport { map, tap } from 'rxjs/operators';\nimport { environment } from '@env/environment';\n\nexport interface User {\n  id: string;\n  email: string;\n  name: string;\n  roles: string[];\n}\n\nexport interface AuthResponse {\n  user: User;\n  token: string;\n  refreshToken: string;\n}\n\n@Injectable({ providedIn: 'root' })\nexport class AuthService {\n  private currentUserSubject = new BehaviorSubject<User | null>(null);\n  public currentUser$ = this.currentUserSubject.asObservable();\n\n  constructor(private http: HttpClient) {\n    // Cargar usuario del localStorage al iniciar\n    this.loadUserFromStorage();\n  }",
+        "## Configuración de Rutas\n\n```typescript\n// app-routing.module.ts\nimport { NgModule } from '@angular/core';\nimport { RouterModule, Routes } from '@angular/router';\nimport { AuthGuard } from './core/guards/auth.guard';\nimport { RoleGuard } from './core/guards/role.guard';",
+        "### Comunicación con Web Components\n\n#### Input Properties\n\n```typescript\n// Pasar datos al Web Component\nexport class AppointmentsComponent {\n  currentUser = {\n    id: '12345',\n    name: 'Juan Pérez'\n  };\n\n  config = {\n    apiUrl: 'https://api.adeslas.com',\n    allowCancel: true\n  };\n}\n```\n\n```html\n<citation-hub\n  [attr.user-id]=\"currentUser.id\"\n  [attr.config]=\"config | json\">\n</citation-hub>\n```",
+        "```\n\nUso en componentes:\n\n```typescript\n// Emitir desde un Web Component\nexport class CitationHubWrapperComponent {\n  constructor(private eventBus: EventBusService) {}\n\n  onAppointmentBooked(event: CustomEvent) {\n    this.eventBus.emit('appointment:booked', event.detail);\n  }\n}\n\n// Escuchar en otro componente\nexport class DashboardComponent implements OnInit {\n  constructor(private eventBus: EventBusService) {}\n\n  ngOnInit() {\n    this.eventBus.on('appointment:booked').subscribe((data) => {\n      console.log('Nueva cita desde otro componente:', data);\n      this.refreshAppointments();\n    });\n  }\n}\n```",
+        "### Verificar Carga\n\n```typescript\nexport class AppointmentsComponent implements AfterViewInit {\n  @ViewChild('citationHub', { read: ElementRef }) citationHub!: ElementRef;\n\n  ngAfterViewInit() {\n    // Verificar que el Web Component está definido\n    if (customElements.get('citation-hub')) {\n      console.log('Web Component citation-hub cargado correctamente');\n    } else {\n      console.error('Error: citation-hub no está registrado');\n    }\n\n    // Acceder al elemento DOM\n    const element = this.citationHub.nativeElement;\n    console.log('Propiedades del elemento:', element);\n  }\n}\n```",
+        "## Dependencias Principales\n\n```json\n{\n  \"@ionic/angular\": \"^6.7.5\",\n  \"@angular/core\": \"^15.2.8\",\n  \"@ngrx/store\": \"^15.4.0\",\n  \"@capacitor/core\": \"^6.1.2\",\n  \"rxjs\": \"^7.8.0\"\n}\n```\n\n## Performance\n\n### Métricas de Build\n\n- **Bundle inicial:** ~2.5 MB (gzipped)\n- **Tiempo de build (prod):** ~45 segundos\n- **Lazy chunks:** 15+ módulos bajo demanda\n\n### Optimizaciones Aplicadas\n\n- Lazy loading de módulos\n- Tree shaking automático\n- AOT compilation\n- Preloading strategy personalizada\n- Service Workers para cache"
+      ],
+      "retrieved_sources": [
+        "05-configuracion-entornos.md",
+        "03-microfrontends-web-components.md",
+        "04-autenticacion-guards.md",
+        "04-autenticacion-guards.md",
+        "03-microfrontends-web-components.md",
+        "03-microfrontends-web-components.md",
+        "03-microfrontends-web-components.md",
+        "01-arquitectura-general.md"
+      ],
+      "faithfulness_score": 0.9,
+      "answer_relevancy_score": 0.9,
+      "context_precision_score": 0.5,
+      "context_recall_score": 1,
+      "context_relevancy_score": 0.2,
+      "answer_correctness_score": 0.7395409684234453,
+      "answer_similarity_score": 0.08333333333333333,
+      "answer_completeness_score": 0.9,
+      "hallucination_score": 0.3999999999999999,
+      "hallucinations_detected": [
+        "La versión de Angular utilizada es \"^15.2.8\" (no hay evidencia en el contexto proporcionado que respalde esta afirmación)",
+        "El tiempo de build (prod) es ~45 segundos (no hay información específica sobre el rendimiento del proyecto en el contexto proporcionado)",
+        "Se utiliza lazy loading de módulos, tree shaking automático, AOT compilation y preloading strategy personalizada para mejorar el rendimiento (no hay evidencia directa en el contexto proporcionado que respalde esta afirmación)"
+      ],
+      "retrieval_latency_ms": 5612,
+      "reranking_latency_ms": 0,
+      "generation_latency_ms": 9465,
+      "num_retrieved_docs": 8,
+      "num_final_docs": 8,
+      "latency_ms": 63305,
+      "timestamp": "2026-02-01T08:36:53.925Z",
+      "error_analysis": {
+        "error_types": [
+          "hallucination",
+          "contradictory"
+        ],
+        "error_description": "Respuesta contiene alucinaciones (información no soportada por contextos). Alucinaciones detectadas: La versión de Angular utilizada es \"^15.2.8\" (no hay evidencia en el contexto proporcionado que respalde esta afirmación); El tiempo de build (prod) es ~45 segundos (no hay información específica sobre el rendimiento del proyecto en el contexto proporcionado). Contextos contienen mucha información irrelevante o contradictoria.",
+        "suggested_fix": "Revisar prompt del LLM para enfatizar uso estricto de contextos. Reducir temperatura a 0.0. Mejorar filtrado de contextos, ajustar reranker threshold.",
+        "severity": "critical"
+      }
+    },
+    {
+      "test_case_id": "basica_3",
+      "question": "¿Qué versión de Ionic se usa?",
+      "generated_answer": "Según el contexto proporcionado, la aplicación utiliza Ionic 6. Esto está claro gracias a esta línea del documento \"Stack Tecnológico\":\n\n- **Framework Principal:** Ionic 6\n\nPor lo tanto, la respuesta es:\n\n**Ionic 6**",
+      "retrieved_contexts": [
+        "## Dependencias Principales\n\n```json\n{\n  \"@ionic/angular\": \"^6.7.5\",\n  \"@angular/core\": \"^15.2.8\",\n  \"@ngrx/store\": \"^15.4.0\",\n  \"@capacitor/core\": \"^6.1.2\",\n  \"rxjs\": \"^7.8.0\"\n}\n```\n\n## Performance\n\n### Métricas de Build\n\n- **Bundle inicial:** ~2.5 MB (gzipped)\n- **Tiempo de build (prod):** ~45 segundos\n- **Lazy chunks:** 15+ módulos bajo demanda\n\n### Optimizaciones Aplicadas\n\n- Lazy loading de módulos\n- Tree shaking automático\n- AOT compilation\n- Preloading strategy personalizada\n- Service Workers para cache",
+        "## Configuración de Capacitor por Entorno\n\n```typescript\n// capacitor.config.ts\nimport { CapacitorConfig } from '@capacitor/cli';\nimport { environment } from './src/environments/environment';\n\nconst config: CapacitorConfig = {\n  appId: environment.capacitor.appId,\n  appName: environment.capacitor.appName,\n  webDir: 'www',\n  bundledWebRuntime: false,\n  plugins: {\n    SplashScreen: {\n      launchShowDuration: 2000,\n      backgroundColor: '#ffffff'\n    },\n    PushNotifications: {\n      presentationOptions: ['badge', 'sound', 'alert']\n    }\n  },\n  server: {\n    androidScheme: 'https'\n  }\n};\n\nexport default config;\n```",
+        "## Live Reload\n\n### Android\n\n```bash\n# En un terminal: servidor web\nionic serve --port=8100\n\n# Obtener IP local\nipconfig getifaddr en0  # Mac\n# Ejemplo: 192.168.1.10\n\n# Configurar capacitor.config.ts temporalmente\n{\n  server: {\n    url: 'http://192.168.1.10:8100',\n    cleartext: true\n  }\n}\n\n# Run app\nnpx cap run android -l --external\n```\n\n### iOS\n\n```bash\n# Similar a Android\nionic serve --port=8100\n\n# Configurar capacitor.config.ts\n{\n  server: {\n    url: 'http://192.168.1.10:8100'\n  }\n}\n\n# Run app\nnpx cap run ios -l --external\n```",
+        "## Configuración\n\n### capacitor.config.ts\n\n```typescript\nimport { CapacitorConfig } from '@capacitor/cli';\n\nconst config: CapacitorConfig = {\n  appId: 'com.adeslas.asyb',\n  appName: 'Asyb Portal',\n  webDir: 'www',\n  server: {\n    androidScheme: 'https',\n    iosScheme: 'https'\n  },\n  plugins: {\n    SplashScreen: {\n      launchShowDuration: 3000,\n      launchAutoHide: true,\n      backgroundColor: '#ffffffff',\n      androidSplashResourceName: 'splash',\n      iosSplashResourceName: 'Default',\n      showSpinner: false\n    },\n    PushNotifications: {\n      presentationOptions: ['badge', 'sound', 'alert']\n    },\n    Camera: {\n      iosPermissions: {\n        camera: 'Necesitamos acceso a la cámara para tomar fotos'\n      }\n    }\n  }\n};\n\nexport default config;\n```",
+        "# Arquitectura General del Proyecto Asyb-Portal\n\n## Descripción del Proyecto\n\nAsyb-Portal es una **aplicación móvil híbrida** de servicios digitales de salud para Seguros Caixa Adeslas. La aplicación permite a los asegurados acceder a servicios médicos, gestionar pólizas, solicitar autorizaciones y realizar trámites de salud desde dispositivos móviles y web.\n\n### Stack Tecnológico\n\n- **Framework Principal:** Ionic 6\n- **Frontend Framework:** Angular 15\n- **Runtime de Capacidades Nativas:** Capacitor 6.1.2\n- **Gestión de Estado:** NgRx (Patrón Flux)\n- **Lenguaje:** TypeScript 4.9\n- **Node.js:** 16.x o superior",
+        "## Plataformas Soportadas\n\n### Android\n- **API Mínima:** 27 (Android 8.1+)\n- **Target API:** 34 (Android 14)\n- **Firma:** Automática desde pipeline\n\n### iOS\n- **Versión Mínima:** iOS 13+\n- **Target:** iOS 17\n- **Firma:** Manual en Xcode\n\n### Web\n- **Navegadores:** Chrome 90+, Safari 14+, Firefox 88+\n- **PWA:** Habilitada con Service Workers\n\n## Configuración de Entornos\n\nEl proyecto soporta tres entornos:\n\n```typescript\n// src/environments/environment.ts\nexport const environment = {\n  production: false,\n  apiUrl: 'https://api-dev.adeslas.com',\n  version: '5.0.0',\n  firebase: {\n    apiKey: '...',\n    projectId: 'asyb-dev'\n  }\n};\n```\n\n**Comandos de build por entorno:**\n\n```bash\nnpm run build:dev   # Desarrollo\nnpm run build:pre   # Preproducción\nnpm run build:pro   # Producción\n```",
+        "# Desarrollo Móvil con Capacitor\n\n## Introducción a Capacitor\n\n**Capacitor** es un runtime que permite ejecutar aplicaciones web en iOS, Android y PWA con acceso a APIs nativas.\n\n### Versión Actual\n\n- **Capacitor:** 6.1.2\n- **Capacitor CLI:** 6.1.2\n- **Plataformas:** Android (API 27+), iOS (13+)\n\n## Instalación de Plataformas\n\n### Android\n\n```bash\n# Añadir plataforma Android\nnpx cap add android\n\n# Sincronizar código web con Android\nnpx cap sync android\n\n# Abrir en Android Studio\nnpx cap open android\n```\n\n### iOS\n\n```bash\n# Añadir plataforma iOS\nnpx cap add ios\n\n# Sincronizar código web con iOS\nnpx cap sync ios\n\n# Abrir en Xcode\nnpx cap open ios\n```",
+        "## Estructura del Proyecto\n\nEl proyecto sigue una **arquitectura modular** con separación clara de responsabilidades:\n\n### Directorio Core (`src/app/core/`)\n\nContiene servicios singleton y funcionalidades centrales:\n\n```typescript\ncore/\n├── services/           // Servicios globales\n│   ├── auth.service.ts\n│   ├── error-handler.service.ts\n│   └── http-interceptor.service.ts\n├── guards/            // Guards de rutas\n│   ├── auth.guard.ts\n│   └── role.guard.ts\n└── models/            // Interfaces y tipos compartidos\n    └── user.model.ts\n```\n\n**Características:**\n- Servicios singleton que se instancian una sola vez\n- Guards para protección de rutas\n- Modelos de datos globales"
+      ],
+      "retrieved_sources": [
+        "01-arquitectura-general.md",
+        "05-configuracion-entornos.md",
+        "06-desarrollo-movil-capacitor.md",
+        "06-desarrollo-movil-capacitor.md",
+        "01-arquitectura-general.md",
+        "01-arquitectura-general.md",
+        "06-desarrollo-movil-capacitor.md",
+        "01-arquitectura-general.md"
+      ],
+      "faithfulness_score": 0.95,
+      "answer_relevancy_score": 0.9,
+      "context_precision_score": 0.7,
+      "context_recall_score": 1,
+      "context_relevancy_score": 0.1,
+      "answer_correctness_score": 0.7684804439926827,
+      "answer_similarity_score": 0.07999999999999999,
+      "answer_completeness_score": 0.9,
+      "hallucination_score": 1,
+      "hallucinations_detected": [],
+      "retrieval_latency_ms": 3806,
+      "reranking_latency_ms": 0,
+      "generation_latency_ms": 11013,
+      "num_retrieved_docs": 8,
+      "num_final_docs": 8,
+      "latency_ms": 91468,
+      "timestamp": "2026-02-01T08:38:25.393Z",
+      "error_analysis": {
+        "error_types": [
+          "contradictory"
+        ],
+        "error_description": "Contextos contienen mucha información irrelevante o contradictoria.",
+        "suggested_fix": "Mejorar filtrado de contextos, ajustar reranker threshold.",
+        "severity": "medium"
+      }
+    },
+    {
+      "test_case_id": "basica_4",
+      "question": "¿Cuál es el stack tecnológico del proyecto?",
+      "generated_answer": "El stack tecnológico del proyecto Asyb-Portal se describe en la siguiente parte del contexto:\n\n**Stack Tecnológico**\n\n- **Framework Principal:** Ionic 6\n- **Frontend Framework:** Angular 15\n- **Runtime de Capacidades Nativas:** Capacitor 6.1.2\n- **Gestión de Estado:** NgRx (Patrón Flux)\n- **Lenguaje:** TypeScript 4.9\n- **Node.js:** 16.x o superior\n\nPor lo tanto, el stack tecnológico del proyecto Asyb-Portal consta de Ionic 6 como Framework Principal, Angular 15 como Frontend Framework, Capacitor 6.1.2 para Runtime de Capacidades Nativas, NgRx para Gestión de Estado, TypeScript 4.9 como Lenguaje y Node.js 16.x o superior.",
+      "retrieved_contexts": [
+        "## Estructura del Proyecto\n\nEl proyecto sigue una **arquitectura modular** con separación clara de responsabilidades:\n\n### Directorio Core (`src/app/core/`)\n\nContiene servicios singleton y funcionalidades centrales:\n\n```typescript\ncore/\n├── services/           // Servicios globales\n│   ├── auth.service.ts\n│   ├── error-handler.service.ts\n│   └── http-interceptor.service.ts\n├── guards/            // Guards de rutas\n│   ├── auth.guard.ts\n│   └── role.guard.ts\n└── models/            // Interfaces y tipos compartidos\n    └── user.model.ts\n```\n\n**Características:**\n- Servicios singleton que se instancian una sola vez\n- Guards para protección de rutas\n- Modelos de datos globales",
+        "## Archivos de Configuración\n\n### Estructura\n\n```\nsrc/environments/\n├── environment.ts           // Desarrollo (por defecto)\n├── environment.pre.ts       // Preproducción\n├── environment.pro.ts       // Producción\n└── environment.master.ts    // Producción optimizada\n```",
+        "# Arquitectura General del Proyecto Asyb-Portal\n\n## Descripción del Proyecto\n\nAsyb-Portal es una **aplicación móvil híbrida** de servicios digitales de salud para Seguros Caixa Adeslas. La aplicación permite a los asegurados acceder a servicios médicos, gestionar pólizas, solicitar autorizaciones y realizar trámites de salud desde dispositivos móviles y web.\n\n### Stack Tecnológico\n\n- **Framework Principal:** Ionic 6\n- **Frontend Framework:** Angular 15\n- **Runtime de Capacidades Nativas:** Capacitor 6.1.2\n- **Gestión de Estado:** NgRx (Patrón Flux)\n- **Lenguaje:** TypeScript 4.9\n- **Node.js:** 16.x o superior",
+        "## Web Components en el Proyecto\n\n### Listado de Microfrontends Activos\n\n| Paquete npm | Función | Versión |\n|-------------|---------|---------|\n| `@wc-sca/citation-hub` | Centro de citas médicas | 2.5.1 |\n| `@wc-sca/medical-dashboard` | Dashboard médico completo | 3.1.0 |\n| `@wc-sca/health-diary` | Diario personal de salud | 1.8.2 |\n| `@wc-sca/policy-management` | Gestión de pólizas de seguros | 2.2.4 |\n| `@wc-sca/virtual-card` | Tarjeta sanitaria virtual | 1.5.0 |\n| `@wc-sca/dhs-refund` | Sistema de reembolsos DHS | 2.0.1 |\n| `@wc-sca/compauthorizationrequest` | Solicitudes de autorización | 1.9.3 |\n| `@wc-sca/contactability` | Sistema de contactabilidad | 1.4.0 |\n| `@wc-sca/dhs-card-duplication` | Duplicación de tarjetas DHS | 1.2.1 |\n| `@wc-sca/dhs-receipts-management` | Gestión de recibos DHS | 1.6.0 |\n| `@wc-sca/multirolcustomerregister` | Registro multirol de usuarios | 2.3.0 |",
+        "## Best Practices\n\n1. **Un Container por Feature** - No anidar containers\n2. **Presenters Reutilizables** - Diseñar para reutilización\n3. **Usar OnPush** - Siempre en presenters\n4. **Inputs Inmutables** - Pasar objetos inmutables\n5. **Outputs Semánticos** - Nombres descriptivos (saveClick, not buttonClick)\n6. **Lógica Mínima** - Presenters solo presentan\n7. **Async Pipe** - Preferir en containers",
+        "# Microfrontends y Web Components\n\n## Arquitectura de Microfrontends\n\nAsyb-Portal implementa una arquitectura de **microfrontends** usando **Web Components** personalizados. Esta arquitectura permite desarrollar, deployar y mantener funcionalidades de forma independiente.\n\n### Ventajas de la Arquitectura\n\n-\n\n **Independencia Tecnológica:** Cada microfrontend puede usar su stack\n- **Deploy Independiente:** Actualizar sin redeployar la app completa\n- **Equipos Autónomos:** Diferentes equipos trabajando en paralelo\n- **Escalabilidad:** Añadir features sin afectar el core\n- **Reutilización:** Mismo componente en múltiples apps",
+        "## Container Components (Smart)\n\nLos **containers** son componentes \"inteligentes\" que:\n\n- Conectan con el **Store** (NgRx)\n- Manejan **lógica de negocio**\n- Hacen **llamadas a servicios**\n- Gestionan **subscripciones**\n- **No tienen estilos** complejos",
+        "### Ventajas de los Selectors\n\n- **Memoización:** Solo recomputan cuando cambian las dependencias\n- **Composición:** Se pueden combinar fácilmente\n- **Testeable:** Pure functions fáciles de testear\n- **Performance:** Evitan re-renders innecesarios"
+      ],
+      "retrieved_sources": [
+        "01-arquitectura-general.md",
+        "05-configuracion-entornos.md",
+        "01-arquitectura-general.md",
+        "03-microfrontends-web-components.md",
+        "08-patron-container-presenter.md",
+        "03-microfrontends-web-components.md",
+        "08-patron-container-presenter.md",
+        "02-gestion-estado-ngrx.md"
+      ],
+      "faithfulness_score": 0.5,
+      "answer_relevancy_score": 0.9,
+      "context_precision_score": 0.8,
+      "context_recall_score": 1,
+      "context_relevancy_score": 0.8,
+      "answer_correctness_score": 0.7441985927804764,
+      "answer_similarity_score": 0.1111111111111111,
+      "answer_completeness_score": 0.9,
+      "hallucination_score": 0,
+      "hallucinations_detected": [
+        "El proyecto sigue una arquitectura modular con separación clara de responsabilidades: Esto no está soportado por el contexto, ya que solo se muestra la estructura del directorio Core y los archivos de configuración, pero no hay información sobre la arquitectura general del proyecto.",
+        "La aplicación permite a los asegurados acceder a servicios médicos, gestionar pólizas, solicitar autorizaciones y realizar trámites de salud desde dispositivos móviles y web: Esto está soportado por el contexto [3], que describe la descripción del proyecto Asyb-Portal.",
+        "El stack tecnológico del proyecto Asyb-Portal consta de Ionic 6 como Framework Principal, Angular 15 como Frontend Framework, Capacitor 6.1.2 para Runtime de Capacidades Nativas, NgRx para Gestión de Estado, TypeScript 4.9 como Lenguaje y Node.js 16.x o superior: Esto está soportado por el contexto [3], que describe la descripción del proyecto Asyb-Portal.",
+        "Los containers son componentes \"inteligentes\" que conectan con el Store (NgRx), manejan lógica de negocio, hacen llamadas a servicios y gestionan subscripciones: Esto está soportado por el contexto [7], que describe los Container Components (Smart).",
+        "Los Selectors tienen las ventajas de memoización, composición, testeable y performance: Esto está soportado por el contexto [8], que describe las ventajas de los Selectors."
+      ],
+      "retrieval_latency_ms": 3564,
+      "reranking_latency_ms": 0,
+      "generation_latency_ms": 15970,
+      "num_retrieved_docs": 8,
+      "num_final_docs": 8,
+      "latency_ms": 92514,
+      "timestamp": "2026-02-01T08:39:57.907Z",
+      "error_analysis": {
+        "error_types": [
+          "hallucination"
+        ],
+        "error_description": "Respuesta contiene alucinaciones (información no soportada por contextos). Alucinaciones detectadas: El proyecto sigue una arquitectura modular con separación clara de responsabilidades: Esto no está soportado por el contexto, ya que solo se muestra la estructura del directorio Core y los archivos de configuración, pero no hay información sobre la arquitectura general del proyecto.; La aplicación permite a los asegurados acceder a servicios médicos, gestionar pólizas, solicitar autorizaciones y realizar trámites de salud desde dispositivos móviles y web: Esto está soportado por el contexto [3], que describe la descripción del proyecto Asyb-Portal..",
+        "suggested_fix": "Revisar prompt del LLM para enfatizar uso estricto de contextos. Reducir temperatura a 0.0.",
+        "severity": "critical"
+      }
+    },
+    {
+      "test_case_id": "basica_5",
+      "question": "¿Qué es NgRx?",
+      "generated_answer": "NgRx proporciona gestión de estado centralizada, predecible y reactiva usando RxJS.",
+      "retrieved_contexts": [
+        "# Gestión de Estado con NgRx\n\n## Introducción\n\nAsyb-Portal utiliza **NgRx** (versión 15.4.0) para implementar el patrón **Flux** en Angular. NgRx proporciona gestión de estado centralizada, predecible y reactiva usando RxJS.\n\n### ¿Por qué NgRx?\n\n- **Estado Centralizado:** Una única fuente de verdad\n- **Flujo Unidireccional:** Predecible y fácil de debuggear\n- **Trazabilidad:** Historial completo de cambios de estado\n- **DevTools:** Redux DevTools para debugging\n- **Side Effects Management:** Gestión elegante de llamadas asíncronas",
+        "### Flux Pattern con NgRx\n\nFlujo unidireccional de datos para predictibilidad:\n\n```\nComponent → Action → Effect → API → Action → Reducer → Store → Component\n```",
+        "## Migración desde Services\n\nSi tienes componentes usando servicios con estado, migrar a NgRx:\n\n```typescript\n// Antes: Servicio con estado\n@Injectable()\nexport class UserService {\n  private userSubject = new BehaviorSubject<User | null>(null);\n  user$ = this.userSubject.asObservable();\n\n  setUser(user: User) {\n    this.userSubject.next(user);\n  }\n}\n\n// Después: NgRx\n// 1. Definir actions, reducer, selectors\n// 2. En el componente:\nthis.user$ = this.store.select(selectUser);\nthis.store.dispatch(UserActions.setUser({ user }));\n```",
+        "## Actions (Acciones)\n\nLas acciones son **eventos** que describen algo que ocurrió en la aplicación.\n\n### Definición de Acciones\n\n```typescript\n// state/actions/auth.actions.ts\nimport { createAction, props } from '@ngrx/store';\n\n// Acción de login\nexport const login = createAction(\n  '[Auth Page] Login',\n  props<{ email: string; password: string }>()\n);\n\nexport const loginSuccess = createAction(\n  '[Auth API] Login Success',\n  props<{ user: User; token: string }>()\n);\n\nexport const loginFailure = createAction(\n  '[Auth API] Login Failure',\n  props<{ error: string }>()\n);\n\n// Acción de logout\nexport const logout = createAction('[Auth] Logout');\n```\n\n### Convenciones de Naming\n\n```\n[Origen] Descripción\n\nEjemplos:\n[Auth Page] Login          // Usuario hizo click en login\n[Auth API] Login Success   // API respondió exitosamente\n[Router] Navigate Home     // Navegación programática\n```",
+        "### Implementación del Servicio\n\n```typescript\n// core/services/auth.service.ts\nimport { Injectable } from '@angular/core';\nimport { HttpClient } from '@angular/common/http';\nimport { BehaviorSubject, Observable } from 'rxjs';\nimport { map, tap } from 'rxjs/operators';\nimport { environment } from '@env/environment';\n\nexport interface User {\n  id: string;\n  email: string;\n  name: string;\n  roles: string[];\n}\n\nexport interface AuthResponse {\n  user: User;\n  token: string;\n  refreshToken: string;\n}\n\n@Injectable({ providedIn: 'root' })\nexport class AuthService {\n  private currentUserSubject = new BehaviorSubject<User | null>(null);\n  public currentUser$ = this.currentUserSubject.asObservable();\n\n  constructor(private http: HttpClient) {\n    // Cargar usuario del localStorage al iniciar\n    this.loadUserFromStorage();\n  }",
+        "## Configuración en angular.json\n\n### Assets de Web Components\n\nLos Web Components suelen tener assets (imágenes, fonts, estilos). Configurar en `angular.json`:\n\n```json\n{\n  \"projects\": {\n    \"asyb-portal\": {\n      \"architect\": {\n        \"build\": {\n          \"options\": {\n            \"assets\": [\n              \"src/favicon.ico\",\n              \"src/assets\",\n              {\n                \"glob\": \"**/*\",\n                \"input\": \"node_modules/@wc-sca/citation-hub/dist/assets\",\n                \"output\": \"/assets/wc/citation-hub\"\n              },\n              {\n                \"glob\": \"**/*\",\n                \"input\": \"node_modules/@wc-sca/medical-dashboard/dist/assets\",\n                \"output\": \"/assets/wc/medical-dashboard\"\n              }\n            ]\n          }\n        }\n      }\n    }\n  }\n}\n```",
+        "# Configuración de Entornos\n\n## Entornos Disponibles\n\nAsyb-Portal soporta tres entornos de ejecución:\n\n| Entorno | Uso | API URL |\n|---------|-----|---------|\n| **dev** | Desarrollo local | https://api-dev.adeslas.com |\n| **pre** | Preproducción (testing) | https://api-pre.adeslas.com |\n| **pro** | Producción | https://api.adeslas.com |",
+        "## Arquitectura del Store\n\n```\nstate/\n├── actions/           // Definición de acciones\n│   ├── user.actions.ts\n│   ├── auth.actions.ts\n│   └── appointments.actions.ts\n├── reducers/          // Pure functions que transforman estado\n│   ├── user.reducer.ts\n│   ├── auth.reducer.ts\n│   └── index.ts\n├── effects/           // Side effects (API calls, navegación)\n│   ├── user.effects.ts\n│   └── auth.effects.ts\n└── selectors/         // Query functions para el state\n    ├── user.selectors.ts\n    └── auth.selectors.ts\n```"
+      ],
+      "retrieved_sources": [
+        "02-gestion-estado-ngrx.md",
+        "01-arquitectura-general.md",
+        "02-gestion-estado-ngrx.md",
+        "02-gestion-estado-ngrx.md",
+        "04-autenticacion-guards.md",
+        "03-microfrontends-web-components.md",
+        "05-configuracion-entornos.md",
+        "02-gestion-estado-ngrx.md"
+      ],
+      "faithfulness_score": 0.95,
+      "answer_relevancy_score": 0.9,
+      "context_precision_score": 0.8,
+      "context_recall_score": 1,
+      "context_relevancy_score": 0.8,
+      "answer_correctness_score": 0.7891988215120285,
+      "answer_similarity_score": 0.3333333333333333,
+      "answer_completeness_score": 0.9,
+      "hallucination_score": 0,
+      "hallucinations_detected": [
+        "NgRx proporciona gestión de estado centralizada, predecible y reactiva usando RxJS. (No está soportado por el contexto [7], que solo menciona la configuración de entornos y no hace referencia a la gestión de estado con NgRx)",
+        "El patrón Flux es implementado en Angular utilizando NgRx. (No está soportado por el contexto [2], que solo muestra un diagrama del flujo de datos, pero no proporciona información sobre la implementación en Angular)",
+        "Las acciones son eventos que describen algo que ocurrió en la aplicación. (No está soportado por el contexto [4], que define las acciones como \"eventos\" pero no proporciona una definición explícita de qué se entiende por \"evento\")",
+        "El servicio AuthService utiliza HttpClient para realizar llamadas a la API. (No está soportado por el contexto [5], que solo muestra la interfaz del servicio y no proporciona información sobre cómo se utiliza HttpClient)",
+        "Los Web Components suelen tener assets (imágenes, fonts, estilos). (No está soportado por el contexto [6], que solo muestra una configuración en angular.json para los assets de un componente específico, pero no proporciona información general sobre los Web Components y sus assets)"
+      ],
+      "retrieval_latency_ms": 3654,
+      "reranking_latency_ms": 0,
+      "generation_latency_ms": 7676,
+      "num_retrieved_docs": 8,
+      "num_final_docs": 8,
+      "latency_ms": 73406,
+      "timestamp": "2026-02-01T08:41:11.315Z",
+      "error_analysis": {
+        "error_types": [],
+        "error_description": "Test case ejecutado exitosamente sin errores detectados.",
+        "suggested_fix": "Ninguna acción necesaria.",
+        "severity": "low"
+      }
+    }
+  ],
+  "best_performing_cases": [
+    {
+      "test_case_id": "basica_5",
+      "avg_score": 0.9125000000000001,
+      "question": "¿Qué es NgRx?"
+    },
+    {
+      "test_case_id": "basica_1",
+      "avg_score": 0.9,
+      "question": "¿Qué versiones de Angular e Ionic se usan en el proyecto?"
+    },
+    {
+      "test_case_id": "basica_3",
+      "avg_score": 0.8875,
+      "question": "¿Qué versión de Ionic se usa?"
+    },
+    {
+      "test_case_id": "basica_2",
+      "avg_score": 0.825,
+      "question": "¿Qué versión de Angular se usa?"
+    },
+    {
+      "test_case_id": "basica_4",
+      "avg_score": 0.8,
+      "question": "¿Cuál es el stack tecnológico del proyecto?"
+    }
+  ],
+  "worst_performing_cases": [
+    {
+      "test_case_id": "basica_4",
+      "avg_score": 0.8,
+      "question": "¿Cuál es el stack tecnológico del proyecto?"
+    },
+    {
+      "test_case_id": "basica_2",
+      "avg_score": 0.825,
+      "question": "¿Qué versión de Angular se usa?"
+    },
+    {
+      "test_case_id": "basica_3",
+      "avg_score": 0.8875,
+      "question": "¿Qué versión de Ionic se usa?"
+    },
+    {
+      "test_case_id": "basica_1",
+      "avg_score": 0.9,
+      "question": "¿Qué versiones de Angular e Ionic se usan en el proyecto?"
+    },
+    {
+      "test_case_id": "basica_5",
+      "avg_score": 0.9125000000000001,
+      "question": "¿Qué es NgRx?"
+    }
+  ]
+}

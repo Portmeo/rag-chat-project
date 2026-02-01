@@ -96,3 +96,29 @@ export const RERANKER_CONFIG = {
   finalTopK: parseInt(process.env.RERANKER_FINAL_TOP_K || '5'),           // Rerank to Top 5
   minScore: parseFloat(process.env.MIN_RERANK_SCORE || '0.3'),            // Minimum score to show sources
 } as const;
+
+// Parent Document Retriever Configuration
+export const PARENT_RETRIEVER_CONFIG = {
+  enabled: process.env.USE_PARENT_RETRIEVER === 'true',
+
+  // Child chunks: para búsqueda vectorial
+  childChunkSize: parseInt(process.env.CHILD_CHUNK_SIZE || '200'),
+  childChunkOverlap: parseInt(process.env.CHILD_CHUNK_OVERLAP || '50'),
+
+  // Parent chunks: para contexto al LLM
+  parentChunkSize: parseInt(process.env.PARENT_CHUNK_SIZE || '1000'),
+  parentChunkOverlap: parseInt(process.env.PARENT_CHUNK_OVERLAP || '200'),
+
+  // Strategy
+  storageMode: process.env.PARENT_STORAGE_MODE || 'children_only',
+  // 'children_only' = solo children en Qdrant, parents en metadata
+  // 'both' = children + parents en Qdrant (experimental)
+} as const;
+
+// Debug log
+console.log('🔧 Parent Retriever Config:', {
+  enabled: PARENT_RETRIEVER_CONFIG.enabled,
+  env_value: process.env.USE_PARENT_RETRIEVER,
+  childChunkSize: PARENT_RETRIEVER_CONFIG.childChunkSize,
+  parentChunkSize: PARENT_RETRIEVER_CONFIG.parentChunkSize,
+});
