@@ -7,6 +7,7 @@ export interface StreamCallbacks {
 
 export async function queryRAGStream(
   question: string,
+  history: Array<{ role: 'user' | 'assistant'; content: string }>,
   callbacks: StreamCallbacks
 ): Promise<void> {
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -14,7 +15,7 @@ export async function queryRAGStream(
   const response = await fetch(`${API_URL}/api/chat/query-stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question }),
+    body: JSON.stringify({ question, history }),
   });
 
   if (!response.ok) {

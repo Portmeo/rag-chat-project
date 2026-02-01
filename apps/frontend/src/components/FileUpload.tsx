@@ -1,5 +1,9 @@
 import { useState, useRef } from 'react';
-import { uploadDocument } from '../services/api';
+import { uploadDocument } from '@/services/api';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Upload, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface FileUploadProps {
   onFileUploaded: () => void;
@@ -53,26 +57,40 @@ export default function FileUpload({ onFileUploaded }: FileUploadProps) {
   };
 
   return (
-    <div className="file-upload">
-      <div className="upload-controls">
-        <input
+    <div className="space-y-4">
+      <div className="flex gap-2">
+        <Input
           ref={fileInputRef}
           type="file"
           accept=".html,.htm,.md,.markdown"
           onChange={handleFileSelect}
           disabled={uploading}
-          className="file-input-visible"
+          className="flex-1"
         />
-        <button
+        <Button
           onClick={handleUpload}
           disabled={!selectedFile || uploading}
-          className="upload-button"
         >
+          <Upload className="h-4 w-4 mr-2" />
           {uploading ? 'Uploading...' : 'Upload'}
-        </button>
+        </Button>
       </div>
-      {success && <p className="success">{success}</p>}
-      {error && <p className="error">{error}</p>}
+
+      {success && (
+        <Alert className="border-green-500 bg-green-50 dark:bg-green-950">
+          <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+          <AlertDescription className="text-green-600 dark:text-green-400">
+            {success}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 }

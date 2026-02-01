@@ -5,9 +5,9 @@ import { BM25Retriever } from './bm25Retriever';
 import { EnsembleRetriever } from './ensembleRetriever';
 import { qdrantClient, COLLECTION_NAME } from '../../repositories/qdrantRepository';
 import { embeddings, llm, MESSAGES, SIMILARITY_SEARCH_CONFIG, TEXT_SEPARATORS, BM25_CONFIG, RERANKER_CONFIG } from './config';
-import { createTextSplitter, buildPrompt, checkCollectionExists, getFileExtension, generateMultipleQueries, getAllDocumentsFromQdrant } from './helpers';
+import { createTextSplitter, buildPrompt, checkCollectionExists, getFileExtension, generateMultipleQueries, getAllDocumentsFromQdrant, limitHistory } from './helpers';
 import { extractTechnicalMetadata } from '../documentProcessor/templates';
-import type { DocumentMetadata, RAGResponse, AddDocumentResult } from './types';
+import type { DocumentMetadata, RAGResponse, AddDocumentResult, ConversationMessage } from './types';
 import { rerankDocuments } from './reranker';
 
 // ============================================================================
@@ -88,7 +88,10 @@ function filterSourcesByRelevance(relevantDocs: Document[]): DocumentMetadata[] 
 }
 
 // Shared function to retrieve relevant documents
-async function retrieveRelevantDocuments(question: string) {
+async function retrieveRelevantDocuments(
+  question: string,
+  history: ConversationMessage[] = []
+) {
   const collectionExists = await checkCollectionExists();
 
   if (!collectionExists) {
@@ -198,7 +201,7 @@ async function retrieveRelevantDocuments(question: string) {
   console.log('\n📝 Full context length:', context.length, 'chars');
   console.log('\n📝 Full context being sent to LLM:\n', context);
 
-  const prompt = buildPrompt(context, question);
+  const prompt = buildPrompt(context, question, history);
   console.log('\n🤖 Full prompt being sent:\n', prompt);
 
   return {
@@ -208,9 +211,13 @@ async function retrieveRelevantDocuments(question: string) {
   };
 }
 
-export async function queryRAG(question: string): Promise<RAGResponse> {
+export async function queryRAG(
+  question: string,
+  history: ConversationMessage[] = []
+): Promise<RAGResponse> {
   try {
-    const retrieved = await retrieveRelevantDocuments(question);
+    const limitedHistory = limitHistory(history);
+    const retrieved = await retrieveRelevantDocuments(question, limitedHistory);
 
     if (!retrieved) {
       return {
@@ -234,9 +241,15 @@ export async function queryRAG(question: string): Promise<RAGResponse> {
   }
 }
 
-export async function* queryRAGStream(question: string) {
+export async function* queryRAGStream(
+  question: string,
+  history: ConversationMessage[] = []
+) {
   try {
-    const retrieved = await retrieveRelevantDocuments(question);
+    const limitedHistory = limitHistory(history);
+    console.log(`\n📜 Using ${limitedHistory.length} messages from history`);
+
+    const retrieved = await retrieveRelevantDocuments(question, limitedHistory);
 
     if (!retrieved) {
       yield { event: 'token', data: { chunk: MESSAGES.NO_DOCUMENTS } };

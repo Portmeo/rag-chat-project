@@ -4,14 +4,14 @@ import { MESSAGES } from '../shared/messages';
 
 export async function queryChat({ body, set }: any) {
   try {
-    const { question } = body;
+    const { question, history = [] } = body;
 
     if (!question) {
       set.status = HTTP_STATUS.BAD_REQUEST;
       return { error: MESSAGES.QUESTION_REQUIRED };
     }
 
-    const result = await queryRAG(question);
+    const result = await queryRAG(question, history);
     return result;
   } catch (error: any) {
     console.error('Error querying RAG:', error);
@@ -21,7 +21,7 @@ export async function queryChat({ body, set }: any) {
 }
 
 export async function queryChatStream({ body }: any) {
-  const { question } = body;
+  const { question, history = [] } = body;
 
   if (!question) {
     return new Response(
@@ -33,7 +33,7 @@ export async function queryChatStream({ body }: any) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        for await (const event of queryRAGStream(question)) {
+        for await (const event of queryRAGStream(question, history)) {
           const message = `event: ${event.event}\ndata: ${JSON.stringify(event.data)}\n\n`;
           controller.enqueue(new TextEncoder().encode(message));
         }

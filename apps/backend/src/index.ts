@@ -45,11 +45,19 @@ const app = new Elysia()
   .post('/api/chat/query', queryChat, {
     body: t.Object({
       question: t.String(),
+      history: t.Optional(t.Array(t.Object({
+        role: t.Union([t.Literal('user'), t.Literal('assistant')]),
+        content: t.String(),
+      }))),
     }),
   })
   .post('/api/chat/query-stream', queryChatStream, {
     body: t.Object({
       question: t.String(),
+      history: t.Optional(t.Array(t.Object({
+        role: t.Union([t.Literal('user'), t.Literal('assistant')]),
+        content: t.String(),
+      }))),
     }),
   })
   .post('/api/evaluation/ragas', runEvaluation, {

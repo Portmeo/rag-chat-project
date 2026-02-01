@@ -21,5 +21,8 @@
   "description": "RAG Chat Application with Ollama and Qdrant",
   "dependencies": {
     "sharp": "^0.34.5"
+  },
+  "devDependencies": {
+    "shadcn": "^3.8.1"
   }
 }

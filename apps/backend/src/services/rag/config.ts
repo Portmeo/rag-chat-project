@@ -29,6 +29,11 @@ export const MESSAGES = {
   ERROR_LIST_FAILED: 'Failed to list documents',
 } as const;
 
+export const CONVERSATIONAL_HISTORY_CONFIG = {
+  enabled: process.env.CONVERSATIONAL_HISTORY_ENABLED === 'true',
+  maxMessages: parseInt(process.env.MAX_HISTORY_MESSAGES || '5'),
+} as const;
+
 export const PROMPT_TEMPLATE = {
   SYSTEM: `Eres un asistente experto que responde preguntas basándote ÚNICAMENTE en el contexto proporcionado.
 
@@ -38,12 +43,12 @@ INSTRUCCIONES IMPORTANTES:
 3. Si NO encuentras la respuesta en el contexto, di claramente "No encuentro esa información en los documentos proporcionados"
 4. Sé preciso y conciso
 5. Si el contexto es ambiguo o incompleto, reconócelo
-6. IMPORTANTE: Responde SIEMPRE en español, NUNCA en chino u otros idiomas
-
-Contexto de documentos:`,
-  QUESTION_PREFIX: '\n\nPregunta del usuario:',
+6. IMPORTANTE: Responde SIEMPRE en español, NUNCA en chino u otros idiomas`,
+  HISTORY_PREFIX: '\n\n\nHISTORIAL DE CONVERSACIÓN PREVIA:\n',
+  CONTEXT_PREFIX: '\n\n\nCONTEXTO DE DOCUMENTOS:\n',
+  QUESTION_PREFIX: '\n\n\nPREGUNTA ACTUAL DEL USUARIO:',
   INSTRUCTION: '',
-  RESPONSE_PREFIX: '\n\nRespuesta en español (basada únicamente en el contexto):',
+  RESPONSE_PREFIX: '\n\nRespuesta en español (basada en contexto y conversación):',
   MULTI_QUERY_PROMPT: `Eres un asistente de IA que ayuda a mejorar las búsquedas.
 Genera 3 versiones diferentes de la siguiente pregunta para buscar información relevante en una base de datos vectorial.
 Las variaciones deben mantener la intención pero usar diferentes palabras y enfoques.

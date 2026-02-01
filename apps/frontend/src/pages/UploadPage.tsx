@@ -1,6 +1,13 @@
 import { useState, useEffect } from 'react';
-import { getDocuments, clearDocuments } from '../services/api';
-import FileUpload from '../components/FileUpload';
+import { getDocuments, clearDocuments } from '@/services/api';
+import FileUpload from '@/components/FileUpload';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { FileText, Trash2, AlertCircle } from 'lucide-react';
 
 interface Document {
   filename: string;
@@ -12,6 +19,7 @@ export default function UploadPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
+  const [showClearDialog, setShowClearDialog] = useState(false);
 
   const fetchDocuments = async () => {
     try {
@@ -35,14 +43,11 @@ export default function UploadPage() {
   };
 
   const handleClearAll = async () => {
-    if (!confirm('Are you sure you want to delete all documents? This action cannot be undone.')) {
-      return;
-    }
-
     try {
       setClearing(true);
       await clearDocuments();
       fetchDocuments();
+      setShowClearDialog(false);
     } catch (err: any) {
       setError(err.message || 'Failed to clear documents');
     } finally {
@@ -62,61 +67,112 @@ export default function UploadPage() {
   };
 
   return (
-    <div className="upload-page">
-      <div className="upload-container">
-        <h2>Upload Documents</h2>
+    <div className="flex flex-col h-full p-8">
+      <Card>
+        <CardHeader>
+          <CardTitle>Upload Documents</CardTitle>
+          <CardDescription>
+            Upload HTML or Markdown files to create your knowledge base
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <FileUpload onFileUploaded={handleFileUploaded} />
 
-        <FileUpload onFileUploaded={handleFileUploaded} />
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">
+                Uploaded Documents ({documents.length})
+              </h3>
+              {documents.length > 0 && (
+                <Button
+                  variant="destructive"
+                  onClick={() => setShowClearDialog(true)}
+                  disabled={clearing}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Clear All
+                </Button>
+              )}
+            </div>
 
-        <div className="documents-table">
-          <div className="documents-header">
-            <h3>Uploaded Documents ({documents.length})</h3>
-            {documents.length > 0 && (
-              <button
-                onClick={handleClearAll}
-                disabled={clearing}
-                className="clear-all-button"
-              >
-                {clearing ? 'Clearing...' : 'Clear All'}
-              </button>
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {loading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : documents.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">
+                No documents uploaded yet. Upload HTML or Markdown files to get started.
+              </p>
+            ) : (
+              <div className="border rounded-lg">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Document</TableHead>
+                      <TableHead>Upload Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {documents.map((doc, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell>
+                          <a
+                            href={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/documents/${encodeURIComponent(doc.filename)}`}
+                            download={doc.filename}
+                            className="flex items-center gap-2 text-primary hover:underline"
+                          >
+                            <FileText className="h-4 w-4" />
+                            {doc.filename}
+                          </a>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {formatDate(doc.uploadDate)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </div>
+        </CardContent>
+      </Card>
 
-          {error && <p className="error">{error}</p>}
-
-          {loading ? (
-            <p className="loading">Loading documents...</p>
-          ) : documents.length === 0 ? (
-            <p className="no-documents">No documents uploaded yet. Upload HTML or Markdown files to get started.</p>
-          ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>Document</th>
-                  <th>Upload Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {documents.map((doc, idx) => (
-                  <tr key={idx}>
-                    <td>
-                      <span className="file-icon">📄</span>
-                      <a
-                        href={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/documents/${encodeURIComponent(doc.filename)}`}
-                        download={doc.filename}
-                        className="document-link"
-                      >
-                        {doc.filename}
-                      </a>
-                    </td>
-                    <td>{formatDate(doc.uploadDate)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
+      <Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Clear All Documents</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete all documents? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowClearDialog(false)}
+              disabled={clearing}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleClearAll}
+              disabled={clearing}
+            >
+              {clearing ? 'Clearing...' : 'Clear All'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

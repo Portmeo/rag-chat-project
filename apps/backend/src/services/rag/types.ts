@@ -11,3 +11,13 @@ export interface AddDocumentResult {
   success: boolean;
   chunksCount: number;
 }
+
+export interface ConversationMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface QueryWithHistory {
+  question: string;
+  history?: ConversationMessage[];
+}
