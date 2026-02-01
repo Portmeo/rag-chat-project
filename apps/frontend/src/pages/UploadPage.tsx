@@ -1,18 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { getDocuments, clearDocuments, deleteDocument } from '@/services/api';
 import FileUpload from '@/components/FileUpload';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { FileText, Trash2, AlertCircle } from 'lucide-react';
+import { FileText, Trash2, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, Search } from 'lucide-react';
 
 interface Document {
   filename: string;
   uploadDate: string;
 }
+
+type SortField = 'filename' | 'uploadDate';
+type SortDirection = 'asc' | 'desc';
 
 export default function UploadPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -23,6 +27,9 @@ export default function UploadPage() {
   const [deletingFile, setDeletingFile] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<Document | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortField, setSortField] = useState<SortField>('uploadDate');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   const fetchDocuments = async () => {
     try {
@@ -74,6 +81,41 @@ export default function UploadPage() {
     }
   };
 
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const filteredAndSortedDocuments = useMemo(() => {
+    let filtered = documents;
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      filtered = documents.filter((doc) =>
+        doc.filename.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // Sort documents
+    const sorted = [...filtered].sort((a, b) => {
+      let comparison = 0;
+
+      if (sortField === 'filename') {
+        comparison = a.filename.localeCompare(b.filename);
+      } else if (sortField === 'uploadDate') {
+        comparison = new Date(a.uploadDate).getTime() - new Date(b.uploadDate).getTime();
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+
+    return sorted;
+  }, [documents, searchQuery, sortField, sortDirection]);
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleString('es-ES', {
@@ -83,6 +125,17 @@ export default function UploadPage() {
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="h-4 w-4 ml-1" />;
+    }
+    return sortDirection === 'asc' ? (
+      <ArrowUp className="h-4 w-4 ml-1" />
+    ) : (
+      <ArrowDown className="h-4 w-4 ml-1" />
+    );
   };
 
   return (
@@ -100,7 +153,7 @@ export default function UploadPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">
-                Uploaded Documents ({documents.length})
+                Uploaded Documents ({searchQuery ? `${filteredAndSortedDocuments.length} / ${documents.length}` : documents.length})
               </h3>
               {documents.length > 0 && (
                 <Button
@@ -121,6 +174,19 @@ export default function UploadPage() {
               </Alert>
             )}
 
+            {documents.length > 0 && (
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Search documents..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            )}
+
             {loading ? (
               <div className="space-y-2">
                 <Skeleton className="h-10 w-full" />
@@ -131,18 +197,38 @@ export default function UploadPage() {
               <p className="text-center text-muted-foreground py-8">
                 No documents uploaded yet. Upload HTML or Markdown files to get started.
               </p>
+            ) : filteredAndSortedDocuments.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">
+                No documents found matching "{searchQuery}"
+              </p>
             ) : (
               <div className="border rounded-lg">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Document</TableHead>
-                      <TableHead>Upload Date</TableHead>
+                      <TableHead>
+                        <button
+                          onClick={() => handleSort('filename')}
+                          className="flex items-center hover:text-foreground transition-colors"
+                        >
+                          Document
+                          {getSortIcon('filename')}
+                        </button>
+                      </TableHead>
+                      <TableHead>
+                        <button
+                          onClick={() => handleSort('uploadDate')}
+                          className="flex items-center hover:text-foreground transition-colors"
+                        >
+                          Upload Date
+                          {getSortIcon('uploadDate')}
+                        </button>
+                      </TableHead>
                       <TableHead className="w-[100px]">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {documents.map((doc, idx) => (
+                    {filteredAndSortedDocuments.map((doc, idx) => (
                       <TableRow key={idx}>
                         <TableCell>
                           <a
