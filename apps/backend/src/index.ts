@@ -25,7 +25,12 @@ const fastify = Fastify({
 });
 
 // Register plugins
-await fastify.register(cors);
+await fastify.register(cors, {
+  origin: true, // Allow all origins in development
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+});
 await fastify.register(multipart, {
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB
