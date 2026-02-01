@@ -159,8 +159,9 @@ RERANKER_FINAL_TOP_K=5           # Return top 5 after reranking
 RERANKER_TIMEOUT_MS=30000        # 30s timeout
 ```
 
-## Métricas Importantes
+## Métricas de Evaluación
 
+### Métricas de Retrieval (Benchmarks)
 - **MRR (Mean Reciprocal Rank)**: Qué tan alto aparece la respuesta correcta
   - 0.875 = En promedio, la respuesta correcta está en posición 1.14
 
@@ -170,6 +171,28 @@ RERANKER_TIMEOUT_MS=30000        # 30s timeout
 - **Precision@K**: De los K resultados, cuántos son relevantes
   - El reranking mejora esto significativamente
 
+### Métricas RAGAS (Calidad End-to-End)
+Evaluación automática del sistema completo usando LLM-as-judge:
+
+- **Faithfulness (0-1)**: ¿La respuesta está soportada por el contexto recuperado?
+  - Detecta alucinaciones (información inventada)
+  - Target: >0.85
+
+- **Answer Relevancy (0-1)**: ¿La respuesta es relevante para la pregunta?
+  - Detecta respuestas fuera de tema
+  - Target: >0.80
+
+- **Context Precision (0-1)**: ¿Los documentos recuperados son relevantes?
+  - Mide calidad del retrieval (BM25 + Vector + Reranking)
+  - Target: >0.75
+
+- **Context Recall (0-1)**: ¿Se recuperaron todos los documentos necesarios?
+  - Detecta documentos faltantes importantes
+  - Target: >0.85
+
+**Cómo ejecutar**: `bun run benchmark/evaluation/run_ragas_eval.ts`
+**Dataset**: 17 casos de prueba con ground truth en `benchmark/evaluation/datasets/golden_qa.json`
+
 ## Lecciones Aprendidas
 
 1. **Híbrido > Puro**: BM25 + Vectores supera a cada uno por separado
@@ -178,10 +201,33 @@ RERANKER_TIMEOUT_MS=30000        # 30s timeout
 4. **Reranking vale la pena**: +10-15% mejora con poco overhead
 5. **Testing riguroso**: Los benchmarks revelaron problemas ocultos
 
-## Próximos Pasos Posibles
+## Limitaciones Actuales
 
-- Agregar prefijos de instrucción a mxbai en producción (+3.7%)
-- Experimentar con diferentes pesos BM25/Vector
-- Evaluar modelos de reranking más grandes
-- Optimizar tamaño de chunks (actualmente 1000)
-- Streaming de respuestas para mejor UX
+### BM25 en Memoria
+- **Problema**: BM25Retriever mantiene TODOS los documentos en memoria
+- El cache se reconstruye completamente en cada upload
+- Memoria crece linealmente con el número de documentos
+- **No escalable** para >10k documentos
+- **Solución recomendada**: Migrar a Qdrant Sparse Vectors (BM42)
+  - Qdrant soporta búsqueda híbrida nativa (dense + sparse)
+  - Escalabilidad a millones de documentos
+  - Referencias: [Qdrant Sparse Vectors](https://qdrant.tech/documentation/concepts/vectors/#sparse-vectors)
+
+## Próximos Pasos Prioritarios
+
+1. **Migrar BM25 a Qdrant Sparse Vectors** (escalabilidad crítica)
+   - Problema: BM25 en memoria no escala >10k documentos
+   - Solución: Usar Qdrant sparse vectors nativos
+
+2. **Parent Document Retriever (Small-to-Big)** (+15-20% precisión esperada)
+   - Problema actual: Chunks de 1000 chars son buenos para LLM pero subóptimos para retrieval
+   - Solución: Buscar con chunks pequeños (200 chars), retornar chunks grandes (1000 chars)
+   - Beneficio: Lo mejor de ambos mundos (precisión en búsqueda + contexto para LLM)
+   - Implementación:
+     1. Al indexar: crear child chunks (200) + parent chunks (1000)
+     2. Indexar child chunks con metadata.parent_id
+     3. En retrieval: buscar child → retornar parent
+
+3. Experimentar con diferentes pesos BM25/Vector
+4. Mejorar RAGAS: más casos de prueba, dashboard visual
+5. Evaluar modelos de reranking más grandes

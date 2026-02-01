@@ -4,11 +4,26 @@ Sistema RAG (Retrieval-Augmented Generation) optimizado para consultas sobre doc
 
 ## ✨ Características
 
+### Core RAG
 - 🔍 **Búsqueda Híbrida**: Combina BM25 (70%) + embeddings vectoriales (30%)
-- 🎯 **Reranking**: Cross-encoder para mejorar precisión (+10-12% MRR)
+- 🔄 **Multi-Query**: Genera 3 variaciones de cada pregunta para mejor retrieval
+- 🎯 **Reranking**: Cross-encoder (bge-reranker-base) para mejorar precisión (+10-12% MRR)
 - 🤖 **LLM Local**: llama3.1:8b vía Ollama (sin costos de API)
 - 📊 **Alta Precisión**: 85.7% accuracy, MRR 0.875, Recall@5 94%
 - 🇪🇸 **Optimizado para Español**: Modelos y prompts ajustados
+
+### Interfaz y UX
+- ⚡ **Streaming**: Respuestas en tiempo real (SSE)
+- 💬 **Historial Conversacional**: Memoria de últimos 5-10 mensajes
+- 📝 **Markdown Rendering**: Syntax highlighting para código
+- 📋 **Copy to Clipboard**: Copiar código con un click
+- 🗂️ **Gestión de Documentos**: Buscar, ordenar, eliminar documentos individuales
+
+### Evaluación y Calidad
+- 🧪 **RAGAS Evaluation**: 9 métricas automáticas (Faithfulness, Answer Relevancy, Context Precision/Recall, etc.)
+- 🔍 **Detección de Alucinaciones**: Identificación automática de afirmaciones no soportadas
+- 📊 **Golden Dataset**: 17 casos de prueba con ground truth
+- 🎯 **LLM-as-Judge**: Evaluación con llama3.1:8b (temperatura=0.1 para consistencia)
 
 ## 🚀 Quick Start
 
@@ -113,6 +128,15 @@ USE_RERANKER=true
 RERANKER_RETRIEVAL_TOP_K=20
 RERANKER_FINAL_TOP_K=5
 RERANKER_TIMEOUT_MS=30000
+
+# Historial Conversacional
+CONVERSATIONAL_HISTORY_ENABLED=true
+MAX_HISTORY_MESSAGES=5
+
+# Instruction Prefix (mejora +3.7% MRR)
+USE_INSTRUCTION_PREFIX=true
+EMBEDDING_QUERY_PREFIX=Represent this sentence for searching relevant passages:
+EMBEDDING_DOCUMENT_PREFIX=
 ```
 
 ### Frontend (.env)
@@ -255,6 +279,29 @@ python fair_benchmark.py              # Round 1
 python round2_optimized_benchmark.py  # Round 2
 ```
 
+### Evaluación RAGAS (calidad del RAG)
+
+```bash
+# Evaluar el sistema completo con 17 casos de prueba
+bun run benchmark/evaluation/run_ragas_eval.ts
+
+# O usar el API endpoint
+curl -X POST http://localhost:3001/api/evaluation/ragas \
+  -H "Content-Type: application/json" \
+  -d '{"saveResults": true}'
+```
+
+**Métricas evaluadas**:
+- Faithfulness (0-1): ¿La respuesta está soportada por el contexto?
+- Answer Relevancy (0-1): ¿La respuesta es relevante a la pregunta?
+- Context Precision (0-1): ¿Los documentos recuperados son relevantes?
+- Context Recall (0-1): ¿Se recuperaron todos los documentos necesarios?
+- + 5 métricas adicionales (Context Relevancy, Answer Correctness, etc.)
+
+**Tiempo**: ~5-10 minutos para 17 casos
+
+Ver [benchmark/evaluation/README.md](benchmark/evaluation/README.md) para detalles.
+
 ## 📖 Documentación
 
 - **[docs/RAG_SYSTEM_GUIDE.md](docs/RAG_SYSTEM_GUIDE.md)** - Guía conceptual (empieza aquí)
@@ -298,14 +345,26 @@ bun --watch src/index.ts
 
 Ver [docs/RAG_SYSTEM_GUIDE.md](docs/RAG_SYSTEM_GUIDE.md) para el razonamiento completo.
 
-## 🚧 Próximas Mejoras
+## 🚧 Próximas Mejoras Prioritarias
 
-- [ ] Agregar prefijo de instrucción oficial a mxbai (+3.7% MRR)
-- [ ] Streaming de respuestas (mejor UX)
-- [ ] Caché de embeddings frecuentes
+### Sprint 1 (Alta Prioridad)
+- [ ] **Migrar BM25 a Qdrant Sparse Vectors** ⭐ (escalabilidad crítica)
+- [ ] **Parent Document Retriever** ⭐ (Small-to-Big: +15-20% precisión esperada)
+- [ ] Mejorar RAGAS: más casos de prueba, dashboard visual
+- [ ] Dark mode
+
+### Sprint 2 (Media Prioridad)
+- [ ] Persistir historial de chats (SQLite/PostgreSQL)
+- [ ] Panel de configuración avanzada
+- [ ] Mostrar chunks/tamaño por documento
+- [ ] Metadata enriquecida (secciones, tipo de contenido)
+
+### Futuro
 - [ ] Soporte para PDF y DOCX
 - [ ] Tests unitarios e integración
-- [ ] UI mejorada con historial de chat
+- [ ] Contextual Compression (opcional)
+
+Ver [IDEAS.md](IDEAS.md) para roadmap completo y justificaciones.
 
 ## 📄 Stack Tecnológico
 

@@ -9,6 +9,7 @@ Guía conceptual de alto nivel del sistema RAG:
 - Arquitectura completa del sistema
 - Por qué elegimos cada componente (BM25, mxbai, reranking, llama3.1)
 - Proceso de optimización y benchmarks
+- Métricas de evaluación (MRR, Recall, RAGAS)
 - Resultados finales
 - **Recomendado para entender el "por qué" de cada decisión**
 
@@ -25,6 +26,13 @@ Documentación del sistema de reranking:
 - Arquitectura con worker threads
 - Configuración y parámetros
 - Impacto en métricas (+10-12% MRR)
+
+### 🧪 [../benchmark/evaluation/README.md](../benchmark/evaluation/README.md)
+Sistema de evaluación RAGAS:
+- 9 métricas automáticas de calidad
+- Detección de alucinaciones
+- Golden dataset con 17 casos de prueba
+- Cómo ejecutar evaluaciones y interpretar resultados
 
 ## 🎯 Flujo de Lectura Recomendado
 
