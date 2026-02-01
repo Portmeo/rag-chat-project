@@ -2,6 +2,7 @@ import type { FastifyRequest, FastifyReply } from 'fastify';
 import { queryRAG, queryRAGStream } from '../services/rag/index.js';
 import { HTTP_STATUS } from '../shared/http.js';
 import { MESSAGES } from '../shared/messages.js';
+import { initSseResponse } from '../utils/sse.js';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -49,12 +50,8 @@ export async function queryChatStream(
       });
     }
 
-    // Set headers for Server-Sent Events
-    reply.raw.setHeader('Content-Type', 'text/event-stream');
-    reply.raw.setHeader('Cache-Control', 'no-cache');
-    reply.raw.setHeader('Connection', 'keep-alive');
+    initSseResponse(request, reply);
 
-    // Stream response
     try {
       for await (const event of queryRAGStream(question, history)) {
         const message = `event: ${event.event}\ndata: ${JSON.stringify(event.data)}\n\n`;

@@ -10,6 +10,7 @@ import {
   deleteDocument
 } from './controllers/documentController.js';
 import { queryChat, queryChatStream } from './controllers/chatController.js';
+
 import { STATUS, MESSAGES } from './shared/messages.js';
 
 const fastify = Fastify({
@@ -81,6 +82,7 @@ fastify.delete('/api/documents', clearDocuments);
 
 // Chat routes
 fastify.post('/api/chat/query', queryChat);
+
 fastify.post('/api/chat/query-stream', queryChatStream);
 
 // Start server
