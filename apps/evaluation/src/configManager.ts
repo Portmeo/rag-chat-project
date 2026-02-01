@@ -181,26 +181,30 @@ export async function applyConfig(config: OptimizationConfig): Promise<void> {
   console.log('\n🔄 Restarting backend...');
 
   try {
-    // Kill existing backend process
-    await execAsync('pkill -f "bun.*backend.*dev" || true');
-    console.log('✅ Stopped existing backend process');
+    // Kill all processes using port 3001 (more robust than pkill)
+    const pids = await execAsync('lsof -ti :3001 || true');
+    if (pids.stdout.trim()) {
+      await execAsync(`kill -9 ${pids.stdout.trim().split('\n').join(' ')}`);
+      console.log('✅ Stopped existing backend process(es)');
+    } else {
+      console.log('⚠️  No existing backend process found');
+    }
   } catch (error) {
     // Process might not be running, that's ok
-    console.log('⚠️  No existing backend process found');
+    console.log('⚠️  Error stopping backend (may not be running)');
   }
 
-  // Wait a bit for process to fully terminate
-  await new Promise((resolve) => setTimeout(resolve, 2000));
+  // Wait a bit for process to fully terminate and port to be released
+  await new Promise((resolve) => setTimeout(resolve, 3000));
 
-  // Start backend in background
-  // Using nohup to keep it running
+  // Start backend in background with npm
   const backendDir = path.join(process.cwd(), 'apps/backend');
   const logFile = path.join(process.cwd(), 'benchmark/evaluation/results/backend.log');
 
   // Ensure results directory exists
   await fs.mkdir(path.join(process.cwd(), 'benchmark/evaluation/results'), { recursive: true });
 
-  exec(`cd ${backendDir} && nohup bun run dev > ${logFile} 2>&1 &`, (error) => {
+  exec(`cd ${backendDir} && nohup npm run dev > ${logFile} 2>&1 &`, (error) => {
     if (error) {
       console.error('❌ Error starting backend:', error);
     }

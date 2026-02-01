@@ -2,19 +2,6 @@
 
 Scripts para probar, evaluar y optimizar el sistema RAG.
 
-## 🏥 Health Check
-
-**`./health-check.sh`**
-
-Verifica que todo el stack funciona:
-- ✓ Qdrant corriendo
-- ✓ Ollama corriendo y modelos descargados
-- ✓ Backend respondiendo
-- ✓ Documentos indexados
-- ✓ Configuración correcta
-
-**Úsalo antes de empezar a trabajar.**
-
 ## 📤 Upload Documents
 
 **`./upload-docs.sh`**
@@ -65,16 +52,13 @@ Ver documentación completa en `/apps/evaluation/README.md`.
 ## 📊 Flujo Recomendado
 
 ```bash
-# 1. Verificar sistema
-./health-check.sh
-
-# 2. Subir documentos (si es necesario)
+# 1. Subir documentos (si es necesario)
 ./upload-docs.sh
 
-# 3. Ejecutar benchmarks RAGAS
+# 2. Ejecutar benchmarks RAGAS
 npm run benchmark:optimization  # Evalúa todas las configuraciones
 
-# 4. (Opcional) Stress test
+# 3. (Opcional) Stress test
 ./stress-test.sh
 ```
 
