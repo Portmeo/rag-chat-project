@@ -7,10 +7,10 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "bun run --filter '*' dev",
-    "dev:frontend": "bun run --filter frontend dev",
-    "dev:backend": "bun run --filter backend dev",
-    "build": "bun run --filter '*' build",
+    "dev": "npm run --workspaces --if-present dev",
+    "dev:frontend": "npm run dev --workspace=apps/frontend",
+    "dev:backend": "npm run dev --workspace=apps/backend",
+    "build": "npm run --workspaces --if-present build",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f qdrant"
@@ -20,6 +20,7 @@
   "license": "ISC",
   "description": "RAG Chat Application with Ollama and Qdrant",
   "dependencies": {
+    "@xenova/transformers": "^2.17.2",
     "sharp": "^0.34.5"
   },
   "devDependencies": {

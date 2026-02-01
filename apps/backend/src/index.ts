@@ -1,81 +1,93 @@
-import { Elysia, t } from 'elysia';
-import { cors } from '@elysiajs/cors';
-import { initQdrant, qdrantClient, COLLECTION_NAME } from './repositories/qdrantRepository';
-import { uploadDocument, getDocuments, clearDocuments, downloadDocument, deleteDocument } from './controllers/documentController';
-import { queryChat, queryChatStream } from './controllers/chatController';
-import { runEvaluation } from './controllers/evaluationController';
-import { STATUS, MESSAGES } from './shared/messages';
+import Fastify from 'fastify';
+import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
+import { initQdrant, qdrantClient, COLLECTION_NAME } from './repositories/qdrantRepository.js';
+import {
+  uploadDocument,
+  getDocuments,
+  clearDocuments,
+  downloadDocument,
+  deleteDocument
+} from './controllers/documentController.js';
+import { queryChat, queryChatStream } from './controllers/chatController.js';
+import { STATUS, MESSAGES } from './shared/messages.js';
 
-const app = new Elysia()
-  .use(cors())
-  .get('/health', () => ({
+const fastify = Fastify({
+  logger: {
+    transport: {
+      target: 'pino-pretty',
+      options: {
+        translateTime: 'HH:MM:ss Z',
+        ignore: 'pid,hostname',
+      },
+    },
+  },
+});
+
+// Register plugins
+await fastify.register(cors);
+await fastify.register(multipart, {
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB
+  },
+});
+
+// Health check
+fastify.get('/health', async (request, reply) => {
+  return {
     status: STATUS.OK,
     message: MESSAGES.HEALTH_OK,
-  }))
-  .get('/api/debug/qdrant', async () => {
-    try {
-      const result = await qdrantClient.scroll(COLLECTION_NAME, {
-        limit: 5,
-        with_payload: true,
-        with_vector: false,
-      });
+  };
+});
 
-      return {
-        total_points: result.points.length,
-        sample_payloads: result.points.map((point) => ({
-          id: point.id,
-          payload_keys: Object.keys(point.payload || {}),
-          payload: point.payload,
-        })),
-      };
-    } catch (error: any) {
-      return {
-        error: error.message,
-      };
-    }
-  })
-  .get('/api/documents', getDocuments)
-  .get('/api/documents/:filename', downloadDocument)
-  .post('/api/documents/upload', uploadDocument, {
-    body: t.Object({
-      file: t.File(),
-    }),
-  })
-  .delete('/api/documents/:filename', deleteDocument)
-  .delete('/api/documents', clearDocuments)
-  .post('/api/chat/query', queryChat, {
-    body: t.Object({
-      question: t.String(),
-      history: t.Optional(t.Array(t.Object({
-        role: t.Union([t.Literal('user'), t.Literal('assistant')]),
-        content: t.String(),
-      }))),
-    }),
-  })
-  .post('/api/chat/query-stream', queryChatStream, {
-    body: t.Object({
-      question: t.String(),
-      history: t.Optional(t.Array(t.Object({
-        role: t.Union([t.Literal('user'), t.Literal('assistant')]),
-        content: t.String(),
-      }))),
-    }),
-  })
-  .post('/api/evaluation/ragas', runEvaluation, {
-    body: t.Optional(t.Object({
-      datasetPath: t.Optional(t.String()),
-      saveResults: t.Optional(t.Boolean()),
-    })),
-  });
+// Debug endpoint
+fastify.get('/api/debug/qdrant', async (request, reply) => {
+  try {
+    const result = await qdrantClient.scroll(COLLECTION_NAME, {
+      limit: 5,
+      with_payload: true,
+      with_vector: false,
+    });
 
+    return {
+      total_points: result.points.length,
+      sample_payloads: result.points.map((point) => ({
+        id: point.id,
+        payload_keys: Object.keys(point.payload || {}),
+        payload: point.payload,
+      })),
+    };
+  } catch (error: any) {
+    return reply.code(500).send({
+      error: error.message,
+    });
+  }
+});
+
+// Document routes
+fastify.get('/api/documents', getDocuments);
+fastify.get('/api/documents/:filename', downloadDocument);
+fastify.post('/api/documents/upload', uploadDocument);
+fastify.delete('/api/documents/:filename', deleteDocument);
+fastify.delete('/api/documents', clearDocuments);
+
+// Chat routes
+fastify.post('/api/chat/query', queryChat);
+fastify.post('/api/chat/query-stream', queryChatStream);
+
+// Start server
 async function startServer() {
   await initQdrant();
 
   const PORT = process.env.PORT || 3001;
 
-  app.listen(PORT, () => {
+  try {
+    await fastify.listen({ port: Number(PORT), host: '0.0.0.0' });
     console.log(`🚀 Backend running on http://localhost:${PORT}`);
-  });
+  } catch (err) {
+    fastify.log.error(err);
+    process.exit(1);
+  }
 }
 
 startServer().catch(console.error);

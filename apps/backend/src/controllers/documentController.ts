@@ -1,78 +1,110 @@
-import { unlink, writeFile, readFile, readdir } from 'fs/promises';
+import type { FastifyRequest, FastifyReply } from 'fastify';
+import type { MultipartFile } from '@fastify/multipart';
+import { unlink, writeFile, readFile, readdir, mkdir } from 'fs/promises';
 import { join } from 'path';
-import { processDocument } from '../services/documentProcessor';
-import { addDocumentToVectorStore, listDocuments, clearBM25Cache, deleteDocumentFromVectorStore } from '../services/rag';
-import { clearQdrant } from '../repositories/qdrantRepository';
-import { HTTP_STATUS } from '../shared/http';
-import { MESSAGES } from '../shared/messages';
+import { processDocument } from '../services/documentProcessor/index.js';
+import { addDocumentToVectorStore, listDocuments, clearBM25Cache, deleteDocumentFromVectorStore } from '../services/rag/index.js';
+import { clearQdrant } from '../repositories/qdrantRepository.js';
+import { HTTP_STATUS } from '../shared/http.js';
+import { MESSAGES } from '../shared/messages.js';
 
 const DOCUMENTS_DIR = join('uploads', 'documents');
 
-export async function uploadDocument({ body, set }: any) {
+export async function uploadDocument(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
   try {
-    const file = body.file;
+    const data = await request.file();
 
-    if (!file) {
-      set.status = HTTP_STATUS.BAD_REQUEST;
-      return { error: MESSAGES.NO_FILE };
+    if (!data) {
+      return reply.code(HTTP_STATUS.BAD_REQUEST).send({
+        error: MESSAGES.NO_FILE,
+      });
     }
 
-    const storedPath = join(DOCUMENTS_DIR, file.name);
-    const buffer = await file.arrayBuffer();
-    await writeFile(storedPath, Buffer.from(buffer));
+    const file = data as MultipartFile;
+    const buffer = await file.toBuffer();
+    const filename = file.filename;
 
-    const text = await processDocument(storedPath, file.name);
+    // Ensure upload directory exists
+    await mkdir(DOCUMENTS_DIR, { recursive: true });
+
+    const storedPath = join(DOCUMENTS_DIR, filename);
+    await writeFile(storedPath, buffer);
+
+    const text = await processDocument(storedPath, filename);
 
     const result = await addDocumentToVectorStore(
       text,
-      file.name,
+      filename,
       new Date().toISOString()
     );
 
     return {
       message: MESSAGES.DOCUMENT_SUCCESS,
-      filename: file.name,
+      filename,
       chunksCount: result.chunksCount,
     };
   } catch (error: any) {
     console.error(MESSAGES.ERROR_PROCESSING_DOC, error);
-    set.status = HTTP_STATUS.INTERNAL_SERVER_ERROR;
-    return { error: error.message };
+    return reply.code(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
+      error: error.message,
+    });
   }
 }
 
-export async function getDocuments({ set }: any) {
+export async function getDocuments(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
   try {
     const documents = await listDocuments();
     return { documents };
   } catch (error: any) {
     console.error(MESSAGES.ERROR_GETTING_DOCS, error);
-    set.status = HTTP_STATUS.INTERNAL_SERVER_ERROR;
-    return { error: error.message };
+    return reply.code(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
+      error: error.message,
+    });
   }
 }
 
-export async function downloadDocument({ params, set }: any) {
+interface DownloadDocumentParams {
+  filename: string;
+}
+
+export async function downloadDocument(
+  request: FastifyRequest<{ Params: DownloadDocumentParams }>,
+  reply: FastifyReply
+) {
   try {
-    const filename = params.filename;
+    const filename = request.params.filename;
     const filePath = join(DOCUMENTS_DIR, filename);
 
     const fileContent = await readFile(filePath);
 
-    set.headers['Content-Type'] = 'application/octet-stream';
-    set.headers['Content-Disposition'] = `attachment; filename="${filename}"`;
-
-    return fileContent;
+    return reply
+      .header('Content-Type', 'application/octet-stream')
+      .header('Content-Disposition', `attachment; filename="${filename}"`)
+      .send(fileContent);
   } catch (error: any) {
     console.error('Error downloading document:', error);
-    set.status = HTTP_STATUS.INTERNAL_SERVER_ERROR;
-    return { error: 'Document not found' };
+    return reply.code(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
+      error: 'Document not found',
+    });
   }
 }
 
-export async function deleteDocument({ params, set }: any) {
+interface DeleteDocumentParams {
+  filename: string;
+}
+
+export async function deleteDocument(
+  request: FastifyRequest<{ Params: DeleteDocumentParams }>,
+  reply: FastifyReply
+) {
   try {
-    const filename = decodeURIComponent(params.filename);
+    const filename = decodeURIComponent(request.params.filename);
 
     // Delete from Qdrant first (source of truth)
     const result = await deleteDocumentFromVectorStore(filename);
@@ -93,12 +125,16 @@ export async function deleteDocument({ params, set }: any) {
     };
   } catch (error: any) {
     console.error(MESSAGES.ERROR_DELETING_DOC, error);
-    set.status = HTTP_STATUS.INTERNAL_SERVER_ERROR;
-    return { error: error.message };
+    return reply.code(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
+      error: error.message,
+    });
   }
 }
 
-export async function clearDocuments({ set }: any) {
+export async function clearDocuments(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
   try {
     await clearQdrant();
     await clearBM25Cache();
@@ -109,7 +145,8 @@ export async function clearDocuments({ set }: any) {
     return { message: MESSAGES.DOCUMENTS_CLEARED };
   } catch (error: any) {
     console.error(MESSAGES.ERROR_CLEARING_DOCS, error);
-    set.status = HTTP_STATUS.INTERNAL_SERVER_ERROR;
-    return { error: error.message };
+    return reply.code(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
+      error: error.message,
+    });
   }
 }

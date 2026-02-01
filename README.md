@@ -28,7 +28,8 @@ Sistema RAG (Retrieval-Augmented Generation) optimizado para consultas sobre doc
 ## 🚀 Quick Start
 
 ### Requisitos
-- **Bun** (v1.3.2+)
+- **Node.js** (v20+)
+- **npm** (v10+)
 - **Docker** (para Qdrant)
 - **Ollama** (para modelos LLM)
 
@@ -42,19 +43,19 @@ ollama pull mxbai-embed-large     # Embeddings (~669MB)
 
 2. **Instalar dependencias**:
 ```bash
-bun install
+npm install
 ```
 
 3. **Iniciar servicios** (3 terminales):
 ```bash
 # Terminal 1 - Qdrant
-bun run docker:up
+npm run docker:up
 
 # Terminal 2 - Ollama
 ollama serve
 
 # Terminal 3 - Aplicación
-bun run dev
+npm run dev
 ```
 
 ### Verificar
@@ -269,17 +270,17 @@ rag-chat-project/
 
 ```bash
 # Desarrollo
-bun run dev              # Backend + Frontend
-bun run dev:backend      # Solo backend
-bun run dev:frontend     # Solo frontend
+npm run dev              # Backend + Frontend
+npm run dev:backend      # Solo backend
+npm run dev:frontend     # Solo frontend
 
 # Docker (Qdrant)
-bun run docker:up        # Iniciar Qdrant
-bun run docker:down      # Parar Qdrant
-bun run docker:logs      # Ver logs
+npm run docker:up        # Iniciar Qdrant
+npm run docker:down      # Parar Qdrant
+npm run docker:logs      # Ver logs
 
 # Build
-bun run build            # Build todo
+npm run build            # Build todo
 ```
 
 ## 📚 API Endpoints
@@ -366,7 +367,7 @@ python round2_optimized_benchmark.py  # Round 2
 
 ```bash
 # Evaluar el sistema completo con 17 casos de prueba
-bun run benchmark/evaluation/run_ragas_eval.ts
+npx tsx benchmark/evaluation/run_ragas_eval.ts
 
 # O usar el API endpoint
 curl -X POST http://localhost:3001/api/evaluation/ragas \
@@ -399,7 +400,7 @@ Ver [benchmark/evaluation/README.md](benchmark/evaluation/README.md) para detall
 ### Error: "Cannot connect to Qdrant"
 ```bash
 docker ps | grep qdrant    # Verificar que esté corriendo
-bun run docker:up          # Iniciar si no está
+npm run docker:up          # Iniciar si no está
 ```
 
 ### Error: "Ollama model not found"
@@ -418,7 +419,7 @@ ollama serve               # Iniciar Ollama
 ```bash
 # Reiniciar backend manualmente
 cd apps/backend
-bun --watch src/index.ts
+npm run dev
 ```
 
 ## 🎯 Decisiones Clave de Arquitectura
@@ -454,8 +455,8 @@ Ver [IDEAS.md](IDEAS.md) para roadmap completo y justificaciones.
 ## 📄 Stack Tecnológico
 
 **Backend**:
-- Runtime: Bun
-- Framework: Express
+- Runtime: Node.js
+- Framework: Fastify
 - LLM: Ollama (llama3.1:8b)
 - Vector Store: Qdrant
 - Embeddings: mxbai-embed-large

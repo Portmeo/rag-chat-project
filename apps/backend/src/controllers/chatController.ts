@@ -1,56 +1,75 @@
-import { queryRAG, queryRAGStream } from '../services/rag';
-import { HTTP_STATUS } from '../shared/http';
-import { MESSAGES } from '../shared/messages';
+import type { FastifyRequest, FastifyReply } from 'fastify';
+import { queryRAG, queryRAGStream } from '../services/rag/index.js';
+import { HTTP_STATUS } from '../shared/http.js';
+import { MESSAGES } from '../shared/messages.js';
 
-export async function queryChat({ body, set }: any) {
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+interface ChatQueryBody {
+  question: string;
+  history?: ChatMessage[];
+}
+
+export async function queryChat(
+  request: FastifyRequest<{ Body: ChatQueryBody }>,
+  reply: FastifyReply
+) {
   try {
-    const { question, history = [] } = body;
+    const { question, history = [] } = request.body;
 
     if (!question) {
-      set.status = HTTP_STATUS.BAD_REQUEST;
-      return { error: MESSAGES.QUESTION_REQUIRED };
+      return reply.code(HTTP_STATUS.BAD_REQUEST).send({
+        error: MESSAGES.QUESTION_REQUIRED,
+      });
     }
 
-    const result = await queryRAG(question, history);
+    const result = await queryRAG(question, { history });
     return result;
   } catch (error: any) {
     console.error('Error querying RAG:', error);
-    set.status = HTTP_STATUS.INTERNAL_SERVER_ERROR;
-    return { error: error.message };
+    return reply.code(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
+      error: error.message,
+    });
   }
 }
 
-export async function queryChatStream({ body }: any) {
-  const { question, history = [] } = body;
+export async function queryChatStream(
+  request: FastifyRequest<{ Body: ChatQueryBody }>,
+  reply: FastifyReply
+) {
+  try {
+    const { question, history = [] } = request.body;
 
-  if (!question) {
-    return new Response(
-      JSON.stringify({ error: MESSAGES.QUESTION_REQUIRED }),
-      { status: HTTP_STATUS.BAD_REQUEST, headers: { 'Content-Type': 'application/json' } }
-    );
-  }
-
-  const stream = new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const event of queryRAGStream(question, history)) {
-          const message = `event: ${event.event}\ndata: ${JSON.stringify(event.data)}\n\n`;
-          controller.enqueue(new TextEncoder().encode(message));
-        }
-      } catch (error: any) {
-        const errorEvent = `event: error\ndata: ${JSON.stringify({ error: error.message })}\n\n`;
-        controller.enqueue(new TextEncoder().encode(errorEvent));
-      } finally {
-        controller.close();
-      }
+    if (!question) {
+      return reply.code(HTTP_STATUS.BAD_REQUEST).send({
+        error: MESSAGES.QUESTION_REQUIRED,
+      });
     }
-  });
 
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-    },
-  });
+    // Set headers for Server-Sent Events
+    reply.raw.setHeader('Content-Type', 'text/event-stream');
+    reply.raw.setHeader('Cache-Control', 'no-cache');
+    reply.raw.setHeader('Connection', 'keep-alive');
+
+    // Stream response
+    try {
+      for await (const event of queryRAGStream(question, history)) {
+        const message = `event: ${event.event}\ndata: ${JSON.stringify(event.data)}\n\n`;
+        reply.raw.write(message);
+      }
+    } catch (error: any) {
+      const errorEvent = `event: error\ndata: ${JSON.stringify({ error: error.message })}\n\n`;
+      reply.raw.write(errorEvent);
+    } finally {
+      reply.raw.end();
+    }
+  } catch (error: any) {
+    console.error('Error in chat stream:', error);
+    return reply.code(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
+      error: error.message,
+    });
+  }
 }
