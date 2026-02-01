@@ -5,7 +5,6 @@ import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Card, CardContent } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Send, FileText, Square, Trash2, Copy, Check } from 'lucide-react';
+import { Send, FileText, Square, Trash2, Copy, Check, ArrowDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -66,9 +65,11 @@ export default function ChatInterface() {
   const [input, setInput] = useState('');
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
+  const [showScrollButton, setShowScrollButton] = useState(false);
   const { isStreaming, streamedContent, streamQuery, stopStreaming, reset } = useStreamingRAG();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   const MarkdownComponents = {
     code({ inline, className, children, ...props }: { inline?: boolean; className?: string; children?: React.ReactNode }) {
@@ -99,13 +100,23 @@ export default function ChatInterface() {
     },
   };
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
+  };
+
+  const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLDivElement;
+    const threshold = 100; // pixels from bottom
+    const isNearBottom = target.scrollHeight - target.scrollTop - target.clientHeight < threshold;
+    setShowScrollButton(!isNearBottom);
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, streamedContent]);
+    // Auto-scroll only if user is near bottom (not manually scrolled up)
+    if (!showScrollButton || isStreaming) {
+      scrollToBottom('auto');
+    }
+  }, [messages, streamedContent, showScrollButton, isStreaming]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -190,7 +201,11 @@ export default function ChatInterface() {
 
   return (
     <div className="flex flex-col h-full max-w-5xl mx-auto w-full">
-      <ScrollArea className="flex-1 p-4">
+      <div
+        ref={scrollAreaRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-4"
+      >
         <div className="space-y-4">
           {messages.length === 0 ? (
             <div className="flex items-center justify-center h-[60vh]">
@@ -275,7 +290,19 @@ export default function ChatInterface() {
           )}
           <div ref={messagesEndRef} />
         </div>
-      </ScrollArea>
+      </div>
+
+      {/* Scroll to bottom button */}
+      {showScrollButton && (
+        <Button
+          onClick={() => scrollToBottom()}
+          size="icon"
+          className="fixed bottom-24 right-8 rounded-full shadow-lg z-10"
+          variant="secondary"
+        >
+          <ArrowDown className="h-4 w-4" />
+        </Button>
+      )}
 
       <div className="p-4 border-t bg-background space-y-2">
         <form onSubmit={handleSubmit} className="flex gap-2">
