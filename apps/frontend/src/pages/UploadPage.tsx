@@ -7,8 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { FileText, Trash2, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, Search } from 'lucide-react';
+import { FileText, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Search } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface Document {
   filename: string;
@@ -21,7 +21,6 @@ type SortDirection = 'asc' | 'desc';
 export default function UploadPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [deletingFile, setDeletingFile] = useState<string | null>(null);
@@ -36,9 +35,10 @@ export default function UploadPage() {
       setLoading(true);
       const result = await getDocuments();
       setDocuments(result.documents || []);
-      setError(null);
     } catch (err: any) {
-      setError(err.message || 'Failed to load documents');
+      toast.error('Failed to load documents', {
+        description: err.message || 'An error occurred while loading documents',
+      });
     } finally {
       setLoading(false);
     }
@@ -61,8 +61,13 @@ export default function UploadPage() {
       await fetchDocuments();
       setShowDeleteDialog(false);
       setFileToDelete(null);
+      toast.success('Document deleted', {
+        description: `${fileToDelete.filename} has been removed`,
+      });
     } catch (err: any) {
-      setError(err.message || 'Failed to delete document');
+      toast.error('Failed to delete document', {
+        description: err.message || 'An error occurred while deleting the document',
+      });
     } finally {
       setDeletingFile(null);
     }
@@ -74,8 +79,13 @@ export default function UploadPage() {
       await clearDocuments();
       fetchDocuments();
       setShowClearDialog(false);
+      toast.success('All documents cleared', {
+        description: 'All documents have been removed from the knowledge base',
+      });
     } catch (err: any) {
-      setError(err.message || 'Failed to clear documents');
+      toast.error('Failed to clear documents', {
+        description: err.message || 'An error occurred while clearing documents',
+      });
     } finally {
       setClearing(false);
     }
@@ -166,13 +176,6 @@ export default function UploadPage() {
                 </Button>
               )}
             </div>
-
-            {error && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
 
             {documents.length > 0 && (
               <div className="relative">

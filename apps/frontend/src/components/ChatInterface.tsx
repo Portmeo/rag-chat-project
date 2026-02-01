@@ -6,10 +6,19 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Send, FileText } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Send, FileText, Square, Trash2, Copy, Check } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 interface Source {
@@ -23,24 +32,49 @@ interface Message {
   sources?: Source[];
 }
 
+function CodeBlock({ language, value }: { language: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="relative group">
+      <button
+        onClick={handleCopy}
+        className="absolute top-2 right-2 p-2 rounded-md bg-background/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity border border-border hover:bg-accent"
+        title="Copy code"
+      >
+        {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+      </button>
+      <SyntaxHighlighter
+        style={vscDarkPlus}
+        language={language}
+        PreTag="div"
+      >
+        {value}
+      </SyntaxHighlighter>
+    </div>
+  );
+}
+
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const { isStreaming, streamedContent, streamQuery, reset } = useStreamingRAG();
+  const [showClearDialog, setShowClearDialog] = useState(false);
+  const [isThinking, setIsThinking] = useState(false);
+  const { isStreaming, streamedContent, streamQuery, stopStreaming, reset } = useStreamingRAG();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const MarkdownComponents = {
     code({ inline, className, children, ...props }: { inline?: boolean; className?: string; children?: React.ReactNode }) {
       const match = /language-(\w+)/.exec(className || '');
       return !inline && match ? (
-        <SyntaxHighlighter
-          style={vscDarkPlus}
-          language={match[1]}
-          PreTag="div"
-          {...props}
-        >
-          {String(children).replace(/\n$/, '')}
-        </SyntaxHighlighter>
+        <CodeBlock language={match[1]} value={String(children).replace(/\n$/, '')} />
       ) : (
         <code className={className} {...props}>
           {children}
@@ -56,14 +90,7 @@ export default function ChatInterface() {
     code({ inline, className, children, ...props }: { inline?: boolean; className?: string; children?: React.ReactNode }) {
       const match = /language-(\w+)/.exec(className || '');
       return !inline && match ? (
-        <SyntaxHighlighter
-          style={vscDarkPlus}
-          language={match[1]}
-          PreTag="div"
-          {...props}
-        >
-          {String(children).replace(/\n$/, '')}
-        </SyntaxHighlighter>
+        <CodeBlock language={match[1]} value={String(children).replace(/\n$/, '')} />
       ) : (
         <code className={className} {...props}>
           {children}
@@ -80,6 +107,44 @@ export default function ChatInterface() {
     scrollToBottom();
   }, [messages, streamedContent]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl/Cmd + K: Clear chat
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        if (messages.length > 0 && !isStreaming) {
+          setShowClearDialog(true);
+        }
+      }
+
+      // Escape: Stop streaming or close dialogs
+      if (e.key === 'Escape') {
+        if (isStreaming) {
+          stopStreaming();
+        } else if (showClearDialog) {
+          setShowClearDialog(false);
+        }
+      }
+
+      // Ctrl/Cmd + L: Focus input
+      if ((e.ctrlKey || e.metaKey) && e.key === 'l') {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [messages.length, isStreaming, showClearDialog, stopStreaming]);
+
+  const handleClearChat = () => {
+    setMessages([]);
+    setShowClearDialog(false);
+    toast.success('Chat cleared', {
+      description: 'Conversation history has been reset',
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isStreaming) return;
@@ -91,6 +156,9 @@ export default function ChatInterface() {
     setInput('');
     reset();
 
+    // Show thinking indicator
+    setIsThinking(true);
+
     try {
       // Construir historial (excluyendo el mensaje actual)
       const history = messages.map(msg => ({
@@ -101,6 +169,9 @@ export default function ChatInterface() {
       // Enviar pregunta con historial
       const result = await streamQuery(questionText, history);
 
+      // Hide thinking when streaming completes
+      setIsThinking(false);
+
       const assistantMessage: Message = {
         role: 'assistant',
         content: result.content,
@@ -108,6 +179,7 @@ export default function ChatInterface() {
       };
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (err) {
+      setIsThinking(false);
       const errorMessage: Message = {
         role: 'assistant',
         content: `Error: ${err instanceof Error ? err.message : 'An unknown error occurred'}`,
@@ -118,6 +190,18 @@ export default function ChatInterface() {
 
   return (
     <div className="flex flex-col h-full max-w-5xl mx-auto w-full">
+      <div className="flex items-center justify-between p-4 border-b">
+        <h2 className="text-2xl font-bold">RAG Chat</h2>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowClearDialog(true)}
+          disabled={messages.length === 0 || isStreaming}
+        >
+          <Trash2 className="h-4 w-4 mr-2" />
+          Clear Chat
+        </Button>
+      </div>
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-4">
           {messages.length === 0 ? (
@@ -175,6 +259,17 @@ export default function ChatInterface() {
             ))
           )}
 
+          {isThinking && !isStreaming && (
+            <div className="flex items-center gap-2 p-4 bg-card rounded-lg border">
+              <div className="flex gap-1">
+                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+              <span className="text-sm text-muted-foreground">Claude is thinking...</span>
+            </div>
+          )}
+
           {isStreaming && (
             <div className="flex justify-start">
               <div className="max-w-[85%]">
@@ -194,21 +289,57 @@ export default function ChatInterface() {
         </div>
       </ScrollArea>
 
-      <div className="p-4 border-t bg-background">
+      <div className="p-4 border-t bg-background space-y-2">
         <form onSubmit={handleSubmit} className="flex gap-2">
-          <Input
-            type="text"
+          <Textarea
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit(e as any);
+              }
+            }}
             placeholder="Ask a question about your documents..."
             disabled={isStreaming}
-            className="flex-1"
+            className="flex-1 min-h-[60px] max-h-[200px]"
           />
-          <Button type="submit" disabled={isStreaming || !input.trim()}>
-            <Send className="h-4 w-4" />
-          </Button>
+          {isStreaming ? (
+            <Button type="button" onClick={stopStreaming} variant="destructive">
+              <Square className="h-4 w-4 mr-2" />
+              Stop
+            </Button>
+          ) : (
+            <Button type="submit" disabled={!input.trim()}>
+              <Send className="h-4 w-4 mr-2" />
+              Send
+            </Button>
+          )}
         </form>
+        <p className="text-xs text-muted-foreground">
+          Press Enter to send, Shift+Enter for new line, Ctrl+K to clear, Esc to stop
+        </p>
       </div>
+
+      <Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Clear Chat History</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to clear all messages? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowClearDialog(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleClearChat}>
+              Clear
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

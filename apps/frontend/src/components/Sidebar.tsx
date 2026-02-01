@@ -77,8 +77,8 @@ export default function Sidebar() {
           )}
         </div>
 
-        <nav className="flex-1 p-2 space-y-1">
-          <Link to="/chat">
+        <nav className="flex-1 p-2">
+          <Link to="/chat" className="block mb-2">
             <Button
               variant={location.pathname === '/chat' ? 'default' : 'ghost'}
               className={cn(
@@ -94,7 +94,7 @@ export default function Sidebar() {
               )}
             </Button>
           </Link>
-          <Link to="/upload">
+          <Link to="/upload" className="block">
             <Button
               variant={location.pathname === '/upload' ? 'default' : 'ghost'}
               className={cn(

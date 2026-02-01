@@ -17,6 +17,41 @@ export async function uploadDocument(file: File) {
   return response.json();
 }
 
+export async function uploadDocumentWithProgress(
+  file: File,
+  onProgress: (progress: number) => void
+): Promise<{ filename: string; chunksCount: number }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const formData = new FormData();
+    formData.append('file', file);
+
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) {
+        const progress = Math.round((e.loaded / e.total) * 100);
+        onProgress(progress);
+      }
+    });
+
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const response = JSON.parse(xhr.responseText);
+        resolve(response);
+      } else {
+        const error = JSON.parse(xhr.responseText);
+        reject(new Error(error.error || 'Upload failed'));
+      }
+    });
+
+    xhr.addEventListener('error', () => {
+      reject(new Error('Network error during upload'));
+    });
+
+    xhr.open('POST', `${API_URL}/api/documents/upload`);
+    xhr.send(formData);
+  });
+}
+
 export async function queryRAG(question: string) {
   const response = await fetch(`${API_URL}/api/chat/query`, {
     method: 'POST',

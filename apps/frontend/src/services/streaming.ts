@@ -8,7 +8,8 @@ export interface StreamCallbacks {
 export async function queryRAGStream(
   question: string,
   history: Array<{ role: 'user' | 'assistant'; content: string }>,
-  callbacks: StreamCallbacks
+  callbacks: StreamCallbacks,
+  signal?: AbortSignal
 ): Promise<void> {
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -16,6 +17,7 @@ export async function queryRAGStream(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ question, history }),
+    signal,
   });
 
   if (!response.ok) {
@@ -26,39 +28,48 @@ export async function queryRAGStream(
   const decoder = new TextDecoder();
   let buffer = '';
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n\n');
-    buffer = lines.pop() || '';
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n\n');
+      buffer = lines.pop() || '';
 
-    for (const line of lines) {
-      if (!line.trim()) continue;
+      for (const line of lines) {
+        if (!line.trim()) continue;
 
-      const eventMatch = line.match(/^event: (.+)$/m);
-      const dataMatch = line.match(/^data: (.+)$/m);
+        const eventMatch = line.match(/^event: (.+)$/m);
+        const dataMatch = line.match(/^data: (.+)$/m);
 
-      if (!eventMatch || !dataMatch) continue;
+        if (!eventMatch || !dataMatch) continue;
 
-      const event = eventMatch[1];
-      const data = JSON.parse(dataMatch[1]);
+        const event = eventMatch[1];
+        const data = JSON.parse(dataMatch[1]);
 
-      switch (event) {
-        case 'token':
-          callbacks.onToken(data.chunk);
-          break;
-        case 'sources':
-          callbacks.onSources(data.sources);
-          break;
-        case 'done':
-          callbacks.onComplete();
-          break;
-        case 'error':
-          callbacks.onError(data.error);
-          break;
+        switch (event) {
+          case 'token':
+            callbacks.onToken(data.chunk);
+            break;
+          case 'sources':
+            callbacks.onSources(data.sources);
+            break;
+          case 'done':
+            callbacks.onComplete();
+            break;
+          case 'error':
+            callbacks.onError(data.error);
+            break;
+        }
       }
+    }
+  } catch (error: any) {
+    reader.cancel();
+    if (error.name === 'AbortError') {
+      callbacks.onComplete();
+    } else {
+      throw error;
     }
   }
 }

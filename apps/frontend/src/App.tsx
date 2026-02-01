@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import UploadPage from '@/pages/UploadPage';
 import ChatPage from '@/pages/ChatPage';
+import { Toaster } from '@/components/ui/sonner';
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
           <Route path="chat" element={<ChatPage />} />
         </Route>
       </Routes>
+      <Toaster />
     </BrowserRouter>
   );
 }
