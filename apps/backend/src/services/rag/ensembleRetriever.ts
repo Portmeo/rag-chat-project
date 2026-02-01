@@ -1,5 +1,5 @@
 import type { Document } from 'langchain/document';
-import { BaseRetriever, type BaseRetrieverInput } from 'langchain/schema/retriever';
+import { BaseRetriever, type BaseRetrieverInput } from '@langchain/core/retrievers';
 import { CallbackManagerForRetrieverRun } from 'langchain/callbacks';
 
 export interface EnsembleRetrieverInput extends BaseRetrieverInput {

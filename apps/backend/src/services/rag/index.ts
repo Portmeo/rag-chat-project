@@ -1,6 +1,6 @@
 import { QdrantVectorStore } from '@langchain/community/vectorstores/qdrant';
 import type { Document } from 'langchain/document';
-import { BaseRetriever } from 'langchain/schema/retriever';
+import { BaseRetriever } from '@langchain/core/retrievers';
 import { BM25Retriever } from './bm25Retriever';
 import { EnsembleRetriever } from './ensembleRetriever';
 import { qdrantClient, COLLECTION_NAME } from '../../repositories/qdrantRepository';
