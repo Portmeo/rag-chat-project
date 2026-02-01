@@ -64,6 +64,8 @@ bun run dev
 
 ## 🏗️ Arquitectura del Sistema
 
+### Pipeline de Consulta (Query)
+
 ```
 Pregunta del usuario
     ↓
@@ -79,6 +81,40 @@ Pregunta del usuario
     ↓
 4. LLM (llama3.1:8b)
    → Respuesta en español
+```
+
+### Pipeline de Ingesta (Document Upload)
+
+```
+Documento (.md, .html)
+    ↓
+1. Procesamiento Inicial
+   - HTML: Extracción de texto (cheerio)
+   - Markdown: Lectura directa
+    ↓
+2. Text Splitting Inteligente
+   - MarkdownTextSplitter para .md (respeta estructura)
+   - RecursiveCharacterTextSplitter para HTML
+   - Chunks: 1000 chars, overlap: 200
+    ↓
+3. Extracción de Metadata con Template
+   Para cada chunk se detecta automáticamente:
+   ✓ Headers (H1, H2, H3) y section_path
+   ✓ Tipo de contenido (text/code/table/list/mixed)
+   ✓ Lenguaje de programación (js, py, ts, etc.)
+   ✓ Framework (React, Angular, Vue, etc.)
+   ✓ Librería (LangChain, Qdrant, etc.)
+   ✓ Características (has_code, has_links, word_count)
+    ↓
+4. Generación de Embeddings
+   - Modelo: mxbai-embed-large (1024 dims)
+   - Query prefix: "Represent this sentence..." (+3.7% MRR)
+   - Embedding vectorial por chunk
+    ↓
+5. Almacenamiento en Qdrant
+   - Vector (embedding)
+   - Payload (texto + metadata estructurada)
+   → BM25 cache rebuild automático
 ```
 
 ## 📊 Resultados de Benchmarks
@@ -114,8 +150,8 @@ OLLAMA_MODEL=llama3.1:8b
 OLLAMA_EMBEDDINGS_MODEL=mxbai-embed-large
 
 # Document Processing
-CHUNK_SIZE=1000
-CHUNK_OVERLAP=200
+CHUNK_SIZE=1000                    # Tamaño de cada chunk (caracteres)
+CHUNK_OVERLAP=200                  # Solapamiento entre chunks (previene pérdida de contexto)
 
 # RAG
 USE_BM25_RETRIEVER=true
@@ -133,16 +169,63 @@ RERANKER_TIMEOUT_MS=30000
 CONVERSATIONAL_HISTORY_ENABLED=true
 MAX_HISTORY_MESSAGES=5
 
-# Instruction Prefix (mejora +3.7% MRR)
-USE_INSTRUCTION_PREFIX=true
-EMBEDDING_QUERY_PREFIX=Represent this sentence for searching relevant passages:
-EMBEDDING_DOCUMENT_PREFIX=
+# Instruction Prefix (mejora +3.7% MRR según benchmarks)
+USE_INSTRUCTION_PREFIX=true        # Usar prefijos en embeddings
+EMBEDDING_QUERY_PREFIX=Represent this sentence for searching relevant passages:  # Prefijo para queries
+EMBEDDING_DOCUMENT_PREFIX=         # Prefijo para documentos (vacío por defecto)
 ```
 
 ### Frontend (.env)
 ```bash
 VITE_API_URL=http://localhost:3001
 ```
+
+## 🎯 Sistema de Templates y Metadata
+
+### Extracción Automática de Metadata
+
+El sistema usa un **template técnico** que analiza cada chunk y extrae metadata estructurada automáticamente:
+
+**Estructura del documento:**
+- `heading_h1`, `heading_h2`, `heading_h3`: Headers extraídos del Markdown
+- `section_path`: Ruta jerárquica completa (ej: "Arquitectura > NgRx Store > Actions")
+
+**Detección de contenido:**
+- `content_type`: text | code | table | list | mixed (basado en patrones)
+- `language`: javascript, typescript, python, java, go, rust, sql, bash, etc.
+
+**Características:**
+- `has_code`: Detecta bloques de código o inline code
+- `has_links`: Detecta URLs o links markdown
+- `word_count`: Contador de palabras
+
+**Contexto técnico (por keywords):**
+- `framework`: React, Vue, Angular, Next.js, Express, Django, Flask, Spring Boot, etc.
+- `library`: LangChain, Qdrant, Ollama, axios, lodash, moment, date-fns, etc.
+- `version`: Detecta versiones (v1.2.3, React 18.2, etc.)
+
+**Ejemplo de metadata generada:**
+```typescript
+{
+  filename: "arquitectura.md",
+  uploadDate: "2024-02-01T10:30:00.000Z",
+  chunk_index: 5,
+  total_chunks: 23,
+  heading_h1: "Arquitectura del Sistema",
+  heading_h2: "State Management",
+  heading_h3: "NgRx Store",
+  section_path: "Arquitectura del Sistema > State Management > NgRx Store",
+  content_type: "code",
+  language: "typescript",
+  framework: "Angular",
+  library: "NgRx",
+  has_code: true,
+  has_links: false,
+  word_count: 234
+}
+```
+
+Ver `apps/backend/src/services/documentProcessor/templates/technical.ts` para detalles de implementación.
 
 ## 📁 Estructura del Proyecto
 
@@ -305,9 +388,11 @@ Ver [benchmark/evaluation/README.md](benchmark/evaluation/README.md) para detall
 ## 📖 Documentación
 
 - **[docs/RAG_SYSTEM_GUIDE.md](docs/RAG_SYSTEM_GUIDE.md)** - Guía conceptual (empieza aquí)
+- **[docs/DOCUMENT_PROCESSING.md](docs/DOCUMENT_PROCESSING.md)** - Procesamiento de documentos, templates y embeddings
 - **[docs/BM25_CONFIGURATION.md](docs/BM25_CONFIGURATION.md)** - Configuración de búsqueda híbrida
 - **[docs/RERANKING_SYSTEM.md](docs/RERANKING_SYSTEM.md)** - Sistema de reranking
 - **[benchmark/README.md](benchmark/README.md)** - Resultados de benchmarks
+- **[benchmark/evaluation/README.md](benchmark/evaluation/README.md)** - Sistema RAGAS de evaluación
 
 ## 🔍 Troubleshooting
 

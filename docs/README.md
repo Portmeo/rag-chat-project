@@ -27,6 +27,14 @@ Documentación del sistema de reranking:
 - Configuración y parámetros
 - Impacto en métricas (+10-12% MRR)
 
+### 📄 [DOCUMENT_PROCESSING.md](DOCUMENT_PROCESSING.md)
+Sistema de procesamiento de documentos y embeddings:
+- Text splitting inteligente (MarkdownTextSplitter, RecursiveCharacterTextSplitter)
+- Sistema de templates para extracción automática de metadata
+- Generación de embeddings con instruction prefixes
+- Almacenamiento en Qdrant con metadata estructurada
+- Ejemplos prácticos y troubleshooting
+
 ### 🧪 [../benchmark/evaluation/README.md](../benchmark/evaluation/README.md)
 Sistema de evaluación RAGAS:
 - 9 métricas automáticas de calidad
@@ -37,14 +45,20 @@ Sistema de evaluación RAGAS:
 ## 🎯 Flujo de Lectura Recomendado
 
 **Para entender el sistema completo:**
-1. RAG_SYSTEM_GUIDE.md → Conceptos y decisiones
-2. BM25_CONFIGURATION.md → Detalle de búsqueda híbrida
-3. RERANKING_SYSTEM.md → Detalle de reranking
+1. RAG_SYSTEM_GUIDE.md → Conceptos y decisiones de arquitectura
+2. DOCUMENT_PROCESSING.md → Cómo se procesan e indexan los documentos
+3. BM25_CONFIGURATION.md → Detalle de búsqueda híbrida
+4. RERANKING_SYSTEM.md → Detalle de reranking
 
 **Para configurar el sistema:**
 1. Ver sección "Configuración Final" en RAG_SYSTEM_GUIDE.md
-2. Ajustar pesos según BM25_CONFIGURATION.md
-3. Configurar reranking según RERANKING_SYSTEM.md
+2. Ajustar chunk size/overlap según DOCUMENT_PROCESSING.md
+3. Ajustar pesos según BM25_CONFIGURATION.md
+4. Configurar reranking según RERANKING_SYSTEM.md
+
+**Para implementar ingesta de documentos:**
+1. DOCUMENT_PROCESSING.md → Pipeline completo de ingesta
+2. Ver ejemplos prácticos y troubleshooting
 
 ## 📊 Resultados Finales
 
