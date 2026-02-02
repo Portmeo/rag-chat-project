@@ -1,15 +1,22 @@
 #!/usr/bin/env node
 import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 import { writeFile } from 'fs/promises';
-import { RAGASEvaluator, loadDataset, validateDataset } from '../../apps/evaluation/src';
-import { ReportGenerator, printReportSummary } from '../../apps/evaluation/src/reportGenerator';
+import { RAGASEvaluator } from '../core/ragasEvaluator';
+import { loadDataset, validateDataset } from '../core/datasetLoader';
+import { ReportGenerator } from '../core/reportGenerator';
 
 async function main() {
   console.log('\n🚀 RAGAS Evaluation CLI');
   console.log('='.repeat(60));
 
-  const datasetPath = path.join(process.cwd(), 'benchmark/evaluation/datasets/golden_qa.json');
-  const outputDir = path.join(process.cwd(), 'benchmark/evaluation/results');
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const projectRoot = path.resolve(__dirname, '../../../..');
+
+  const datasetPath = path.join(projectRoot, 'benchmark/evaluation/datasets/golden_qa.json');
+  const outputDir = path.join(projectRoot, 'benchmark/evaluation/results');
 
   console.log(`\n📂 Dataset: ${datasetPath}`);
   console.log(`📁 Output directory: ${outputDir}`);

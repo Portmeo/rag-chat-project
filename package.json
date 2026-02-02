@@ -12,7 +12,11 @@
     "build": "npm run --workspaces --if-present build",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
-    "docker:logs": "docker-compose logs -f qdrant"
+    "docker:logs": "docker-compose logs -f qdrant",
+    "eval:ragas": "npm run eval:ragas --workspace=apps/evaluation",
+    "eval:full": "npm run eval:full --workspace=apps/evaluation",
+    "eval:optimize": "npm run eval:optimize --workspace=apps/evaluation",
+    "eval:report": "npm run report:compare --workspace=apps/evaluation"
   },
   "keywords": [],
   "author": "",

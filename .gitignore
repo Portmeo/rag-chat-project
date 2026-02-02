@@ -28,3 +28,9 @@ Thumbs.db
 
 # Lock files (using npm workspaces)
 # package-lock.json is committed for reproducible builds
+
+# Benchmark results (auto-generated)
+benchmark/evaluation/results/*.json
+benchmark/evaluation/results/*.log
+benchmark/evaluation/results/*.md
+!benchmark/evaluation/results/.gitkeep

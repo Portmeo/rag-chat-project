@@ -3,12 +3,18 @@
   "version": "1.0.0",
   "type": "module",
   "main": "./src/index.ts",
-  "scripts": {},
+  "scripts": {
+    "eval:ragas": "tsx src/cli/run-ragas-eval.ts",
+    "eval:full": "tsx src/cli/run-full-benchmark.ts",
+    "eval:optimize": "tsx src/cli/run-optimization-benchmark.ts",
+    "report:compare": "tsx src/cli/generate-comparison-report.ts"
+  },
   "dependencies": {
     "@langchain/community": "^0.0.25",
     "langchain": "^0.1.0"
   },
   "devDependencies": {
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "tsx": "^4.0.0"
   }
 }

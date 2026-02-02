@@ -16,6 +16,8 @@
  */
 
 import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 import { promises as fs } from 'fs';
 
 interface ConfigResult {
@@ -340,9 +342,13 @@ async function main() {
     options[key] = args[i + 1];
   }
 
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const projectRoot = path.resolve(__dirname, '../../../..');
+
   const resultsDir =
     options['results-dir'] ||
-    path.join(process.cwd(), 'benchmark/evaluation/results');
+    path.join(projectRoot, 'benchmark/evaluation/results');
   const outputPrefix = options.output || 'comparison-report';
 
   console.log('\n📊 Generating Comparison Report');

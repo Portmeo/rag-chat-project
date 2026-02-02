@@ -17,18 +17,37 @@ RAGAS provides automated metrics to evaluate RAG system quality without manual i
 benchmark/evaluation/
 ├── datasets/
 │   └── golden_qa.json          # Test cases with ground truth
-├── results/
-│   └── ragas_YYYY-MM-DD.json  # Evaluation results (generated)
-└── run_ragas_eval.ts          # CLI script for batch evaluation
+└── results/                    # Evaluation results (auto-generated, git-ignored)
+    └── ragas_YYYY-MM-DD.json
+
+apps/evaluation/                # Evaluation package
+├── src/
+│   ├── cli/                    # CLI scripts
+│   │   ├── run-ragas-eval.ts
+│   │   ├── run-full-benchmark.ts
+│   │   ├── run-optimization-benchmark.ts
+│   │   └── generate-comparison-report.ts
+│   └── core/                   # Evaluation logic
+│       ├── ragasEvaluator.ts
+│       ├── datasetLoader.ts
+│       └── reportGenerator.ts
+└── package.json                # npm scripts
 ```
 
 ## Usage
 
-### 1. CLI Script (Recommended for batch evaluation)
+### 1. CLI Scripts (Recommended for batch evaluation)
 
 ```bash
-# From project root
-npx tsx benchmark/evaluation/run_ragas_eval.ts
+# From project root - using npm workspace
+npm run eval:ragas --workspace=apps/evaluation
+
+# Or from apps/evaluation directory
+cd apps/evaluation
+npm run eval:ragas
+
+# Or directly with npx from anywhere
+npx tsx apps/evaluation/src/cli/run-ragas-eval.ts
 ```
 
 This will:
@@ -37,8 +56,6 @@ This will:
 - Evaluate with RAGAS metrics using LLM-as-judge
 - Save results to `results/ragas_YYYY-MM-DD.json`
 - Print summary statistics
-
-**Expected time**: ~5-10 minutes for 17 test cases
 
 ### 2. API Endpoint (For integration testing)
 

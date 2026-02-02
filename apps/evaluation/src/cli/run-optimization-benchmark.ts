@@ -34,6 +34,8 @@
  */
 
 import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 import { promises as fs } from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -42,7 +44,7 @@ import {
   type OptimizationConfig,
   ALL_CONFIGS,
   getConfigDescription,
-} from '../../apps/evaluation/src/configManager.js';
+} from '../core/configManager.js';
 
 const execAsync = promisify(exec);
 
@@ -97,7 +99,8 @@ function formatDuration(ms: number): string {
 async function runBenchmarkForConfig(
   config: OptimizationConfig,
   dataset: string,
-  resultsDir: string
+  resultsDir: string,
+  projectRoot: string
 ): Promise<{ success: boolean; resultFile: string; duration: number }> {
   const startTime = Date.now();
 
@@ -111,8 +114,8 @@ async function runBenchmarkForConfig(
 
     // Run the benchmark
     const benchmarkCmd = `npx tsx ${path.join(
-      process.cwd(),
-      'benchmark/evaluation/run_full_benchmark.ts'
+      projectRoot,
+      'apps/evaluation/src/cli/run-full-benchmark.ts'
     )} --dataset ${dataset} --output ${tempResultsDir}`;
 
     console.log(`\n🚀 Running benchmark...`);
@@ -170,7 +173,12 @@ async function runBenchmarkForConfig(
 
 async function main() {
   const options = parseArgs();
-  const resultsDir = path.join(process.cwd(), 'benchmark/evaluation/results');
+
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const projectRoot = path.resolve(__dirname, '../../../..');
+
+  const resultsDir = path.join(projectRoot, 'benchmark/evaluation/results');
 
   console.log('\n' + '='.repeat(70));
   console.log('🎯 RAG OPTIMIZATION BENCHMARK SUITE');
@@ -207,7 +215,7 @@ async function main() {
       await applyConfig(config);
 
       // Run benchmark
-      const result = await runBenchmarkForConfig(config, options.dataset, resultsDir);
+      const result = await runBenchmarkForConfig(config, options.dataset, resultsDir, projectRoot);
       configResults.set(config, {
         success: result.success,
         file: result.resultFile,
@@ -250,8 +258,8 @@ async function main() {
 
     try {
       const comparisonCmd = `npx tsx ${path.join(
-        process.cwd(),
-        'benchmark/evaluation/generateComparisonReport.ts'
+        projectRoot,
+        'apps/evaluation/src/cli/generate-comparison-report.ts'
       )}`;
 
       await execAsync(comparisonCmd);

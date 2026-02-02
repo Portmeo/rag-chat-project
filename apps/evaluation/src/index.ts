@@ -1,13 +1,13 @@
-export { RAGASEvaluator } from './ragasEvaluator';
-export { ErrorAnalyzer } from './errorAnalyzer';
-export { ReportGenerator } from './reportGenerator';
-export { loadDataset, validateDataset } from './datasetLoader';
+export { RAGASEvaluator } from './core/ragasEvaluator';
+export { ErrorAnalyzer } from './core/errorAnalyzer';
+export { ReportGenerator } from './core/reportGenerator';
+export { loadDataset, validateDataset } from './core/datasetLoader';
 export {
   applyConfig,
   waitForBackend,
   getConfigSettings,
   getConfigDescription,
   ALL_CONFIGS
-} from './configManager';
-export type * from './types';
-export type { OptimizationConfig, ConfigSettings } from './configManager';
+} from './core/configManager';
+export type * from './core/types';
+export type { OptimizationConfig, ConfigSettings } from './core/configManager';

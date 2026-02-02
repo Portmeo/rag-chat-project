@@ -19,8 +19,12 @@
  */
 
 import path from 'path';
-import { RAGASEvaluator, loadDataset, validateDataset, ReportGenerator } from '../../apps/evaluation/src';
-import type { EvaluationResult } from '../../apps/evaluation/src';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import { RAGASEvaluator } from '../core/ragasEvaluator';
+import { loadDataset, validateDataset } from '../core/datasetLoader';
+import { ReportGenerator } from '../core/reportGenerator';
+import type { EvaluationResult } from '../core/types';
 
 // Parse command line arguments
 function parseArgs() {
@@ -40,9 +44,9 @@ function parseArgs() {
 }
 
 // Get current RAG configuration from backend .env file
-async function getRAGConfig() {
+async function getRAGConfig(projectRoot: string) {
   const fs = await import('fs/promises');
-  const backendEnvPath = path.join(process.cwd(), 'apps/backend/.env');
+  const backendEnvPath = path.join(projectRoot, 'apps/backend/.env');
 
   try {
     const envContent = await fs.readFile(backendEnvPath, 'utf-8');
@@ -94,11 +98,15 @@ async function main() {
   console.log('\n🚀 RAGAS Comprehensive Benchmark');
   console.log('='.repeat(70));
 
-  const datasetPath = path.join(process.cwd(), 'benchmark/evaluation/datasets', options.dataset);
-  // Use absolute path if provided, otherwise resolve relative to cwd
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const projectRoot = path.resolve(__dirname, '../../../..');
+
+  const datasetPath = path.join(projectRoot, 'benchmark/evaluation/datasets', options.dataset);
+  // Use absolute path if provided, otherwise resolve relative to project root
   const outputDir = path.isAbsolute(options.output)
     ? options.output
-    : path.join(process.cwd(), options.output);
+    : path.join(projectRoot, options.output);
 
   console.log(`\n📂 Dataset: ${datasetPath}`);
   console.log(`📁 Output directory: ${outputDir}`);
@@ -120,7 +128,7 @@ async function main() {
     console.log(`✅ Loaded ${testCases.length} test cases from ${options.dataset}`);
 
     // Get current configuration from backend .env
-    const config = await getRAGConfig();
+    const config = await getRAGConfig(projectRoot);
     console.log('\n⚙️  Current RAG Configuration:');
     console.log(`   USE_BM25_RETRIEVER: ${config.use_bm25_retriever ? 'true' : 'false'}`);
     if (config.use_bm25_retriever) {
@@ -201,7 +209,7 @@ async function main() {
     }
 
     // Count errors by severity
-    const { ErrorAnalyzer } = await import('../../apps/evaluation/src/errorAnalyzer');
+    const { ErrorAnalyzer } = await import('../core/errorAnalyzer');
     const errorAnalyzer = new ErrorAnalyzer();
     const analyses = results.map(r => errorAnalyzer.analyzeResult(r));
     const criticalCount = analyses.filter(a => a.severity === 'critical').length;
