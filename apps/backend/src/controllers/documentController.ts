@@ -7,7 +7,6 @@ import { addDocumentToVectorStore, listDocuments, clearBM25Cache, deleteDocument
 import { clearQdrant } from '../repositories/qdrantRepository.js';
 import { HTTP_STATUS } from '../shared/http.js';
 import { MESSAGES } from '../shared/messages.js';
-import { uploadQueue } from '../services/uploadQueue.js';
 
 const DOCUMENTS_DIR = join('uploads', 'documents');
 
@@ -40,15 +39,12 @@ export async function uploadDocument(
     // 2. Process document
     const text = await processDocument(storedPath, filename);
 
-    // 3. Add to upload queue for indexation
-    // This prevents race conditions and limits concurrency
-    const result = await uploadQueue.addUpload(filename, async () => {
-      return await addDocumentToVectorStore(
-        text,
-        filename,
-        new Date().toISOString()
-      );
-    });
+    // 3. Index document in vector store
+    const result = await addDocumentToVectorStore(
+      text,
+      filename,
+      new Date().toISOString()
+    );
 
     return {
       message: MESSAGES.DOCUMENT_SUCCESS,

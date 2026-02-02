@@ -11,7 +11,6 @@ import type { TechnicalMetadata } from '../documentProcessor/templates/types';
 import type { DocumentMetadata, RAGResponse, RAGSource, AddDocumentResult, ConversationMessage } from './types';
 import { rerankDocuments } from './reranker';
 import { createParentChildChunks } from './parentChildChunker';
-import { cacheRebuildMutex } from './cacheMutex';
 
 // ============================================================================
 // CACHE BM25
@@ -34,75 +33,71 @@ const parentContentCache = new Map<string, string>();
  * Se ejecuta al inicio del servidor o cuando se limpia la caché
  */
 async function rebuildParentCache(): Promise<void> {
-  return cacheRebuildMutex.runExclusive(async () => {
-    if (!PARENT_RETRIEVER_CONFIG.enabled) {
-      return;
-    }
+  if (!PARENT_RETRIEVER_CONFIG.enabled) {
+    return;
+  }
 
-    console.log('🔄 Rebuilding parent content cache...');
+  console.log('🔄 Rebuilding parent content cache...');
 
-    const allDocuments = await getAllDocumentsFromQdrant();
+  const allDocuments = await getAllDocumentsFromQdrant();
 
-    // Agrupar children por parent_doc_id
-    const parentGroups = new Map<string, Document[]>();
+  // Agrupar children por parent_doc_id
+  const parentGroups = new Map<string, Document[]>();
 
-    for (const doc of allDocuments) {
-      const meta = doc.metadata as TechnicalMetadata;
+  for (const doc of allDocuments) {
+    const meta = doc.metadata as TechnicalMetadata;
 
-      if (meta.parent_child?.parent_doc_id) {
-        const parentId = meta.parent_child.parent_doc_id;
+    if (meta.parent_child?.parent_doc_id) {
+      const parentId = meta.parent_child.parent_doc_id;
 
-        if (!parentGroups.has(parentId)) {
-          parentGroups.set(parentId, []);
-        }
-
-        parentGroups.get(parentId)!.push(doc);
+      if (!parentGroups.has(parentId)) {
+        parentGroups.set(parentId, []);
       }
+
+      parentGroups.get(parentId)!.push(doc);
     }
+  }
 
-    // Reconstruir parent content concatenando children ordenados
-    for (const [parentId, children] of parentGroups.entries()) {
-      // Ordenar por child_index
-      children.sort((a, b) => {
-        const indexA = (a.metadata as TechnicalMetadata).parent_child?.child_index || 0;
-        const indexB = (b.metadata as TechnicalMetadata).parent_child?.child_index || 0;
-        return indexA - indexB;
-      });
+  // Reconstruir parent content concatenando children ordenados
+  for (const [parentId, children] of parentGroups.entries()) {
+    // Ordenar por child_index
+    children.sort((a, b) => {
+      const indexA = (a.metadata as TechnicalMetadata).parent_child?.child_index || 0;
+      const indexB = (b.metadata as TechnicalMetadata).parent_child?.child_index || 0;
+      return indexA - indexB;
+    });
 
-      // Concatenar contenido (simple approach)
-      const parentContent = children.map(c => c.pageContent).join('');
-      parentContentCache.set(parentId, parentContent);
-    }
+    // Concatenar contenido (simple approach)
+    const parentContent = children.map(c => c.pageContent).join('');
+    parentContentCache.set(parentId, parentContent);
+  }
 
-    console.log(`✅ Parent cache rebuilt with ${parentContentCache.size} entries`);
-  });
+  console.log(`✅ Parent cache rebuilt with ${parentContentCache.size} entries`);
 }
 
 async function rebuildBM25Cache(): Promise<void> {
-  return cacheRebuildMutex.runExclusive(async () => {
-    if (!BM25_CONFIG.enabled) {
-      console.log('⏭️  BM25 retriever is disabled, skipping cache rebuild');
-      bm25RetrieverCache = null;
-      return;
-    }
+  if (!BM25_CONFIG.enabled) {
+    console.log('⏭️  BM25 retriever is disabled, skipping cache rebuild');
+    bm25RetrieverCache = null;
+    return;
+  }
 
-    const allDocuments = await getAllDocumentsFromQdrant();
+  const allDocuments = await getAllDocumentsFromQdrant();
 
-    if (allDocuments.length === 0) {
-      bm25RetrieverCache = null;
-      return;
-    }
+  if (allDocuments.length === 0) {
+    bm25RetrieverCache = null;
+    return;
+  }
 
-    console.log(`🔄 Rebuilding BM25 cache with ${allDocuments.length} documents`);
+  console.log(`🔄 Rebuilding BM25 cache with ${allDocuments.length} documents`);
 
-    bm25RetrieverCache = new BM25Retriever({
-      documents: allDocuments,
-      k: SIMILARITY_SEARCH_CONFIG.MAX_RESULTS,
-    });
-
-    // Rebuild parent cache as well
-    await rebuildParentCache();
+  bm25RetrieverCache = new BM25Retriever({
+    documents: allDocuments,
+    k: SIMILARITY_SEARCH_CONFIG.MAX_RESULTS,
   });
+
+  // Rebuild parent cache as well
+  await rebuildParentCache();
 }
 
 /**
@@ -240,7 +235,10 @@ export async function addDocumentToVectorStore(
     collectionName: COLLECTION_NAME,
   });
 
-  await rebuildBM25Cache();
+  // Rebuild cache asynchronously (don't block the response)
+  rebuildBM25Cache().catch((error) => {
+    console.error('Error rebuilding BM25 cache:', error);
+  });
 
   return { success: true, chunksCount: docs.length };
 }
