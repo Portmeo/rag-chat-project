@@ -26,9 +26,14 @@ export class RAGASEvaluator {
   private llm: Ollama;
   private embeddings: OllamaEmbeddings;
   private backendUrl: string;
+  private projectRoot: string;
 
-  constructor(backendUrl: string = 'http://localhost:3001') {
+  constructor(
+    backendUrl: string = 'http://localhost:3001',
+    projectRoot?: string
+  ) {
     this.backendUrl = backendUrl;
+    this.projectRoot = projectRoot || process.cwd();
 
     // Use same LLM for evaluation but with lower temperature for consistency
     this.llm = new Ollama({
@@ -69,7 +74,7 @@ export class RAGASEvaluator {
    */
   private async getSourceContent(source: RAGSource): Promise<string> {
     const filePath = path.join(
-      process.cwd(),
+      this.projectRoot,
       'apps/backend/uploads/documents',
       source.filename
     );

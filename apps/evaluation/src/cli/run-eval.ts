@@ -146,7 +146,7 @@ async function main() {
     console.log(`   Chunk size: ${config.chunk_size}`);
 
     // Run evaluation
-    const evaluator = new RAGASEvaluator();
+    const evaluator = new RAGASEvaluator('http://localhost:3001', projectRoot);
     const results: EvaluationResult[] = [];
 
     console.log(`\n🔬 Evaluating ${testCases.length} test cases...\n`);
