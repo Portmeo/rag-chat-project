@@ -13,7 +13,7 @@
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f qdrant",
-    "eval": "npm run eval --workspace=apps/evaluation"
+    "eval": "npm run eval --workspace=apps/evaluation --"
   },
   "keywords": [],
   "author": "",

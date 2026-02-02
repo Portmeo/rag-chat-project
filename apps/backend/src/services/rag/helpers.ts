@@ -96,8 +96,18 @@ export async function generateMultipleQueries(question: string): Promise<string[
 export async function getAllDocumentsFromQdrant() {
   const allDocs: any[] = [];
   let offset: string | null = null;
+  let iterationCount = 0;
+  const MAX_ITERATIONS = 1000; // Safety limit
 
   while (true) {
+    iterationCount++;
+
+    // Safety check to prevent infinite loops
+    if (iterationCount > MAX_ITERATIONS) {
+      console.error(`[Qdrant] Pagination exceeded ${MAX_ITERATIONS} iterations. Possible infinite loop detected.`);
+      throw new Error(`Pagination safety limit exceeded (${MAX_ITERATIONS} iterations)`);
+    }
+
     const scrollResult = await qdrantClient.scroll(COLLECTION_NAME, {
       limit: 100,
       with_payload: true,
@@ -123,6 +133,7 @@ export async function getAllDocumentsFromQdrant() {
     }
 
     if (!scrollResult.next_page_offset) {
+      console.log(`[Qdrant] Loaded ${allDocs.length} documents in ${iterationCount} iterations`);
       break;
     }
     offset = scrollResult.next_page_offset as string;

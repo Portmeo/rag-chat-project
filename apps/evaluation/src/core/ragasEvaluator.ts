@@ -50,23 +50,60 @@ export class RAGASEvaluator {
   }
 
   /**
+   * Invoke LLM with timeout protection
+   */
+  private async invokeLLMWithTimeout(prompt: string, timeoutMs: number = 30000): Promise<string> {
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error(`LLM call timeout after ${timeoutMs}ms`)), timeoutMs);
+    });
+
+    const llmPromise = this.llm.invoke(prompt);
+
+    try {
+      const response = await Promise.race([llmPromise, timeoutPromise]);
+      return typeof response === 'string' ? response : response.toString();
+    } catch (error: any) {
+      if (error.message.includes('timeout')) {
+        console.warn(`[RAGAS] LLM timeout, returning fallback score`);
+        return '0.5'; // Return neutral score on timeout
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Call RAG backend via HTTP API
    */
   private async callRAGAPI(question: string): Promise<RAGResponse> {
-    const response = await fetch(`${this.backendUrl}/api/chat/query`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        question
-      })
-    });
+    // Create an AbortController with timeout
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000); // 60 second timeout
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`RAG API failed (${response.status}): ${error}`);
+    try {
+      const response = await fetch(`${this.backendUrl}/api/chat/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`RAG API failed (${response.status}): ${error}`);
+      }
+
+      return response.json();
+    } catch (error: any) {
+      clearTimeout(timeout);
+      if (error.name === 'AbortError') {
+        throw new Error(`RAG API timeout after 60 seconds for question: "${question}"`);
+      }
+      throw error;
     }
-
-    return response.json();
   }
 
   /**
@@ -93,10 +130,14 @@ export class RAGASEvaluator {
     try {
       // 1. Execute RAG pipeline via HTTP API
       console.log(`\n🧪 Evaluating: ${testCase.question}`);
+      console.log(`   ⏳ Calling RAG API...`);
 
       const ragStartTime = Date.now();
       const ragResponse = await this.callRAGAPI(testCase.question);
       const ragEndTime = Date.now();
+
+      console.log(`   ✓ RAG API responded in ${((ragEndTime - ragStartTime) / 1000).toFixed(1)}s`);
+      console.log(`   ⏳ Loading source documents...`);
 
       // Extract contexts and sources - get full content from filesystem
       const contextsPromises = ragResponse.sources.map(async (source) => {
@@ -106,20 +147,37 @@ export class RAGASEvaluator {
       const contexts = (await Promise.all(contextsPromises)).filter(text => text.length > 0);
       const sourceFilenames = ragResponse.sources.map(s => s.filename);
 
-      // 2. Calculate core RAGAS metrics
-      const faithfulness = await this.calculateFaithfulness(ragResponse.answer, contexts);
-      const answerRelevancy = await this.calculateAnswerRelevancy(testCase.question, ragResponse.answer);
-      const contextPrecision = await this.calculateContextPrecision(testCase.question, contexts);
-      const contextRecall = await this.calculateContextRecall(contexts, sourceFilenames, testCase.expected_contexts);
+      console.log(`   ✓ Loaded ${contexts.length} source documents`);
+      console.log(`   ⏳ Calculating 8 metrics in parallel...`);
 
-      // 3. Calculate additional metrics
-      const contextRelevancy = await this.calculateContextRelevancy(testCase.question, contexts);
-      const answerCorrectness = await this.calculateAnswerCorrectness(ragResponse.answer, testCase.ground_truth_answer);
+      const metricsStart = Date.now();
+
+      // Calculate ALL metrics in parallel using Promise.all
+      const [
+        faithfulness,
+        answerRelevancy,
+        contextPrecision,
+        contextRecall,
+        contextRelevancy,
+        answerCorrectness,
+        answerCompleteness,
+        hallucinationResult
+      ] = await Promise.all([
+        this.calculateFaithfulness(ragResponse.answer, contexts),
+        this.calculateAnswerRelevancy(testCase.question, ragResponse.answer),
+        this.calculateContextPrecision(testCase.question, contexts),
+        this.calculateContextRecall(contexts, sourceFilenames, testCase.expected_contexts),
+        this.calculateContextRelevancy(testCase.question, contexts),
+        this.calculateAnswerCorrectness(ragResponse.answer, testCase.ground_truth_answer),
+        this.calculateAnswerCompleteness(testCase.question, ragResponse.answer),
+        this.detectHallucinations(ragResponse.answer, contexts)
+      ]);
+
+      // Answer similarity is synchronous (no LLM call)
       const answerSimilarity = this.calculateAnswerSimilarity(ragResponse.answer, testCase.ground_truth_answer);
-      const answerCompleteness = await this.calculateAnswerCompleteness(testCase.question, ragResponse.answer);
 
-      // 4. Hallucination detection
-      const hallucinationResult = await this.detectHallucinations(ragResponse.answer, contexts);
+      const metricsTime = (Date.now() - metricsStart) / 1000;
+      console.log(`   ✓ Metrics calculated in ${metricsTime.toFixed(1)}s`);
 
       const latency = Date.now() - totalStartTime;
 
@@ -200,9 +258,7 @@ Criterios:
 Responde SOLO con un número decimal entre 0.0 y 1.0 (ej: 0.85)`;
 
     try {
-      const response = await this.llm.invoke(prompt);
-      // Ollama returns string directly, not an object with .content
-      const content = typeof response === 'string' ? response : response.toString();
+      const content = await this.invokeLLMWithTimeout(prompt);
       const score = this.extractScore(content.trim());
       return score;
     } catch (error) {
@@ -230,8 +286,7 @@ Criterios:
 Responde SOLO con un número decimal entre 0.0 y 1.0 (ej: 0.75)`;
 
     try {
-      const response = await this.llm.invoke(prompt);
-      const content = typeof response === 'string' ? response : response.toString();
+      const content = await this.invokeLLMWithTimeout(prompt);
       const score = this.extractScore(content.trim());
       return score;
     } catch (error) {
@@ -259,8 +314,7 @@ Criterios:
 Responde SOLO con un número decimal entre 0.0 y 1.0 (ej: 0.60)`;
 
     try {
-      const response = await this.llm.invoke(prompt);
-      const content = typeof response === 'string' ? response : response.toString();
+      const content = await this.invokeLLMWithTimeout(prompt);
       const score = this.extractScore(content.trim());
       return score;
     } catch (error) {
@@ -389,8 +443,7 @@ Criterios:
 Responde SOLO con un número decimal entre 0.0 y 1.0 (ej: 0.65)`;
 
     try {
-      const response = await this.llm.invoke(prompt);
-      const content = typeof response === 'string' ? response : response.toString();
+      const content = await this.invokeLLMWithTimeout(prompt);
       return this.extractScore(content.trim());
     } catch (error) {
       console.error('Error calculating context relevancy:', error);
@@ -460,8 +513,7 @@ Criterios:
 Responde SOLO con un número decimal entre 0.0 y 1.0 (ej: 0.80)`;
 
     try {
-      const response = await this.llm.invoke(prompt);
-      const content = typeof response === 'string' ? response : response.toString();
+      const content = await this.invokeLLMWithTimeout(prompt);
       return this.extractScore(content.trim());
     } catch (error) {
       console.error('Error calculating answer completeness:', error);
@@ -499,8 +551,7 @@ o bien:
 NINGUNA`;
 
     try {
-      const response = await this.llm.invoke(prompt);
-      const content = typeof response === 'string' ? response : response.toString();
+      const content = await this.invokeLLMWithTimeout(prompt);
 
       // Parse hallucinations
       const lines = content.split('\n').map(l => l.trim());

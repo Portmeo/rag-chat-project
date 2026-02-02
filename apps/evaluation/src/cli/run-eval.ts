@@ -162,8 +162,33 @@ async function main() {
 
       process.stdout.write(`\r Progress: [${bar}] ${progress}% - ${testCase.id}` + ' '.repeat(20));
 
-      const result = await evaluator.evaluateSingleCase(testCase);
-      results.push(result);
+      try {
+        // Add a 2-minute timeout per test case
+        const result = await Promise.race([
+          evaluator.evaluateSingleCase(testCase),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`Test case timeout after 120s`)), 120000)
+          )
+        ]);
+        results.push(result);
+      } catch (error: any) {
+        console.error(`\n❌ Test case ${testCase.id} failed: ${error.message}`);
+        // Push an error result
+        results.push({
+          test_case_id: testCase.id,
+          question: testCase.question,
+          generated_answer: '',
+          retrieved_contexts: [],
+          retrieved_sources: [],
+          faithfulness_score: 0,
+          answer_relevancy_score: 0,
+          context_precision_score: 0,
+          context_recall_score: 0,
+          latency_ms: 120000,
+          timestamp: new Date().toISOString(),
+          error: error.message,
+        });
+      }
     }
 
     process.stdout.write('\n\n');
