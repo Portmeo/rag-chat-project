@@ -52,7 +52,7 @@ export class RAGASEvaluator {
   /**
    * Invoke LLM with timeout protection
    */
-  private async invokeLLMWithTimeout(prompt: string, timeoutMs: number = 30000): Promise<string> {
+  private async invokeLLMWithTimeout(prompt: string, timeoutMs: number = 90000): Promise<string> {
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => reject(new Error(`LLM call timeout after ${timeoutMs}ms`)), timeoutMs);
     });

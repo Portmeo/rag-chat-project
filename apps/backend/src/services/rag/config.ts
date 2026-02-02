@@ -80,6 +80,7 @@ export const embeddings = EMBEDDINGS_CONFIG.enabled
 export const llm = new Ollama({
   model: OLLAMA_CONFIG.model,
   baseUrl: OLLAMA_CONFIG.baseUrl,
+  temperature: 0.1, // Baja temperatura para respuestas más deterministas y precisas
 });
 
 // BM25 Retriever Configuration
