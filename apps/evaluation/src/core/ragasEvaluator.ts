@@ -148,33 +148,20 @@ export class RAGASEvaluator {
       const sourceFilenames = ragResponse.sources.map(s => s.filename);
 
       console.log(`   ✓ Loaded ${contexts.length} source documents`);
-      console.log(`   ⏳ Calculating 8 metrics in parallel...`);
+      console.log(`   ⏳ Calculating metrics sequentially...`);
 
       const metricsStart = Date.now();
 
-      // Calculate ALL metrics in parallel using Promise.all
-      const [
-        faithfulness,
-        answerRelevancy,
-        contextPrecision,
-        contextRecall,
-        contextRelevancy,
-        answerCorrectness,
-        answerCompleteness,
-        hallucinationResult
-      ] = await Promise.all([
-        this.calculateFaithfulness(ragResponse.answer, contexts),
-        this.calculateAnswerRelevancy(testCase.question, ragResponse.answer),
-        this.calculateContextPrecision(testCase.question, contexts),
-        this.calculateContextRecall(contexts, sourceFilenames, testCase.expected_contexts),
-        this.calculateContextRelevancy(testCase.question, contexts),
-        this.calculateAnswerCorrectness(ragResponse.answer, testCase.ground_truth_answer),
-        this.calculateAnswerCompleteness(testCase.question, ragResponse.answer),
-        this.detectHallucinations(ragResponse.answer, contexts)
-      ]);
-
-      // Answer similarity is synchronous (no LLM call)
+      // Calculate metrics sequentially (LLM local, no paralelización)
+      const faithfulness = await this.calculateFaithfulness(ragResponse.answer, contexts);
+      const answerRelevancy = await this.calculateAnswerRelevancy(testCase.question, ragResponse.answer);
+      const contextPrecision = await this.calculateContextPrecision(testCase.question, contexts);
+      const contextRecall = await this.calculateContextRecall(contexts, sourceFilenames, testCase.expected_contexts);
+      const contextRelevancy = await this.calculateContextRelevancy(testCase.question, contexts);
+      const answerCorrectness = await this.calculateAnswerCorrectness(ragResponse.answer, testCase.ground_truth_answer);
       const answerSimilarity = this.calculateAnswerSimilarity(ragResponse.answer, testCase.ground_truth_answer);
+      const answerCompleteness = await this.calculateAnswerCompleteness(testCase.question, ragResponse.answer);
+      const hallucinationResult = await this.detectHallucinations(ragResponse.answer, contexts);
 
       const metricsTime = (Date.now() - metricsStart) / 1000;
       console.log(`   ✓ Metrics calculated in ${metricsTime.toFixed(1)}s`);
