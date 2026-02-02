@@ -17,12 +17,5 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "RAG Chat Application with Ollama and Qdrant",
-  "dependencies": {
-    "@xenova/transformers": "^2.17.2",
-    "sharp": "^0.34.5"
-  },
-  "devDependencies": {
-    "shadcn": "^3.8.1"
-  }
+  "description": "RAG Chat Application with Ollama and Qdrant"
 }

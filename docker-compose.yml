@@ -11,6 +11,12 @@ services:
       - qdrant_storage:/qdrant/storage
     environment:
       - QDRANT__SERVICE__GRPC_PORT=6334
+      # Forzar a Qdrant a ser conservador con la RAM
+      - QDRANT__STORAGE__OPTIMIZERS__MEMMAP_THRESHOLD=10000 
+    deploy:
+      resources:
+        limits:
+          memory: 1G  # Límite estricto para proteger a Ollama
     restart: unless-stopped
 
 volumes:
