@@ -1,6 +1,7 @@
 import { QdrantVectorStore } from '@langchain/community/vectorstores/qdrant';
 import type { Document } from 'langchain/document';
 import { BaseRetriever } from '@langchain/core/retrievers';
+import { randomUUID } from 'crypto';
 import { BM25Retriever } from './bm25Retriever';
 import { EnsembleRetriever } from './ensembleRetriever';
 import { qdrantClient, COLLECTION_NAME } from '../../repositories/qdrantRepository';
@@ -19,61 +20,10 @@ import { createParentChildChunks } from './parentChildChunker';
 let bm25RetrieverCache: BM25Retriever | null = null;
 
 // ============================================================================
-// PARENT CONTENT CACHE
+// PARENT CONTENT CACHE - REMOVED
 // ============================================================================
-
-/**
- * Cache de contenido de parent chunks
- * Map<parent_doc_id, parent_content>
- */
-const parentContentCache = new Map<string, string>();
-
-/**
- * Rebuild parent cache from Qdrant
- * Se ejecuta al inicio del servidor o cuando se limpia la caché
- */
-async function rebuildParentCache(): Promise<void> {
-  if (!PARENT_RETRIEVER_CONFIG.enabled) {
-    return;
-  }
-
-  console.log('🔄 Rebuilding parent content cache...');
-
-  const allDocuments = await getAllDocumentsFromQdrant();
-
-  // Agrupar children por parent_doc_id
-  const parentGroups = new Map<string, Document[]>();
-
-  for (const doc of allDocuments) {
-    const meta = doc.metadata as TechnicalMetadata;
-
-    if (meta.parent_child?.parent_doc_id) {
-      const parentId = meta.parent_child.parent_doc_id;
-
-      if (!parentGroups.has(parentId)) {
-        parentGroups.set(parentId, []);
-      }
-
-      parentGroups.get(parentId)!.push(doc);
-    }
-  }
-
-  // Reconstruir parent content concatenando children ordenados
-  for (const [parentId, children] of parentGroups.entries()) {
-    // Ordenar por child_index
-    children.sort((a, b) => {
-      const indexA = (a.metadata as TechnicalMetadata).parent_child?.child_index || 0;
-      const indexB = (b.metadata as TechnicalMetadata).parent_child?.child_index || 0;
-      return indexA - indexB;
-    });
-
-    // Concatenar contenido (simple approach)
-    const parentContent = children.map(c => c.pageContent).join('');
-    parentContentCache.set(parentId, parentContent);
-  }
-
-  console.log(`✅ Parent cache rebuilt with ${parentContentCache.size} entries`);
-}
+// Parent content is now stored directly in child chunk metadata
+// No need for in-memory cache anymore
 
 async function rebuildBM25Cache(): Promise<void> {
   if (!BM25_CONFIG.enabled) {
@@ -95,9 +45,6 @@ async function rebuildBM25Cache(): Promise<void> {
     documents: allDocuments,
     k: SIMILARITY_SEARCH_CONFIG.MAX_RESULTS,
   });
-
-  // Rebuild parent cache as well
-  await rebuildParentCache();
 }
 
 /**
@@ -105,7 +52,7 @@ async function rebuildBM25Cache(): Promise<void> {
  * Recibe: Array de Documents (child chunks)
  * Retorna: Array de Documents (parent chunks)
  */
-function resolveParentChunks(childDocs: Document[]): Document[] {
+async function resolveParentChunks(childDocs: Document[]): Promise<Document[]> {
   if (!PARENT_RETRIEVER_CONFIG.enabled) {
     return childDocs; // Si no está habilitado, retornar tal cual
   }
@@ -131,7 +78,7 @@ function resolveParentChunks(childDocs: Document[]): Document[] {
     parentGroups.get(parentId)!.push(doc);
   }
 
-  // 2. Para cada parent, crear Document con contenido completo
+  // 2. Para cada parent, obtener contenido desde Qdrant
   const parentDocs: Document[] = [];
 
   for (const [parentId, children] of parentGroups.entries()) {
@@ -140,45 +87,61 @@ function resolveParentChunks(childDocs: Document[]): Document[] {
       continue;
     }
 
-    // Obtener contenido del parent desde cache
-    const parentContent = parentContentCache.get(parentId);
+    // Query Qdrant para obtener el parent document por su ID
+    try {
+      const scrollResult = await qdrantClient.scroll(COLLECTION_NAME, {
+        filter: {
+          must: [
+            {
+              key: 'metadata.parent_child.parent_doc_id',
+              match: { value: parentId }
+            },
+            {
+              key: 'metadata.parent_child.is_parent',
+              match: { value: true }
+            }
+          ]
+        },
+        limit: 1,
+        with_payload: true,
+        with_vector: false,
+      });
 
-    if (!parentContent) {
-      console.warn(`⚠️ Parent content not found for ${parentId}, using children`);
-      // Fallback: concatenar children
+      if (scrollResult.points.length === 0) {
+        console.warn(`⚠️ Parent not found in Qdrant for ${parentId}, using children as fallback`);
+        parentDocs.push(...children);
+        continue;
+      }
+
+      const parentPoint = scrollResult.points[0];
+      const parentPayload = parentPoint.payload as any;
+      const parentContent = parentPayload.text;
+      const parentMetadata = parentPayload.metadata;
+
+      // Preservar rerank score del mejor child
+      const bestChild = children.reduce((best, current) => {
+        const bestScore = (best as any).rerankScore || 0;
+        const currentScore = (current as any).rerankScore || 0;
+        return currentScore > bestScore ? current : best;
+      }, children[0]);
+
+      const parentDoc: any = {
+        pageContent: parentContent,
+        metadata: parentMetadata,
+      };
+
+      // Transferir rerank score si existe
+      if ((bestChild as any).rerankScore !== undefined) {
+        parentDoc.rerankScore = (bestChild as any).rerankScore;
+      }
+
+      parentDocs.push(parentDoc);
+
+    } catch (error) {
+      console.error(`Error retrieving parent ${parentId} from Qdrant:`, error);
+      // Fallback: usar children
       parentDocs.push(...children);
-      continue;
     }
-
-    // Crear Document con contenido del parent
-    // Mantener metadata del primer child (tiene mejores metadatos técnicos)
-    const firstChild = children[0];
-    const parentMeta = { ...firstChild.metadata } as TechnicalMetadata;
-
-    // Actualizar parent_child metadata
-    if (parentMeta.parent_child) {
-      parentMeta.parent_child.is_parent = true;
-      parentMeta.parent_child.parent_content = parentContent;
-    }
-
-    // Preservar rerank score del mejor child
-    const bestChild = children.reduce((best, current) => {
-      const bestScore = (best as any).rerankScore || 0;
-      const currentScore = (current as any).rerankScore || 0;
-      return currentScore > bestScore ? current : best;
-    }, children[0]);
-
-    const parentDoc: any = {
-      pageContent: parentContent,
-      metadata: parentMeta,
-    };
-
-    // Transferir rerank score si existe
-    if ((bestChild as any).rerankScore !== undefined) {
-      parentDoc.rerankScore = (bestChild as any).rerankScore;
-    }
-
-    parentDocs.push(parentDoc);
   }
 
   console.log(`📄 Resolved ${childDocs.length} children to ${parentDocs.length} parents`);
@@ -196,22 +159,45 @@ export async function addDocumentToVectorStore(
   let docs: Document[];
 
   if (PARENT_RETRIEVER_CONFIG.enabled) {
-    // Parent Document Retriever: Indexar solo children
-    const { children, parentMap } = await createParentChildChunks(
+    // Parent Document Retriever: Indexar children (con vector) Y parents (sin vector)
+    const { children, parents } = await createParentChildChunks(
       text,
       filename,
       uploadDate,
       extension
     );
 
-    docs = children;
+    // Indexar children con vector embedding (búsqueda vectorial)
+    await QdrantVectorStore.fromDocuments(children, embeddings, {
+      client: qdrantClient,
+      collectionName: COLLECTION_NAME,
+    });
 
-    // Guardar parent map en cache global
-    for (const [parentDocId, parentContent] of parentMap.entries()) {
-      parentContentCache.set(parentDocId, parentContent);
+    // Indexar parents SIN vector (solo storage, acceso por filtro)
+    // Usar vector nulo/dummy ya que Qdrant requiere vector
+    const nullVector = new Array(1024).fill(0); // Dimensión del embedding
+
+    for (const parent of parents) {
+      await qdrantClient.upsert(COLLECTION_NAME, {
+        points: [{
+          id: randomUUID(), // Usar UUID en lugar de string
+          vector: nullVector,
+          payload: {
+            text: parent.pageContent,
+            metadata: parent.metadata,
+          }
+        }]
+      });
     }
 
-    console.log(`📦 Created ${docs.length} child chunks from ${parentMap.size} parent chunks`);
+    console.log(`📦 Created ${children.length} child chunks + ${parents.length} parent chunks`);
+
+    // Rebuild cache asynchronously (don't block the response)
+    rebuildBM25Cache().catch((error) => {
+      console.error('Error rebuilding BM25 cache:', error);
+    });
+
+    return { success: true, chunksCount: children.length };
   } else {
     // Modo clásico: chunks únicos
     const textSplitter = createTextSplitter(extension);
@@ -351,7 +337,7 @@ async function retrieveRelevantDocuments(
   // NUEVO: Resolver children a parents ANTES del reranking
   if (PARENT_RETRIEVER_CONFIG.enabled) {
     console.log(`\n🔄 Resolving ${candidateDocs.length} child chunks to parent chunks...`);
-    candidateDocs = resolveParentChunks(candidateDocs);
+    candidateDocs = await resolveParentChunks(candidateDocs);
   }
 
   // Apply reranking if enabled

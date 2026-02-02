@@ -1,9 +1,8 @@
 export interface ParentChildMetadata {
   // Parent-Child relationship
   parent_doc_id: string;           // ID único del documento padre
-  is_parent: boolean;              // false = child (para búsqueda), true = parent (no se indexa)
+  is_parent: boolean;              // false = child (se indexa con vector), true = parent (se indexa sin vector)
   child_index?: number;            // Índice del child dentro del parent (0, 1, 2...)
-  parent_content?: string;         // Contenido completo del parent (solo en parents)
 
   // Sizes para validación
   child_chunk_size: number;        // Tamaño del chunk child (200)

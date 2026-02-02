@@ -5,8 +5,8 @@ import type { TechnicalMetadata, ParentChildMetadata } from '../documentProcesso
 import { extractTechnicalMetadata } from '../documentProcessor/templates';
 
 interface ParentChildChunks {
-  children: Document[];  // Solo estos se indexan en Qdrant
-  parentMap: Map<string, string>; // parent_doc_id → parent_content
+  children: Document[];  // Children con vector embedding
+  parents: Document[];   // Parents SIN vector (solo storage)
 }
 
 export async function createParentChildChunks(
@@ -26,16 +26,37 @@ export async function createParentChildChunks(
   // 2. Generar parent chunks
   const parentTexts = await parentSplitter.splitText(text);
 
-  // 3. Para cada parent, generar children
+  // 3. Para cada parent, generar children Y crear parent documents
   const children: Document[] = [];
-  const parentMap = new Map<string, string>();
+  const parents: Document[] = [];
 
   for (let parentIdx = 0; parentIdx < parentTexts.length; parentIdx++) {
     const parentText = parentTexts[parentIdx];
     const parentDocId = `${filename}_parent_${parentIdx}`;
 
-    // Guardar parent content
-    parentMap.set(parentDocId, parentText);
+    // Crear parent document (se indexará SIN vector)
+    const parentBaseMeta = extractTechnicalMetadata(
+      parentText,
+      filename,
+      uploadDate,
+      parentIdx
+    );
+
+    const parentMetadata: TechnicalMetadata = {
+      ...parentBaseMeta,
+      total_chunks: parentTexts.length,
+      parent_child: {
+        parent_doc_id: parentDocId,
+        is_parent: true,
+        child_chunk_size: PARENT_RETRIEVER_CONFIG.childChunkSize,
+        parent_chunk_size: PARENT_RETRIEVER_CONFIG.parentChunkSize,
+      }
+    };
+
+    parents.push({
+      pageContent: parentText,
+      metadata: parentMetadata,
+    });
 
     // Crear child splitter (200 chars)
     const childSplitter = createSplitterForSize(
@@ -59,7 +80,7 @@ export async function createParentChildChunks(
         parentIdx * 10 + childIdx // Índice único global
       );
 
-      // Agregar parent-child metadata
+      // Agregar parent-child metadata (solo referencia, NO contenido completo)
       const metadata: TechnicalMetadata = {
         ...baseMeta,
         total_chunks: parentTexts.length * 10, // Estimación
@@ -79,7 +100,7 @@ export async function createParentChildChunks(
     }
   }
 
-  return { children, parentMap };
+  return { children, parents };
 }
 
 function createSplitterForSize(
