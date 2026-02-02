@@ -4,8 +4,7 @@
   "type": "module",
   "main": "./src/index.ts",
   "scripts": {
-    "eval:ragas": "tsx src/cli/run-ragas-eval.ts",
-    "eval:full": "tsx src/cli/run-full-benchmark.ts"
+    "eval": "tsx src/cli/run-eval.ts"
   },
   "dependencies": {
     "@langchain/community": "^0.0.25",

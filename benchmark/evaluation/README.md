@@ -22,9 +22,8 @@ benchmark/evaluation/
 
 apps/evaluation/                # Evaluation package
 ├── src/
-│   ├── cli/                    # CLI scripts
-│   │   ├── run-ragas-eval.ts
-│   │   └── run-full-benchmark.ts
+│   ├── cli/
+│   │   └── run-eval.ts         # Unified evaluation script
 │   └── core/                   # Evaluation logic
 │       ├── ragasEvaluator.ts
 │       ├── datasetLoader.ts
@@ -36,26 +35,38 @@ apps/evaluation/                # Evaluation package
 
 ## Usage
 
-### 1. CLI Scripts (Recommended for batch evaluation)
+### CLI Script (Recommended)
 
 ```bash
-# From project root - using npm workspace
-npm run eval:ragas --workspace=apps/evaluation
+# From project root (default: golden_qa_v2.json, full dataset)
+npm run eval
 
-# Or from apps/evaluation directory
+# From apps/evaluation directory
 cd apps/evaluation
-npm run eval:ragas
+npm run eval
 
-# Or directly with npx from anywhere
-npx tsx apps/evaluation/src/cli/run-ragas-eval.ts
+# With custom dataset
+npm run eval -- --dataset golden_qa.json
+
+# Limit test cases (for quick testing)
+npm run eval -- --limit 5
+
+# Custom output directory
+npm run eval -- --output ./my-results
+
+# Direct execution with npx
+npx tsx apps/evaluation/src/cli/run-eval.ts
 ```
 
-This will:
-- Load all 17 test cases from `golden_qa.json`
-- Run each through the RAG pipeline
-- Evaluate with RAGAS metrics using LLM-as-judge
-- Save results to `results/ragas_YYYY-MM-DD.json`
-- Print summary statistics
+**What it does:**
+- Loads dataset (default: golden_qa_v2.json)
+- Shows current RAG configuration from backend .env
+- Evaluates all test cases with RAGAS metrics
+- Displays progress bar with visual feedback
+- Analyzes errors by severity (critical/high/medium)
+- Generates comprehensive reports (Markdown + JSON)
+- Shows additional statistics (context relevancy, hallucination, etc.)
+- Provides next steps recommendations
 
 ### 2. API Endpoint (For integration testing)
 

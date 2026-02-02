@@ -1,21 +1,23 @@
 #!/usr/bin/env node
 /**
- * Comprehensive RAGAS Benchmark Runner
+ * RAGAS Evaluation Script
  *
  * Features:
  * - Runs complete evaluation on specified dataset
  * - Generates detailed Markdown and JSON reports
  * - Error analysis and pattern detection
  * - Performance metrics tracking
- * - Comparison with previous runs
+ * - Shows current RAG configuration from backend .env
  *
  * Usage:
- *   npx tsx benchmark/evaluation/run_full_benchmark.ts [options]
+ *   npm run eval
+ *   npm run eval -- --limit 5
+ *   npx tsx apps/evaluation/src/cli/run-eval.ts [options]
  *
  * Options:
- *   --dataset <path>    Path to dataset (default: golden_qa_v2.json)
+ *   --dataset <name>    Dataset name (default: golden_qa_v2.json)
  *   --output <dir>      Output directory (default: ./benchmark/evaluation/results)
- *   --limit <n>         Limit number of test cases (for testing)
+ *   --limit <n>         Limit number of test cases (for quick testing)
  */
 
 import path from 'path';
