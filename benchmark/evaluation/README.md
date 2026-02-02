@@ -24,13 +24,13 @@ apps/evaluation/                # Evaluation package
 ├── src/
 │   ├── cli/                    # CLI scripts
 │   │   ├── run-ragas-eval.ts
-│   │   ├── run-full-benchmark.ts
-│   │   ├── run-optimization-benchmark.ts
-│   │   └── generate-comparison-report.ts
+│   │   └── run-full-benchmark.ts
 │   └── core/                   # Evaluation logic
 │       ├── ragasEvaluator.ts
 │       ├── datasetLoader.ts
-│       └── reportGenerator.ts
+│       ├── reportGenerator.ts
+│       ├── errorAnalyzer.ts
+│       └── types.ts
 └── package.json                # npm scripts
 ```
 

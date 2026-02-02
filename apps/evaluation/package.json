@@ -5,9 +5,7 @@
   "main": "./src/index.ts",
   "scripts": {
     "eval:ragas": "tsx src/cli/run-ragas-eval.ts",
-    "eval:full": "tsx src/cli/run-full-benchmark.ts",
-    "eval:optimize": "tsx src/cli/run-optimization-benchmark.ts",
-    "report:compare": "tsx src/cli/generate-comparison-report.ts"
+    "eval:full": "tsx src/cli/run-full-benchmark.ts"
   },
   "dependencies": {
     "@langchain/community": "^0.0.25",
