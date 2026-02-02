@@ -1,7 +1,8 @@
 import { OllamaEmbeddings } from '@langchain/community/embeddings/ollama';
-import type { OllamaEmbeddingsParams } from '@langchain/community/embeddings/ollama';
 
-export interface InstructionPrefixedEmbeddingsParams extends OllamaEmbeddingsParams {
+export interface InstructionPrefixedEmbeddingsParams {
+  model?: string;
+  baseUrl?: string;
   queryPrefix?: string;
   documentPrefix?: string;
 }

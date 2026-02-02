@@ -15,7 +15,7 @@ export class BM25Retriever extends BaseRetriever {
 
   private documents: Document[];
   private k: number;
-  private tfidf: TfIdf;
+  private tfidf: InstanceType<typeof TfIdf>;
 
   constructor(fields: BM25RetrieverInput) {
     super(fields);

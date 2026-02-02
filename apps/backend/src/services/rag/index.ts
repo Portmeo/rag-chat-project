@@ -48,9 +48,12 @@ async function rebuildBM25Cache(): Promise<void> {
 }
 
 /**
- * Resuelve child chunks a parent chunks
+ * Resuelve child chunks a parent chunks (OPTIMIZADO)
  * Recibe: Array de Documents (child chunks)
  * Retorna: Array de Documents (parent chunks)
+ *
+ * Optimización: Hace UNA sola query a Qdrant para obtener TODOS los parents únicos
+ * en lugar de N queries (una por cada parent)
  */
 async function resolveParentChunks(childDocs: Document[]): Promise<Document[]> {
   if (!PARENT_RETRIEVER_CONFIG.enabled) {
@@ -78,7 +81,62 @@ async function resolveParentChunks(childDocs: Document[]): Promise<Document[]> {
     parentGroups.get(parentId)!.push(doc);
   }
 
-  // 2. Para cada parent, obtener contenido desde Qdrant
+  // 2. Extraer TODOS los parent IDs únicos
+  const uniqueParentIds = Array.from(parentGroups.keys())
+    .filter(id => !id.startsWith('no_parent_'));
+
+  if (uniqueParentIds.length === 0) {
+    // Solo chunks sin parent, retornar tal cual
+    const allDocs: Document[] = [];
+    for (const children of parentGroups.values()) {
+      allDocs.push(...children);
+    }
+    return allDocs;
+  }
+
+  // 3. ✅ UNA SOLA query para TODOS los parents
+  let parentMap = new Map<string, any>();
+
+  try {
+    const scrollResult = await qdrantClient.scroll(COLLECTION_NAME, {
+      filter: {
+        must: [
+          {
+            key: 'metadata.parent_child.parent_doc_id',
+            match: {
+              any: uniqueParentIds  // ← Query múltiple en una sola llamada
+            }
+          },
+          {
+            key: 'metadata.parent_child.is_parent',
+            match: { value: true }
+          }
+        ]
+      },
+      limit: uniqueParentIds.length,
+      with_payload: true,
+      with_vector: false,
+    });
+
+    // 4. Crear mapa de parents recuperados
+    for (const point of scrollResult.points) {
+      const parentPayload = point.payload as any;
+      const parentId = parentPayload.metadata.parent_child.parent_doc_id;
+
+      parentMap.set(parentId, {
+        pageContent: parentPayload.text,
+        metadata: parentPayload.metadata,
+      });
+    }
+
+    console.log(`✅ Retrieved ${scrollResult.points.length} unique parents in 1 query (from ${childDocs.length} children)`);
+
+  } catch (error) {
+    console.error('❌ Error retrieving parents from Qdrant:', error);
+    // Si falla la query, parentMap queda vacío y se usará fallback
+  }
+
+  // 5. Construir resultado final
   const parentDocs: Document[] = [];
 
   for (const [parentId, children] of parentGroups.entries()) {
@@ -87,61 +145,27 @@ async function resolveParentChunks(childDocs: Document[]): Promise<Document[]> {
       continue;
     }
 
-    // Query Qdrant para obtener el parent document por su ID
-    try {
-      const scrollResult = await qdrantClient.scroll(COLLECTION_NAME, {
-        filter: {
-          must: [
-            {
-              key: 'metadata.parent_child.parent_doc_id',
-              match: { value: parentId }
-            },
-            {
-              key: 'metadata.parent_child.is_parent',
-              match: { value: true }
-            }
-          ]
-        },
-        limit: 1,
-        with_payload: true,
-        with_vector: false,
-      });
+    const parentDoc = parentMap.get(parentId);
 
-      if (scrollResult.points.length === 0) {
-        console.warn(`⚠️ Parent not found in Qdrant for ${parentId}, using children as fallback`);
-        parentDocs.push(...children);
-        continue;
-      }
-
-      const parentPoint = scrollResult.points[0];
-      const parentPayload = parentPoint.payload as any;
-      const parentContent = parentPayload.text;
-      const parentMetadata = parentPayload.metadata;
-
-      // Preservar rerank score del mejor child
-      const bestChild = children.reduce((best, current) => {
-        const bestScore = (best as any).rerankScore || 0;
-        const currentScore = (current as any).rerankScore || 0;
-        return currentScore > bestScore ? current : best;
-      }, children[0]);
-
-      const parentDoc: any = {
-        pageContent: parentContent,
-        metadata: parentMetadata,
-      };
-
-      // Transferir rerank score si existe
-      if ((bestChild as any).rerankScore !== undefined) {
-        parentDoc.rerankScore = (bestChild as any).rerankScore;
-      }
-
-      parentDocs.push(parentDoc);
-
-    } catch (error) {
-      console.error(`Error retrieving parent ${parentId} from Qdrant:`, error);
-      // Fallback: usar children
+    if (!parentDoc) {
+      console.warn(`⚠️ Parent not found for ${parentId}, using children as fallback`);
       parentDocs.push(...children);
+      continue;
     }
+
+    // Preservar mejor rerank score del grupo de children
+    const bestChild = children.reduce((best, current) => {
+      const bestScore = (best as any).rerankScore || 0;
+      const currentScore = (current as any).rerankScore || 0;
+      return currentScore > bestScore ? current : best;
+    }, children[0]);
+
+    // Transferir rerank score si existe
+    if ((bestChild as any).rerankScore !== undefined) {
+      (parentDoc as any).rerankScore = (bestChild as any).rerankScore;
+    }
+
+    parentDocs.push(parentDoc);
   }
 
   console.log(`📄 Resolved ${childDocs.length} children to ${parentDocs.length} parents`);
@@ -450,7 +474,7 @@ export async function* queryRAGStream(
     const stream = await llm.stream(prompt);
 
     for await (const chunk of stream) {
-      const content = typeof chunk === 'string' ? chunk : chunk.content || chunk;
+      const content = typeof chunk === 'string' ? chunk : (chunk as any).content || chunk;
       if (content) {
         yield { event: 'token', data: { chunk: String(content) } };
       }
