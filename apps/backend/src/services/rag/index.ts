@@ -253,13 +253,13 @@ function docsToSources(docs: Document[]): RAGSource[] {
 
 // Filter sources based on rerank score threshold
 function filterSourcesByRelevance(relevantDocs: Document[]): RAGSource[] {
+  // If reranker is disabled, show all sources (no filtering)
   if (!RERANKER_CONFIG.enabled) {
-    // If reranker is disabled, don't show sources to prevent weak matches
-    console.log(`\n📊 Reranker disabled - sources hidden to prevent showing weak matches`);
-    return [];
+    console.log(`\n📊 Reranker disabled - showing all ${relevantDocs.length} sources`);
+    return docsToSources(relevantDocs);
   }
 
-  // Filter by rerank score threshold
+  // Filter by rerank score threshold when reranker is enabled
   const filtered = relevantDocs.filter(doc => {
     const rerankScore = (doc as any).rerankScore;
     return rerankScore !== undefined && rerankScore >= RERANKER_CONFIG.minScore;
