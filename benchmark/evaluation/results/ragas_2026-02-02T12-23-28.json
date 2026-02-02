@@ -1,0 +1,190 @@
+{
+  "metadata": {
+    "timestamp": "2026-02-02T12:23:28.716Z",
+    "dataset": "golden_qa_v2.json",
+    "total_cases": 2,
+    "config": {
+      "bm25_weight": 0.7,
+      "vector_weight": 0.3,
+      "use_reranker": false,
+      "reranker_retrieval_top_k": 20,
+      "reranker_final_top_k": 5,
+      "min_rerank_score": 0.3,
+      "chunk_size": 1000,
+      "chunk_overlap": 200,
+      "use_bm25_retriever": true,
+      "use_parent_retriever": true
+    }
+  },
+  "summary": {
+    "total_cases": 2,
+    "successful": 2,
+    "failed": 0,
+    "avg_faithfulness": 0,
+    "avg_answer_relevancy": 0.9,
+    "avg_context_precision": 0,
+    "avg_context_recall": 1,
+    "avg_latency_ms": 30300.5,
+    "avg_context_relevancy": 0,
+    "avg_answer_correctness": 0.7514433682211357,
+    "avg_hallucination_score": 0,
+    "avg_retrieval_latency_ms": 0,
+    "avg_reranking_latency_ms": 0,
+    "avg_generation_latency_ms": 0
+  },
+  "by_category": {
+    "Básica": {
+      "count": 2,
+      "avg_faithfulness": 0,
+      "avg_answer_relevancy": 0.9,
+      "avg_context_precision": 0,
+      "avg_context_recall": 1
+    }
+  },
+  "error_patterns": [
+    {
+      "pattern_name": "Alucinaciones en categorías Basica",
+      "frequency": 2,
+      "affected_categories": [
+        "Basica"
+      ],
+      "affected_test_cases": [
+        "basica_1",
+        "basica_2"
+      ],
+      "common_characteristics": [
+        "Faithfulness < 0.7",
+        "Información no verificable en contextos"
+      ],
+      "recommended_action": "Mejorar prompt del LLM con instrucciones más estrictas sobre usar SOLO información de contextos. Considerar temperatura 0.0.",
+      "severity": "critical"
+    },
+    {
+      "pattern_name": "Retrieval pobre en categorías Basica",
+      "frequency": 2,
+      "affected_categories": [
+        "Basica"
+      ],
+      "affected_test_cases": [
+        "basica_1",
+        "basica_2"
+      ],
+      "common_characteristics": [
+        "Context Precision < 0.5",
+        "Documentos irrelevantes"
+      ],
+      "recommended_action": "Revisar embeddings y BM25 weights para mejorar retrieval en categorías Basica. Considerar ajustar chunk size.",
+      "severity": "high"
+    }
+  ],
+  "recommendations": {
+    "high_priority": [
+      "Alucinaciones en categorías Basica (2 casos): Mejorar prompt del LLM con instrucciones más estrictas sobre usar SOLO información de contextos. Considerar temperatura 0.0.",
+      "Retrieval pobre en categorías Basica (2 casos): Revisar embeddings y BM25 weights para mejorar retrieval en categorías Basica. Considerar ajustar chunk size."
+    ],
+    "medium_priority": [],
+    "low_priority": []
+  },
+  "detailed_results": [
+    {
+      "test_case_id": "basica_1",
+      "question": "¿Qué versiones de Angular e Ionic se usan en el proyecto?",
+      "generated_answer": "Según el contexto proporcionado, la versión de Angular que se usa en el proyecto es **Angular 15** y la versión de Ionic es **Ionic 6**. Esto se menciona en el apartado \"Arquitectura General del Proyecto Asyb-Portal\" en el siguiente fragmento:\n\n**Framework Principal:** Ionic 6\n**Frontend Framework:** Angular 15",
+      "retrieved_contexts": [],
+      "retrieved_sources": [
+        "07-ci-cd-deployment.md",
+        "03-microfrontends-web-components.md",
+        "04-autenticacion-guards.md",
+        "01-arquitectura-general.md",
+        "01-arquitectura-general.md",
+        "02-gestion-estado-ngrx.md"
+      ],
+      "faithfulness_score": 0,
+      "answer_relevancy_score": 0.9,
+      "context_precision_score": 0,
+      "context_recall_score": 1,
+      "context_relevancy_score": 0,
+      "answer_correctness_score": 0.7585106190456706,
+      "answer_similarity_score": 0.14285714285714288,
+      "answer_completeness_score": 0.9,
+      "hallucination_score": 0,
+      "hallucinations_detected": [
+        "No contexts provided"
+      ],
+      "latency_ms": 35883,
+      "timestamp": "2026-02-02T12:23:03.946Z",
+      "error_analysis": {
+        "error_types": [
+          "hallucination",
+          "poor_retrieval"
+        ],
+        "error_description": "Respuesta contiene alucinaciones (información no soportada por contextos). Alucinaciones detectadas: No contexts provided. Contextos recuperados son poco relevantes.",
+        "suggested_fix": "Revisar prompt del LLM para enfatizar uso estricto de contextos. Reducir temperatura a 0.0. Ajustar BM25/vector weights, revisar embeddings o aumentar retrieval k.",
+        "severity": "critical"
+      }
+    },
+    {
+      "test_case_id": "basica_2",
+      "question": "¿Qué versión de Angular se usa?",
+      "generated_answer": "La versión de Angular utilizada es la **versión 15**, como se indica en el contexto del proyecto Asyb-Portal.",
+      "retrieved_contexts": [],
+      "retrieved_sources": [
+        "08-patron-container-presenter.md",
+        "03-microfrontends-web-components.md",
+        "07-ci-cd-deployment.md",
+        "03-microfrontends-web-components.md",
+        "02-gestion-estado-ngrx.md",
+        "03-microfrontends-web-components.md",
+        "01-arquitectura-general.md",
+        "01-arquitectura-general.md"
+      ],
+      "faithfulness_score": 0,
+      "answer_relevancy_score": 0.9,
+      "context_precision_score": 0,
+      "context_recall_score": 1,
+      "context_relevancy_score": 0,
+      "answer_correctness_score": 0.7443761173966006,
+      "answer_similarity_score": 0.16666666666666669,
+      "answer_completeness_score": 0.9,
+      "hallucination_score": 0,
+      "hallucinations_detected": [
+        "No contexts provided"
+      ],
+      "latency_ms": 24718,
+      "timestamp": "2026-02-02T12:23:28.666Z",
+      "error_analysis": {
+        "error_types": [
+          "hallucination",
+          "poor_retrieval"
+        ],
+        "error_description": "Respuesta contiene alucinaciones (información no soportada por contextos). Alucinaciones detectadas: No contexts provided. Contextos recuperados son poco relevantes.",
+        "suggested_fix": "Revisar prompt del LLM para enfatizar uso estricto de contextos. Reducir temperatura a 0.0. Ajustar BM25/vector weights, revisar embeddings o aumentar retrieval k.",
+        "severity": "critical"
+      }
+    }
+  ],
+  "best_performing_cases": [
+    {
+      "test_case_id": "basica_1",
+      "avg_score": 0.475,
+      "question": "¿Qué versiones de Angular e Ionic se usan en el proyecto?"
+    },
+    {
+      "test_case_id": "basica_2",
+      "avg_score": 0.475,
+      "question": "¿Qué versión de Angular se usa?"
+    }
+  ],
+  "worst_performing_cases": [
+    {
+      "test_case_id": "basica_2",
+      "avg_score": 0.475,
+      "question": "¿Qué versión de Angular se usa?"
+    },
+    {
+      "test_case_id": "basica_1",
+      "avg_score": 0.475,
+      "question": "¿Qué versiones de Angular e Ionic se usan en el proyecto?"
+    }
+  ]
+}
