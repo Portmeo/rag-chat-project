@@ -1,5 +1,5 @@
 import { QdrantVectorStore } from '@langchain/community/vectorstores/qdrant';
-import type { Document } from 'langchain/document';
+import { Document } from 'langchain/document';
 import { BaseRetriever } from '@langchain/core/retrievers';
 import { randomUUID } from 'crypto';
 import { BM25Retriever } from './bm25Retriever';
@@ -123,10 +123,10 @@ async function resolveParentChunks(childDocs: Document[]): Promise<Document[]> {
       const parentPayload = point.payload as any;
       const parentId = parentPayload.metadata.parent_child.parent_doc_id;
 
-      parentMap.set(parentId, {
+      parentMap.set(parentId, new Document({
         pageContent: parentPayload.text,
         metadata: parentPayload.metadata,
-      });
+      }));
     }
 
     console.log(`✅ Retrieved ${scrollResult.points.length} unique parents in 1 query (from ${childDocs.length} children)`);
