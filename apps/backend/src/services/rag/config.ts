@@ -108,11 +108,6 @@ export const PARENT_RETRIEVER_CONFIG = {
   // Parent chunks: para contexto al LLM
   parentChunkSize: parseInt(process.env.PARENT_CHUNK_SIZE || '1000'),
   parentChunkOverlap: parseInt(process.env.PARENT_CHUNK_OVERLAP || '200'),
-
-  // Strategy
-  storageMode: process.env.PARENT_STORAGE_MODE || 'children_only',
-  // 'children_only' = solo children en Qdrant, parents en metadata
-  // 'both' = children + parents en Qdrant (experimental)
 } as const;
 
 // Debug log
