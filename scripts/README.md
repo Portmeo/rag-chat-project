@@ -76,4 +76,4 @@ Los scripts leen de `apps/backend/.env`:
 
 - Todos los scripts asumen servicios corriendo (Qdrant, Ollama, Backend)
 - `benchmark:optimization` reinicia el backend automáticamente para cada configuración
-- Para ver logs del backend en tiempo real: `bun run dev:backend`
+- Para ver logs del backend en tiempo real: `npm run dev:backend`

@@ -68,7 +68,7 @@ run_query() {
 monitor_resources() {
     while true; do
         # CPU and Memory for backend process
-        backend_pid=$(pgrep -f "bun.*backend" | head -1)
+        backend_pid=$(pgrep -f "node.*backend" | head -1)
 
         if [ -n "$backend_pid" ]; then
             cpu=$(ps -p "$backend_pid" -o %cpu= 2>/dev/null | tr -d ' ')

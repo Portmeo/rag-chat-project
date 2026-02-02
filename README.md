@@ -55,7 +55,8 @@ npm run docker:up
 ollama serve
 
 # Terminal 3 - Aplicación
-npm run dev
+npm run dev:frontend
+npm run dev:backend
 ```
 
 ### Verificar
@@ -270,7 +271,6 @@ rag-chat-project/
 
 ```bash
 # Desarrollo
-npm run dev              # Backend + Frontend
 npm run dev:backend      # Solo backend
 npm run dev:frontend     # Solo frontend
 
@@ -419,7 +419,7 @@ ollama serve               # Iniciar Ollama
 ```bash
 # Reiniciar backend manualmente
 cd apps/backend
-npm run dev
+npm run dev:backend
 ```
 
 ## 🎯 Decisiones Clave de Arquitectura

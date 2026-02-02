@@ -7,16 +7,12 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run --workspaces --if-present dev",
     "dev:frontend": "npm run dev --workspace=apps/frontend",
     "dev:backend": "npm run dev --workspace=apps/backend",
     "build": "npm run --workspaces --if-present build",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
-    "docker:logs": "docker-compose logs -f qdrant",
-    "benchmark:single": "bun run benchmark/evaluation/run_full_benchmark.ts",
-    "benchmark:optimization": "bun run benchmark/evaluation/run_optimization_benchmark.ts",
-    "benchmark:compare": "bun run benchmark/evaluation/generateComparisonReport.ts"
+    "docker:logs": "docker-compose logs -f qdrant"
   },
   "keywords": [],
   "author": "",

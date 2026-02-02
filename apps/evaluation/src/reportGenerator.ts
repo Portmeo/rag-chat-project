@@ -1,6 +1,7 @@
 import type { EvaluationResult, EvaluationReport } from './types';
 import { ErrorAnalyzer, type ErrorPattern } from './errorAnalyzer';
 import path from 'path';
+import fs from 'fs/promises';
 
 export class ReportGenerator {
   private errorAnalyzer: ErrorAnalyzer;
@@ -350,13 +351,24 @@ export class ReportGenerator {
     const markdownReport = await this.generateMarkdownReport(results, datasetName, config);
     const jsonReport = this.generateDetailedJsonReport(results, datasetName, config);
 
+    // ✅ Create output directory if it doesn't exist
+    await fs.mkdir(outputDir, { recursive: true });
+
     // Save Markdown
     const markdownPath = path.join(outputDir, `${baseFilename}.md`);
-    await Bun.write(markdownPath, markdownReport);
-
-    // Save JSON
     const jsonPath = path.join(outputDir, `${baseFilename}.json`);
-    await Bun.write(jsonPath, JSON.stringify(jsonReport, null, 2));
+
+    // ✅ Write files with explicit error handling
+    try {
+      await Bun.write(markdownPath, markdownReport);
+      await Bun.write(jsonPath, JSON.stringify(jsonReport, null, 2));
+    } catch (error) {
+      console.error(`❌ Failed to write report files to ${outputDir}:`);
+      console.error(`   Markdown: ${markdownPath}`);
+      console.error(`   JSON: ${jsonPath}`);
+      console.error(`   Error:`, error);
+      throw error;
+    }
 
     console.log(`\n📄 Reports saved:`);
     console.log(`  - Markdown: ${markdownPath}`);

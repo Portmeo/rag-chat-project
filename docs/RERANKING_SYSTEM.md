@@ -267,7 +267,7 @@ Rerank Score: 0.9845
 **Solución:**
 ```bash
 cd apps/backend
-bun add @xenova/transformers
+npm install @xenova/transformers
 ```
 
 ### Warning: "Reranking failed, falling back to original retrieval"

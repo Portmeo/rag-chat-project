@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 /**
  * Comparison Report Generator
  *
@@ -8,7 +8,7 @@
  * - JSON data file for visualization
  *
  * Usage:
- *   bun run benchmark/evaluation/generateComparisonReport.ts [options]
+ *   npx tsx benchmark/evaluation/generateComparisonReport.ts [options]
  *
  * Options:
  *   --results-dir <path>   Results directory (default: ./benchmark/evaluation/results)

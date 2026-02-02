@@ -7,6 +7,7 @@ import { addDocumentToVectorStore, listDocuments, clearBM25Cache, deleteDocument
 import { clearQdrant } from '../repositories/qdrantRepository.js';
 import { HTTP_STATUS } from '../shared/http.js';
 import { MESSAGES } from '../shared/messages.js';
+import { uploadQueue } from '../services/uploadQueue.js';
 
 const DOCUMENTS_DIR = join('uploads', 'documents');
 
@@ -14,6 +15,8 @@ export async function uploadDocument(
   request: FastifyRequest,
   reply: FastifyReply
 ) {
+  let storedPath: string | null = null;
+
   try {
     const data = await request.file();
 
@@ -30,16 +33,22 @@ export async function uploadDocument(
     // Ensure upload directory exists
     await mkdir(DOCUMENTS_DIR, { recursive: true });
 
-    const storedPath = join(DOCUMENTS_DIR, filename);
+    // 1. Write file to disk
+    storedPath = join(DOCUMENTS_DIR, filename);
     await writeFile(storedPath, buffer);
 
+    // 2. Process document
     const text = await processDocument(storedPath, filename);
 
-    const result = await addDocumentToVectorStore(
-      text,
-      filename,
-      new Date().toISOString()
-    );
+    // 3. Add to upload queue for indexation
+    // This prevents race conditions and limits concurrency
+    const result = await uploadQueue.addUpload(filename, async () => {
+      return await addDocumentToVectorStore(
+        text,
+        filename,
+        new Date().toISOString()
+      );
+    });
 
     return {
       message: MESSAGES.DOCUMENT_SUCCESS,
@@ -47,9 +56,19 @@ export async function uploadDocument(
       chunksCount: result.chunksCount,
     };
   } catch (error: any) {
+    // ROLLBACK: Delete file from disk if indexation failed
+    if (storedPath) {
+      try {
+        await unlink(storedPath);
+        console.log(`🔄 Rollback: deleted ${storedPath}`);
+      } catch (unlinkError) {
+        console.error('⚠️  Failed to rollback file:', unlinkError);
+      }
+    }
+
     console.error(MESSAGES.ERROR_PROCESSING_DOC, error);
     return reply.code(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
-      error: error.message,
+      error: error.message || 'Failed to upload document',
     });
   }
 }

@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
+import rateLimit from '@fastify/rate-limit';
 import { initQdrant, qdrantClient, COLLECTION_NAME } from './repositories/qdrantRepository.js';
 import {
   uploadDocument,
@@ -39,6 +40,14 @@ await fastify.register(multipart, {
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB
   },
+});
+
+// Rate limiting to prevent abuse
+await fastify.register(rateLimit, {
+  max: 10, // 10 requests
+  timeWindow: '1 minute', // per minute
+  cache: 10000, // cache for 10000 IPs
+  allowList: ['127.0.0.1'], // localhost without limits
 });
 
 // Health check

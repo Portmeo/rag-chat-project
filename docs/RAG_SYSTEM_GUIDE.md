@@ -190,7 +190,7 @@ Evaluación automática del sistema completo usando LLM-as-judge:
   - Detecta documentos faltantes importantes
   - Target: >0.85
 
-**Cómo ejecutar**: `bun run benchmark/evaluation/run_ragas_eval.ts`
+**Cómo ejecutar**: `npx tsx benchmark/evaluation/run_ragas_eval.ts`
 **Dataset**: 17 casos de prueba con ground truth en `benchmark/evaluation/datasets/golden_qa.json`
 
 ## Lecciones Aprendidas

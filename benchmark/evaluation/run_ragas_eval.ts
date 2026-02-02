@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 import path from 'path';
 import { RAGASEvaluator, loadDataset, validateDataset } from '../../apps/evaluation/src';
 import { ReportGenerator, printReportSummary } from '../../apps/evaluation/src/reportGenerator';

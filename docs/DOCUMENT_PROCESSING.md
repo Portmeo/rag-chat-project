@@ -527,7 +527,7 @@ const FRAMEWORK_KEYWORDS = {
 
 **Solución:**
 - Verifica que usas `mxbai-embed-large`
-- Ejecuta benchmarks con/sin prefix: `bun run benchmark/evaluation/run_ragas_eval.ts`
+- Ejecuta benchmarks con/sin prefix: `npx tsx benchmark/evaluation/run_ragas_eval.ts`
 
 ## Referencias
 

@@ -28,7 +28,7 @@ benchmark/evaluation/
 
 ```bash
 # From project root
-bun run benchmark/evaluation/run_ragas_eval.ts
+npx tsx benchmark/evaluation/run_ragas_eval.ts
 ```
 
 This will:
@@ -45,7 +45,7 @@ This will:
 ```bash
 # Start backend first
 cd apps/backend
-bun run src/index.ts
+npx tsx src/index.ts
 
 # In another terminal
 curl -X POST http://localhost:3001/api/evaluation/ragas \

@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 /**
  * Comprehensive RAGAS Benchmark Runner
  *
@@ -10,7 +10,7 @@
  * - Comparison with previous runs
  *
  * Usage:
- *   bun run benchmark/evaluation/run_full_benchmark.ts [options]
+ *   npx tsx benchmark/evaluation/run_full_benchmark.ts [options]
  *
  * Options:
  *   --dataset <path>    Path to dataset (default: golden_qa_v2.json)
@@ -39,18 +39,53 @@ function parseArgs() {
   };
 }
 
-// Get current RAG configuration
-function getRAGConfig() {
-  return {
-    bm25_weight: parseFloat(process.env.BM25_WEIGHT || '0.7'),
-    vector_weight: parseFloat(process.env.VECTOR_WEIGHT || '0.3'),
-    use_reranker: process.env.USE_RERANKER === 'true',
-    reranker_retrieval_top_k: parseInt(process.env.RERANKER_RETRIEVAL_TOP_K || '20'),
-    reranker_final_top_k: parseInt(process.env.RERANKER_FINAL_TOP_K || '5'),
-    min_rerank_score: parseFloat(process.env.MIN_RERANK_SCORE || '0.3'),
-    chunk_size: parseInt(process.env.CHUNK_SIZE || '1000'),
-    chunk_overlap: parseInt(process.env.CHUNK_OVERLAP || '200'),
-  };
+// Get current RAG configuration from backend .env file
+async function getRAGConfig() {
+  const fs = await import('fs/promises');
+  const backendEnvPath = path.join(process.cwd(), 'apps/backend/.env');
+
+  try {
+    const envContent = await fs.readFile(backendEnvPath, 'utf-8');
+    const envVars: Record<string, string> = {};
+
+    // Parse .env file
+    envContent.split('\n').forEach(line => {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#')) {
+        const [key, ...valueParts] = trimmed.split('=');
+        if (key && valueParts.length > 0) {
+          envVars[key.trim()] = valueParts.join('=').trim();
+        }
+      }
+    });
+
+    return {
+      bm25_weight: parseFloat(envVars.BM25_WEIGHT || '0.7'),
+      vector_weight: parseFloat(envVars.VECTOR_WEIGHT || '0.3'),
+      use_reranker: envVars.USE_RERANKER === 'true',
+      reranker_retrieval_top_k: parseInt(envVars.RERANKER_RETRIEVAL_TOP_K || '20'),
+      reranker_final_top_k: parseInt(envVars.RERANKER_FINAL_TOP_K || '5'),
+      min_rerank_score: parseFloat(envVars.MIN_RERANK_SCORE || '0.3'),
+      chunk_size: parseInt(envVars.CHUNK_SIZE || '1000'),
+      chunk_overlap: parseInt(envVars.CHUNK_OVERLAP || '200'),
+      use_bm25_retriever: envVars.USE_BM25_RETRIEVER === 'true',
+      use_parent_retriever: envVars.USE_PARENT_RETRIEVER === 'true',
+    };
+  } catch (error) {
+    console.error('⚠️  Could not read backend .env, using defaults');
+    return {
+      bm25_weight: 0.7,
+      vector_weight: 0.3,
+      use_reranker: false,
+      reranker_retrieval_top_k: 20,
+      reranker_final_top_k: 5,
+      min_rerank_score: 0.3,
+      chunk_size: 1000,
+      chunk_overlap: 200,
+      use_bm25_retriever: false,
+      use_parent_retriever: false,
+    };
+  }
 }
 
 async function main() {
@@ -60,7 +95,10 @@ async function main() {
   console.log('='.repeat(70));
 
   const datasetPath = path.join(process.cwd(), 'benchmark/evaluation/datasets', options.dataset);
-  const outputDir = path.join(process.cwd(), options.output);
+  // Use absolute path if provided, otherwise resolve relative to cwd
+  const outputDir = path.isAbsolute(options.output)
+    ? options.output
+    : path.join(process.cwd(), options.output);
 
   console.log(`\n📂 Dataset: ${datasetPath}`);
   console.log(`📁 Output directory: ${outputDir}`);
@@ -81,16 +119,20 @@ async function main() {
 
     console.log(`✅ Loaded ${testCases.length} test cases from ${options.dataset}`);
 
-    // Get current configuration
-    const config = getRAGConfig();
+    // Get current configuration from backend .env
+    const config = await getRAGConfig();
     console.log('\n⚙️  Current RAG Configuration:');
-    console.log(`   BM25 weight: ${config.bm25_weight}`);
-    console.log(`   Vector weight: ${config.vector_weight}`);
-    console.log(`   Reranker: ${config.use_reranker ? 'ON' : 'OFF'}`);
+    console.log(`   USE_BM25_RETRIEVER: ${config.use_bm25_retriever ? 'true' : 'false'}`);
+    if (config.use_bm25_retriever) {
+      console.log(`   BM25 weight: ${config.bm25_weight}`);
+      console.log(`   Vector weight: ${config.vector_weight}`);
+    }
+    console.log(`   USE_RERANKER: ${config.use_reranker ? 'true' : 'false'}`);
     if (config.use_reranker) {
       console.log(`   Reranker retrieval top K: ${config.reranker_retrieval_top_k}`);
       console.log(`   Reranker final top K: ${config.reranker_final_top_k}`);
     }
+    console.log(`   USE_PARENT_RETRIEVER: ${config.use_parent_retriever ? 'true' : 'false'}`);
     console.log(`   Chunk size: ${config.chunk_size}`);
 
     // Run evaluation
@@ -194,7 +236,8 @@ async function main() {
 
   } catch (error: any) {
     console.error('\n❌ Benchmark failed:', error.message);
-    console.error(error.stack);
+    console.error('Stack trace:', error.stack);
+    console.error('Error details:', error);
     process.exit(1);
   }
 }

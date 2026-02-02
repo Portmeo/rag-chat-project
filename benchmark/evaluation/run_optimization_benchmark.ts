@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 /**
  * RAG Optimization Benchmark Orchestrator
  *
@@ -15,7 +15,7 @@
  * Each configuration is tested on 16 queries across 5 categories.
  *
  * Usage:
- *   bun run benchmark/evaluation/run_optimization_benchmark.ts [options]
+ *   npx tsx benchmark/evaluation/run_optimization_benchmark.ts [options]
  *
  * Options:
  *   --configs <list>    Comma-separated list of configs (default: all 8)
@@ -24,13 +24,13 @@
  *
  * Examples:
  *   # Run all configurations
- *   bun run benchmark/evaluation/run_optimization_benchmark.ts
+ *   npx tsx benchmark/evaluation/run_optimization_benchmark.ts
  *
  *   # Run only baseline and full
- *   bun run benchmark/evaluation/run_optimization_benchmark.ts --configs baseline,full
+ *   npx tsx benchmark/evaluation/run_optimization_benchmark.ts --configs baseline,full
  *
  *   # Use custom dataset
- *   bun run benchmark/evaluation/run_optimization_benchmark.ts --dataset golden_qa_v2.json
+ *   npx tsx benchmark/evaluation/run_optimization_benchmark.ts --dataset golden_qa_v2.json
  */
 
 import path from 'path';
@@ -110,7 +110,7 @@ async function runBenchmarkForConfig(
     await fs.mkdir(tempResultsDir, { recursive: true });
 
     // Run the benchmark
-    const benchmarkCmd = `bun run ${path.join(
+    const benchmarkCmd = `npx tsx ${path.join(
       process.cwd(),
       'benchmark/evaluation/run_full_benchmark.ts'
     )} --dataset ${dataset} --output ${tempResultsDir}`;
@@ -129,11 +129,17 @@ async function runBenchmarkForConfig(
     }
 
     // Find the generated files in temp directory
+    console.log(`\n🔍 Checking for result files in: ${tempResultsDir}`);
     const files = await fs.readdir(tempResultsDir);
+    console.log(`   Found ${files.length} files: ${files.join(', ')}`);
+
     const jsonFile = files.find((f) => f.endsWith('.json'));
     const mdFile = files.find((f) => f.endsWith('.md'));
 
     if (!jsonFile || !mdFile) {
+      console.error(`\n❌ Missing expected files:`);
+      console.error(`   Expected: *.json and *.md`);
+      console.error(`   Found: ${files.join(', ')}`);
       throw new Error('Benchmark did not generate expected output files');
     }
 
@@ -243,7 +249,7 @@ async function main() {
     console.log('\n📊 Generating comparison report...');
 
     try {
-      const comparisonCmd = `bun run ${path.join(
+      const comparisonCmd = `npx tsx ${path.join(
         process.cwd(),
         'benchmark/evaluation/generateComparisonReport.ts'
       )}`;

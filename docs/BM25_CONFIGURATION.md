@@ -130,8 +130,8 @@ VECTOR_WEIGHT=0.2
 El servidor con `--watch` recargará automáticamente al detectar cambios en archivos de código, pero para cambios en `.env` necesitas reiniciar manualmente:
 
 ```bash
-# Si usas bun --watch, detén (Ctrl+C) y reinicia
-bun --watch src/index.ts
+# Si usas npm run dev --watch, detén (Ctrl+C) y reinicia
+npm run dev --watch src/index.ts
 ```
 
 ## Logs y Debugging

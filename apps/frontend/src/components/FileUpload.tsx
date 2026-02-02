@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { uploadDocumentWithProgress } from '@/services/api';
 import { Button } from '@/components/ui/button';
-import { Upload } from 'lucide-react';
+import { Upload, FileIcon, Clock, Loader2, CheckCircle, XCircle, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -9,55 +9,119 @@ interface FileUploadProps {
   onFileUploaded: () => void;
 }
 
+type FileStatus = 'pending' | 'uploading' | 'success' | 'error';
+
 export default function FileUpload({ onFileUploaded }: FileUploadProps) {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState<Record<string, FileStatus>>({});
+  const [fileProgress, setFileProgress] = useState<Record<string, number>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
     const validExtensions = ['.html', '.htm', '.md', '.markdown'];
-    const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
 
-    if (!validExtensions.includes(fileExtension)) {
+    const validFiles = files.filter(file => {
+      const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+      return validExtensions.includes(fileExtension);
+    });
+
+    const invalidCount = files.length - validFiles.length;
+    if (invalidCount > 0) {
       toast.error('Invalid file type', {
-        description: 'Only HTML and Markdown files are supported',
+        description: `${invalidCount} file(s) skipped. Only HTML and Markdown files are supported`,
       });
-      setSelectedFile(null);
-      return;
     }
 
-    setSelectedFile(file);
+    if (validFiles.length === 0) return;
+
+    setSelectedFiles(validFiles);
+
+    const initialStatus: Record<string, FileStatus> = {};
+    const initialProgress: Record<string, number> = {};
+    validFiles.forEach(file => {
+      initialStatus[file.name] = 'pending';
+      initialProgress[file.name] = 0;
+    });
+    setUploadStatus(initialStatus);
+    setFileProgress(initialProgress);
+  };
+
+  const removeFile = (filename: string) => {
+    setSelectedFiles(prev => prev.filter(f => f.name !== filename));
+    setUploadStatus(prev => {
+      const updated = { ...prev };
+      delete updated[filename];
+      return updated;
+    });
+    setFileProgress(prev => {
+      const updated = { ...prev };
+      delete updated[filename];
+      return updated;
+    });
   };
 
   const handleUpload = async () => {
-    if (!selectedFile) return;
+    if (selectedFiles.length === 0) return;
 
     setUploading(true);
-    setUploadProgress(0);
 
     try {
-      const result = await uploadDocumentWithProgress(
-        selectedFile,
-        (progress) => setUploadProgress(progress)
-      );
+      const uploadPromises = selectedFiles.map(async (file) => {
+        try {
+          setUploadStatus(prev => ({ ...prev, [file.name]: 'uploading' }));
 
-      toast.success('Document uploaded', {
-        description: `${result.filename} (${result.chunksCount} chunks)`,
+          const result = await uploadDocumentWithProgress(
+            file,
+            (progress) => setFileProgress(prev => ({ ...prev, [file.name]: progress }))
+          );
+
+          setUploadStatus(prev => ({ ...prev, [file.name]: 'success' }));
+          return { success: true, filename: file.name, result };
+        } catch (error: any) {
+          setUploadStatus(prev => ({ ...prev, [file.name]: 'error' }));
+          return { success: false, filename: file.name, error: error.message };
+        }
       });
-      setSelectedFile(null);
-      setUploadProgress(0);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+
+      const results = await Promise.allSettled(uploadPromises);
+
+      const successCount = results.filter(
+        r => r.status === 'fulfilled' && r.value.success
+      ).length;
+      const errorCount = results.filter(
+        r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success)
+      ).length;
+
+      if (successCount > 0) {
+        toast.success('Upload complete', {
+          description: `${successCount} file(s) uploaded successfully`,
+        });
+        onFileUploaded();
       }
-      onFileUploaded();
-    } catch (err: any) {
+
+      if (errorCount > 0) {
+        toast.error('Upload errors', {
+          description: `${errorCount} file(s) failed to upload`,
+        });
+      }
+
+      setTimeout(() => {
+        setSelectedFiles([]);
+        setUploadStatus({});
+        setFileProgress({});
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      }, 2000);
+    } catch (error) {
+      console.error('Error uploading files:', error);
       toast.error('Upload failed', {
-        description: err.message || 'Failed to upload file',
+        description: 'An unexpected error occurred',
       });
     } finally {
       setUploading(false);
@@ -87,22 +151,36 @@ export default function FileUpload({ onFileUploaded }: FileUploadProps) {
     setIsDragging(false);
 
     const files = Array.from(e.dataTransfer.files);
-    const file = files[0];
 
-    if (!file) return;
+    if (files.length === 0) return;
 
-    // Validate file type
+    // Validate file types
     const validTypes = ['.html', '.htm', '.md', '.markdown'];
-    const extension = '.' + file.name.split('.').pop()?.toLowerCase();
 
-    if (!validTypes.includes(extension)) {
+    const validFiles = files.filter(file => {
+      const extension = '.' + file.name.split('.').pop()?.toLowerCase();
+      return validTypes.includes(extension);
+    });
+
+    const invalidCount = files.length - validFiles.length;
+    if (invalidCount > 0) {
       toast.error('Invalid file type', {
-        description: 'Only HTML and Markdown files are supported',
+        description: `${invalidCount} file(s) skipped. Only HTML and Markdown files are supported`,
       });
-      return;
     }
 
-    setSelectedFile(file);
+    if (validFiles.length === 0) return;
+
+    setSelectedFiles(validFiles);
+
+    const initialStatus: Record<string, FileStatus> = {};
+    const initialProgress: Record<string, number> = {};
+    validFiles.forEach(file => {
+      initialStatus[file.name] = 'pending';
+      initialProgress[file.name] = 0;
+    });
+    setUploadStatus(initialStatus);
+    setFileProgress(initialProgress);
   };
 
   return (
@@ -122,14 +200,14 @@ export default function FileUpload({ onFileUploaded }: FileUploadProps) {
           {isDragging ? (
             <>
               <Upload className="h-6 w-6 text-primary" />
-              <p className="text-sm text-primary font-medium">Drop file here</p>
+              <p className="text-sm text-primary font-medium">Drop files here</p>
             </>
           ) : (
             <>
               <Upload className="h-6 w-6 text-muted-foreground" />
               <div className="text-center">
                 <label htmlFor="file-upload" className="cursor-pointer text-sm">
-                  <span className="text-primary hover:underline">Choose a file</span>
+                  <span className="text-primary hover:underline">Choose files</span>
                   {' or drag and drop'}
                 </label>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -141,6 +219,7 @@ export default function FileUpload({ onFileUploaded }: FileUploadProps) {
                 id="file-upload"
                 type="file"
                 accept=".html,.htm,.md,.markdown"
+                multiple
                 onChange={handleFileSelect}
                 className="hidden"
               />
@@ -149,33 +228,74 @@ export default function FileUpload({ onFileUploaded }: FileUploadProps) {
         </div>
       </div>
 
-      {selectedFile && (
+      {selectedFiles.length > 0 && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-            <span className="text-sm">{selectedFile.name}</span>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-medium">
+              {selectedFiles.length} file(s) selected
+            </p>
             <Button
               onClick={handleUpload}
               disabled={uploading}
+              size="sm"
             >
               <Upload className="h-4 w-4 mr-2" />
-              {uploading ? 'Uploading...' : 'Upload'}
+              {uploading ? 'Uploading...' : 'Upload All'}
             </Button>
           </div>
 
-          {uploading && (
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Uploading...</span>
-                <span>{uploadProgress}%</span>
-              </div>
-              <div className="w-full bg-secondary rounded-full h-2">
+          <div className="space-y-2">
+            {selectedFiles.map(file => {
+              const status = uploadStatus[file.name];
+              const progress = fileProgress[file.name] || 0;
+
+              return (
                 <div
-                  className="bg-primary h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${uploadProgress}%` }}
-                />
-              </div>
-            </div>
-          )}
+                  key={file.name}
+                  className="flex items-center justify-between p-3 bg-muted rounded-lg"
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <FileIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm truncate">{file.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {(file.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {status === 'pending' && (
+                      <>
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        <button
+                          onClick={() => removeFile(file.name)}
+                          disabled={uploading}
+                          className="text-destructive hover:text-destructive/80 disabled:opacity-50"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </>
+                    )}
+                    {status === 'uploading' && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          {progress}%
+                        </span>
+                        <Loader2 className="h-4 w-4 text-primary animate-spin" />
+                      </div>
+                    )}
+                    {status === 'success' && (
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                    )}
+                    {status === 'error' && (
+                      <XCircle className="h-4 w-4 text-destructive" />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

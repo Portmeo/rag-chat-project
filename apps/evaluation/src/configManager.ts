@@ -181,37 +181,44 @@ export async function applyConfig(config: OptimizationConfig): Promise<void> {
   console.log('\n🔄 Restarting backend...');
 
   try {
-    // Kill all processes using port 3001 (more robust than pkill)
-    const pids = await execAsync('lsof -ti :3001 || true');
-    if (pids.stdout.trim()) {
-      await execAsync(`kill -9 ${pids.stdout.trim().split('\n').join(' ')}`);
-      console.log('✅ Stopped existing backend process(es)');
-    } else {
-      console.log('⚠️  No existing backend process found');
-    }
+    // Kill ALL npm dev processes and node processes (more aggressive)
+    await execAsync('pkill -9 -f "npm run dev:backend" || true');
+    await execAsync('pkill -9 -f "npm run dev" || true');
+    await execAsync('lsof -ti :3001 | xargs kill -9 || true');
+
+    console.log('✅ Killed all existing backend processes');
   } catch (error) {
-    // Process might not be running, that's ok
     console.log('⚠️  Error stopping backend (may not be running)');
   }
 
-  // Wait a bit for process to fully terminate and port to be released
-  await new Promise((resolve) => setTimeout(resolve, 3000));
+  // Wait longer for all processes to fully terminate and port to be released
+  await new Promise((resolve) => setTimeout(resolve, 5000));
 
-  // Start backend in background with npm
-  const backendDir = path.join(process.cwd(), 'apps/backend');
-  const logFile = path.join(process.cwd(), 'benchmark/evaluation/results/backend.log');
+  // Start backend using the project's npm script
+  const projectRoot = process.cwd();
+  const logFile = path.join(projectRoot, 'benchmark/evaluation/results/backend.log');
 
   // Ensure results directory exists
-  await fs.mkdir(path.join(process.cwd(), 'benchmark/evaluation/results'), { recursive: true });
+  await fs.mkdir(path.join(projectRoot, 'benchmark/evaluation/results'), { recursive: true });
 
-  exec(`cd ${backendDir} && nohup npm run dev > ${logFile} 2>&1 &`, (error) => {
-    if (error) {
-      console.error('❌ Error starting backend:', error);
+  // Clear the log file to make debugging easier
+  await fs.writeFile(logFile, '', 'utf-8');
+
+  // Start backend using the workspace script (this properly loads .env)
+  // Using exec (non-async) to start in background without waiting for completion
+  exec(
+    `cd ${projectRoot} && nohup npm run dev:backend > ${logFile} 2>&1 &`,
+    { shell: '/bin/bash', detached: true },
+    (error) => {
+      if (error) console.error('⚠️  Warning during backend start:', error.message);
     }
-  });
-
+  );
   console.log('✅ Started backend process');
+
   console.log(`📝 Backend logs: ${logFile}`);
+
+  // Give the process time to actually start and initialize
+  await new Promise((resolve) => setTimeout(resolve, 3000));
 
   // 6. Wait for backend to be ready
   console.log('\n⏳ Waiting for backend to be ready...');
