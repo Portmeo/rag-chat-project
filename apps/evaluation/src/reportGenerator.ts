@@ -360,8 +360,8 @@ export class ReportGenerator {
 
     // ✅ Write files with explicit error handling
     try {
-      await Bun.write(markdownPath, markdownReport);
-      await Bun.write(jsonPath, JSON.stringify(jsonReport, null, 2));
+      await fs.writeFile(markdownPath, markdownReport, 'utf-8');
+      await fs.writeFile(jsonPath, JSON.stringify(jsonReport, null, 2), 'utf-8');
     } catch (error) {
       console.error(`❌ Failed to write report files to ${outputDir}:`);
       console.error(`   Markdown: ${markdownPath}`);
@@ -480,7 +480,7 @@ export function generateReport(results: EvaluationResult[]): EvaluationReport {
 
 export async function saveReport(report: EvaluationReport, outputPath: string): Promise<void> {
   const json = JSON.stringify(report, null, 2);
-  await Bun.write(outputPath, json);
+  await fs.writeFile(outputPath, json, 'utf-8');
   console.log(`\n💾 Report saved to: ${outputPath}`);
 }
 

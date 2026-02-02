@@ -1,9 +1,9 @@
 import type { EvaluationDataset } from './types';
+import { readFile } from 'fs/promises';
 
 export async function loadDataset(datasetPath: string): Promise<EvaluationDataset> {
   try {
-    const file = Bun.file(datasetPath);
-    const content = await file.text();
+    const content = await readFile(datasetPath, 'utf-8');
     const dataset = JSON.parse(content) as EvaluationDataset;
 
     console.log(`📂 Loaded dataset: ${dataset.test_cases.length} test cases (version ${dataset.version})`);

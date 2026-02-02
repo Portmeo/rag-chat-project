@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import path from 'path';
+import { writeFile } from 'fs/promises';
 import { RAGASEvaluator, loadDataset, validateDataset } from '../../apps/evaluation/src';
 import { ReportGenerator, printReportSummary } from '../../apps/evaluation/src/reportGenerator';
 
@@ -49,7 +50,7 @@ async function main() {
     // Save results
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
     const outputPath = path.join(outputDir, `ragas_${timestamp}.json`);
-    await Bun.write(outputPath, JSON.stringify(report, null, 2));
+    await writeFile(outputPath, JSON.stringify(report, null, 2), 'utf-8');
     console.log(`\n💾 Report saved to: ${outputPath}`);
 
     // Print summary

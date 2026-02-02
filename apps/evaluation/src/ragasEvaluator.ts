@@ -1,6 +1,7 @@
 import { Ollama } from '@langchain/community/llms/ollama';
 import { OllamaEmbeddings } from '@langchain/community/embeddings/ollama';
 import path from 'path';
+import { readFile } from 'fs/promises';
 import type { EvaluationTestCase, EvaluationResult } from './types';
 
 interface RAGSource {
@@ -69,13 +70,12 @@ export class RAGASEvaluator {
   private async getSourceContent(source: RAGSource): Promise<string> {
     const filePath = path.join(
       process.cwd(),
-      'uploads',
+      'apps/backend/uploads/documents',
       source.filename
     );
 
     try {
-      const file = Bun.file(filePath);
-      return await file.text();
+      return await readFile(filePath, 'utf-8');
     } catch (error) {
       console.warn(`Could not read ${source.filename}:`, error);
       return '';
