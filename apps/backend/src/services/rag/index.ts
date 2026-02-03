@@ -268,10 +268,26 @@ function docsToSources(docs: Document[]): RAGSource[] {
   }));
 }
 
-// Return all sources without filtering by rerank score
+// Filter sources by rerank score threshold
 function filterSourcesByRelevance(relevantDocs: Document[]): RAGSource[] {
-  console.log(`\n📊 Returning all ${relevantDocs.length} sources (no filtering)`);
-  return docsToSources(relevantDocs);
+  if (!RERANKER_CONFIG.enabled) {
+    console.log(`\n📊 Reranker disabled, returning all ${relevantDocs.length} sources`);
+    return docsToSources(relevantDocs);
+  }
+
+  const filtered = relevantDocs.filter(doc => {
+    const rerankScore = (doc as any).rerankScore;
+    if (rerankScore === undefined) return false;
+
+    const passes = rerankScore >= RERANKER_CONFIG.minScore;
+    if (!passes) {
+      console.log(`🚫 Filtered out: score ${rerankScore.toFixed(3)} < threshold ${RERANKER_CONFIG.minScore}`);
+    }
+    return passes;
+  });
+
+  console.log(`\n📊 Filtered ${filtered.length}/${relevantDocs.length} sources by rerank score (threshold: ${RERANKER_CONFIG.minScore})`);
+  return docsToSources(filtered);
 }
 
 // Shared function to retrieve relevant documents
@@ -308,13 +324,17 @@ async function retrieveRelevantDocuments(
     console.log(`🔧 Using Ensemble Retriever (Vector: ${BM25_CONFIG.vectorWeight}, BM25: ${BM25_CONFIG.weight})`);
 
     if (!bm25RetrieverCache) {
+      console.log('🔄 BM25 cache is null, attempting rebuild...');
       await rebuildBM25Cache();
     }
 
     if (!bm25RetrieverCache) {
-      console.log('⚠️  BM25 cache failed to build, falling back to vector-only search');
+      console.error('❌ BM25 cache failed to build after rebuild attempt');
+      console.log('⚠️  Falling back to vector-only search (performance degraded)');
       retriever = vectorRetriever;
     } else {
+      const docCount = (bm25RetrieverCache as any).documents?.length || 'unknown';
+      console.log(`✓ BM25 cache active with ${docCount} documents`);
       retriever = new EnsembleRetriever({
         retrievers: [vectorRetriever, bm25RetrieverCache],
         weights: [BM25_CONFIG.vectorWeight, BM25_CONFIG.weight],

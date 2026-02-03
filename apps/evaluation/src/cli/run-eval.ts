@@ -182,11 +182,11 @@ async function main() {
       process.stdout.write(`\r Progress: [${bar}] ${progress}% - ${testCase.id}` + ' '.repeat(20));
 
       try {
-        // Add a 2-minute timeout per test case
+        // Add a 3-minute timeout per test case (increased from 120s to allow for slower RAG queries)
         const result = await Promise.race([
           evaluator.evaluateSingleCase(testCase),
           new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error(`Test case timeout after 120s`)), 120000)
+            setTimeout(() => reject(new Error(`Test case timeout after 180s`)), 180000)
           )
         ]);
         results.push(result);

@@ -4,7 +4,8 @@
   "type": "module",
   "main": "./src/index.ts",
   "scripts": {
-    "eval": "tsx src/cli/run-eval.ts"
+    "eval": "tsx src/cli/run-eval.ts",
+    "validate": "tsx src/cli/manual-validate.ts"
   },
   "dependencies": {
     "@langchain/community": "^0.0.25",

@@ -78,3 +78,57 @@ export interface EvaluationReport {
   detailed_results: EvaluationResult[];
   timestamp: string;
 }
+
+// Manual Validation Types
+export type IssueType =
+  | 'correct_but_flagged'
+  | 'missing_context'
+  | 'wrong_answer'
+  | 'contradictory_metrics'
+  | 'timeout_masked'
+  | 'no_issue';
+
+export interface UserValidation {
+  is_factually_correct: boolean | 'partial';
+  uses_only_context: boolean;
+  hallucinations_correct: boolean | 'false-positive';
+  contexts_relevant: boolean | 'partial';
+  quality_rating: number; // 1-5
+  issue_type: IssueType;
+  notes?: string;
+}
+
+export interface ValidatedCase {
+  test_case_id: string;
+  automated_scores: EvaluationResult;
+  user_validation: UserValidation;
+  discrepancies: string[];
+}
+
+export interface DetectedPattern {
+  pattern_name: string;
+  frequency: number;
+  case_ids: string[];
+  characteristics: string[];
+  root_cause_hypothesis: string;
+  recommended_fix: string;
+  priority: 'critical' | 'high' | 'medium' | 'low';
+  effort_estimate: string;
+}
+
+export interface Recommendation {
+  title: string;
+  issue: string;
+  evidence: string[];
+  action: string[];
+  priority: 'critical' | 'high' | 'medium' | 'low';
+}
+
+export interface ValidationSession {
+  timestamp: string;
+  result_file: string;
+  total_cases_reviewed: number;
+  validated_cases: ValidatedCase[];
+  patterns: DetectedPattern[];
+  recommendations: Recommendation[];
+}
