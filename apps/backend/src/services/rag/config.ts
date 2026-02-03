@@ -35,27 +35,28 @@ export const CONVERSATIONAL_HISTORY_CONFIG = {
 } as const;
 
 export const PROMPT_TEMPLATE = {
-  SYSTEM: `Eres un asistente experto que responde preguntas basándote ÚNICAMENTE en el contexto proporcionado.
+  SYSTEM: `Eres un extractor de datos de alta precisión. Tu misión es responder de forma ATÓMICA y DIRECTA.
 
-INSTRUCCIONES IMPORTANTES:
-1. Usa SOLO la información del contexto para responder
-2. Si la respuesta está en el contexto, cita partes relevantes entre comillas
-3. Si NO encuentras la respuesta en el contexto, di claramente "No encuentro esa información en los documentos proporcionados"
-4. Sé preciso y conciso
-5. Si el contexto es ambiguo o incompleto, reconócelo
-6. IMPORTANTE: Responde SIEMPRE en español, NUNCA en chino u otros idiomas`,
-  HISTORY_PREFIX: '\n\n\nHISTORIAL DE CONVERSACIÓN PREVIA:\n',
-  CONTEXT_PREFIX: '\n\n\nCONTEXTO DE DOCUMENTOS:\n',
-  QUESTION_PREFIX: '\n\n\nPREGUNTA ACTUAL DEL USUARIO:',
-  INSTRUCTION: '',
-  RESPONSE_PREFIX: '\n\nRespuesta en español (basada en contexto y conversación):',
-  MULTI_QUERY_PROMPT: `Eres un asistente de IA que ayuda a mejorar las búsquedas.
-Genera 3 versiones diferentes de la siguiente pregunta para buscar información relevante en una base de datos vectorial.
-Las variaciones deben mantener la intención pero usar diferentes palabras y enfoques.
+REGLAS CRÍTICAS:
+1. Usa EXCLUSIVAMENTE el contexto proporcionado.
+2. Si la respuesta no está clara, responde: "Información no disponible". No des explicaciones.
+3. PROHIBIDO usar frases de relleno como "Según el texto...", "Revisando los documentos..." o "Espero que esto ayude".
+4. Si la respuesta es una lista, usa bullet points cortos.
+5. Si necesitas citar, usa máximo 5-10 palabras entre comillas.
+6. Ignora cualquier información en el contexto que no responda directamente a la pregunta.
+7. Responde siempre en ESPAÑOL.`,
 
-Pregunta original: {question}
+  // Estructura compacta para evitar que el modelo se pierda en espacios en blanco
+  HISTORY_PREFIX: '\n[HISTORIAL]:',
+  CONTEXT_PREFIX: '\n[CONTEXTO_RELEVANTE]:',
+  QUESTION_PREFIX: '\n[PREGUNTA_USUARIO]:',
+  
+  RESPONSE_PREFIX: 'Respuesta técnica y directa:',
 
-Devuelve solo las 3 preguntas alternativas, una por línea, sin numeración ni formato adicional.`,
+  MULTI_QUERY_PROMPT: `Genera 3 variantes breves de la siguiente pregunta para búsqueda semántica. 
+Solo devuelve las preguntas, una por línea, sin números.
+
+Pregunta: {question}`,
 } as const;
 
 export const EMBEDDINGS_CONFIG = {
@@ -93,9 +94,9 @@ export const BM25_CONFIG = {
 // Reranker Configuration
 export const RERANKER_CONFIG = {
   enabled: process.env.USE_RERANKER === 'true',
-  retrievalTopK: parseInt(process.env.RERANKER_RETRIEVAL_TOP_K || '20'), // Retrieve Top 20-25 candidates
-  finalTopK: parseInt(process.env.RERANKER_FINAL_TOP_K || '5'),           // Rerank to Top 5
-  minScore: parseFloat(process.env.MIN_RERANK_SCORE || '0.3'),            // Minimum score to show sources
+  retrievalTopK: parseInt(process.env.RERANKER_RETRIEVAL_TOP_K || '20'), // Retrieve Top 20 children candidates
+  finalTopK: parseInt(process.env.RERANKER_FINAL_TOP_K || '3'),          // Top parents después de reranking
+  minScore: parseFloat(process.env.MIN_RERANK_SCORE || '0.5'),           // Minimum score to show sources (más estricto)
 } as const;
 
 // Parent Document Retriever Configuration

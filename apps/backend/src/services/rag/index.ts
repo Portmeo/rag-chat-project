@@ -165,6 +165,13 @@ async function resolveParentChunks(childDocs: Document[]): Promise<Document[]> {
       (parentDoc as any).rerankScore = (bestChild as any).rerankScore;
     }
 
+    // NUEVO: Agregar metadata útil para debugging y métricas
+    (parentDoc as any).childrenCount = children.length;
+    (parentDoc as any).childrenScores = children
+      .map(c => (c as any).rerankScore)
+      .filter(s => s !== undefined)
+      .sort((a, b) => b - a); // Ordenar descendente
+
     parentDocs.push(parentDoc);
   }
 
@@ -358,29 +365,49 @@ async function retrieveRelevantDocuments(
 
   console.log(`\n📄 Retrieved ${candidateDocs.length} candidate documents`);
 
-  // NUEVO: Resolver children a parents ANTES del reranking
+  // PASO 1: Resolver children a parents PRIMERO (Hydration)
   if (PARENT_RETRIEVER_CONFIG.enabled) {
     console.log(`\n🔄 Resolving ${candidateDocs.length} child chunks to parent chunks...`);
     candidateDocs = await resolveParentChunks(candidateDocs);
+
+    const metrics = {
+      childrenRetrieved: RERANKER_CONFIG.retrievalTopK,
+      uniqueParents: candidateDocs.length,
+      deduplicationRatio: (1 - (candidateDocs.length / RERANKER_CONFIG.retrievalTopK)).toFixed(2),
+    };
+
+    console.log(`✅ Resolved to ${candidateDocs.length} unique parent chunks`);
+    console.log(`📊 Hydration metrics:`, JSON.stringify(metrics, null, 2));
   }
 
-  // Apply reranking if enabled
+  // PASO 2: Rerank los parents (tienen contexto completo de 512 tokens)
   let relevantDocs: Document[];
 
   if (RERANKER_CONFIG.enabled) {
+    console.log(`\n🔄 Reranking ${candidateDocs.length} parent chunks to Top ${RERANKER_CONFIG.finalTopK}...`);
 
-    console.log(`\n🔄 Reranking ${candidateDocs.length} documents to Top ${RERANKER_CONFIG.finalTopK}...`);
     try {
-      relevantDocs = await rerankDocuments(question, candidateDocs, RERANKER_CONFIG.finalTopK);
-      console.log(`✅ Reranking completed, got ${relevantDocs.length} top documents`);
+      relevantDocs = await rerankDocuments(
+        question,
+        candidateDocs,
+        RERANKER_CONFIG.finalTopK
+      );
+
+      console.log(`✅ Reranking completed, got ${relevantDocs.length} top parent chunks`);
+      console.log(`   Top 3 scores: ${relevantDocs.slice(0, 3).map(d => (d as any).rerankScore?.toFixed(3)).join(', ')}`);
+
+      // Calcular tamaño total de contexto para el LLM
+      const totalTokens = relevantDocs.reduce((sum, doc) => sum + doc.pageContent.length, 0);
+      console.log(`📏 Total context size: ~${totalTokens} chars (~${Math.round(totalTokens / 4)} tokens)`);
+
     } catch (error) {
-      console.error('⚠️  Reranking failed, falling back to original retrieval:', error);
-      relevantDocs = candidateDocs.slice(0, SIMILARITY_SEARCH_CONFIG.MAX_RESULTS);
+      console.error('⚠️  Reranking failed, falling back to top parents without reranking:', error);
+      relevantDocs = candidateDocs.slice(0, RERANKER_CONFIG.finalTopK);
     }
 
   } else {
-    console.log('⏭️  Reranker disabled, using retrieval results directly');
-    relevantDocs = candidateDocs;
+    console.log('⏭️  Reranker disabled, using top parent chunks directly');
+    relevantDocs = candidateDocs.slice(0, SIMILARITY_SEARCH_CONFIG.MAX_RESULTS);
   }
 
   // DEBUG: Log final documents
