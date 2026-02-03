@@ -275,6 +275,14 @@ function filterSourcesByRelevance(relevantDocs: Document[]): RAGSource[] {
     return docsToSources(relevantDocs);
   }
 
+  // Check if documents have rerank scores
+  const hasRerankScores = relevantDocs.some(doc => (doc as any).rerankScore !== undefined);
+
+  if (!hasRerankScores) {
+    console.log(`\n⚠️  No rerank scores found (reranker may have failed), returning all ${relevantDocs.length} sources`);
+    return docsToSources(relevantDocs);
+  }
+
   const filtered = relevantDocs.filter(doc => {
     const rerankScore = (doc as any).rerankScore;
     if (rerankScore === undefined) return false;

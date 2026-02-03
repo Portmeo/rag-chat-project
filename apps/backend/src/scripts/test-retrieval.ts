@@ -1,4 +1,4 @@
-import { query } from '../services/rag';
+import { queryRAG } from '../services/rag';
 
 async function testRetrieval() {
   const questions = [
@@ -15,7 +15,7 @@ async function testRetrieval() {
     const start = Date.now();
 
     try {
-      const result = await query(q);
+      const result = await queryRAG(q);
       const elapsed = Date.now() - start;
 
       console.log(`✓ Success in ${elapsed}ms (${(elapsed/1000).toFixed(1)}s)`);
@@ -46,7 +46,7 @@ async function testRetrieval() {
           console.log(`    ${i+1}. ${s.filename}${score}`);
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       const elapsed = Date.now() - start;
       console.error(`❌ Error after ${elapsed}ms: ${error.message}`);
       if (error.stack) {

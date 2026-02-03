@@ -1,0 +1,217 @@
+{
+  "timestamp": "2026-02-03T09:50:37.098Z",
+  "result_file": "ragas_2026-02-03T08-39-34.json",
+  "total_cases_reviewed": 3,
+  "validated_cases": [
+    {
+      "test_case_id": "basica_1",
+      "automated_scores": {
+        "test_case_id": "basica_1",
+        "question": "¿Qué versiones de Angular e Ionic se usan en el proyecto?",
+        "generated_answer": "El proyecto utiliza **Angular 15** como frontend framework y **Ionic 6** como framework principal.",
+        "retrieved_contexts": [
+          "# Arquitectura General del Proyecto Asyb-Portal\n\n## Descripción del Proyecto\n\nAsyb-Portal es una **aplicación móvil híbrida** de servicios digitales de salud para Seguros Caixa Adeslas. La aplicación permite a los asegurados acceder a servicios médicos, gestionar pólizas, solicitar autorizaciones y realizar trámites de salud desde dispositivos móviles y web.\n\n### Stack Tecnológico\n\n- **Framework Principal:** Ionic 6\n- **Frontend Framework:** Angular 15\n- **Runtime de Capacidades Nativas:** Capacitor 6.1.2\n- **Gestión de Estado:** NgRx (Patrón Flux)\n- **Lenguaje:** TypeScript 4.9\n- **Node.js:** 16.x o superior\n\n## Estructura del Proyecto\n\nEl proyecto sigue una **arquitectura modular** con separación clara de responsabilidades:\n\n### Directorio Core (`src/app/core/`)\n\nContiene servicios singleton y funcionalidades centrales:\n\n```typescript\ncore/\n├── services/           // Servicios globales\n│   ├── auth.service.ts\n│   ├── error-handler.service.ts\n│   └── http-interceptor.service.ts\n├── guards/            // Guards de rutas\n│   ├── auth.guard.ts\n│   └── role.guard.ts\n└── models/            // Interfaces y tipos compartidos\n    └── user.model.ts\n```\n\n**Características:**\n- Servicios singleton que se instancian una sola vez\n- Guards para protección de rutas\n- Modelos de datos globales\n\n### Directorio Features (`src/app/features/`)\n\nMódulos lazy-loaded organizados por funcionalidad:\n\n```\nfeatures/\n├── dashboard/         // Panel principal del usuario\n├── auth/             // Autenticación y registro\n├── my-health/        // Historial médico personal\n├── appointments/     // Gestión de citas médicas\n├── policies/         // Información de pólizas\n└── authorizations/   // Solicitudes de autorización\n```\n\n**Ventajas del Lazy Loading:**\n- Reducción del bundle inicial\n- Carga bajo demanda\n- Mejor performance percibida\n\n### Directorio Shared (`src/app/shared/`)\n\nComponentes, pipes y directivas reutilizables:\n\n```typescript\nshared/\n├── components/       // Componentes UI reutilizables\n│   ├── header/\n│   ├── footer/\n│   └── loading/\n├── pipes/           // Transformación de datos\n│   └── date-format.pipe.ts\n└── directives/      // Directivas custom\n    └── debounce-click.directive.ts\n```\n\n### Directorio State (`src/app/state/`)\n\nGestión centralizada del estado con NgRx:\n\n```\nstate/\n├── actions/         // Acciones Redux\n├── reducers/        // Reducers de estado\n├── effects/         // Side effects\n└── selectors/       // Selectores para consultas\n```\n\n## Arquitectura de Microfrontends\n\nEl proyecto implementa una **arquitectura de microfrontends** utilizando Web Components personalizados. Cada microfrontend es un paquete npm independiente que se integra dinámicamente.\n\n### Microfrontends Activos (11 total)\n\n| Paquete | Funcionalidad |\n|---------|---------------|\n| `@wc-sca/citation-hub` | Centro de citas médicas |\n| `@wc-sca/medical-dashboard` | Dashboard médico completo |\n| `@wc-sca/health-diary` | Diario personal de salud |\n| `@wc-sca/policy-management` | Gestión de pólizas |\n| `@wc-sca/virtual-card` | Tarjeta sanitaria virtual |\n| `@wc-sca/dhs-refund` | Sistema de reembolsos |\n\n### Integración de Web Components\n\n```typescript\n// Ejemplo de integración de un microfrontend\nimport '@wc-sca/citation-hub';\n\n// En el template HTML\n<citation-hub\n  [userId]=\"currentUser.id\"\n  [locale]=\"'es-ES'\"\n  (appointmentBooked)=\"handleAppointmentBooked($event)\">\n</citation-hub>\n```\n\n## Plataformas Soportadas\n\n### Android\n- **API Mínima:** 27 (Android 8.1+)\n- **Target API:** 34 (Android 14)\n- **Firma:** Automática desde pipeline\n\n### iOS\n- **Versión Mínima:** iOS 13+\n- **Target:** iOS 17\n- **Firma:** Manual en Xcode\n\n### Web\n- **Navegadores:** Chrome 90+, Safari 14+, Firefox 88+\n- **PWA:** Habilitada con Service Workers\n\n## Configuración de Entornos\n\nEl proyecto soporta tres entornos:\n\n```typescript\n// src/environments/environment.ts\nexport const environment = {\n  production: false,\n  apiUrl: 'https://api-dev.adeslas.com',\n  version: '5.0.0',\n  firebase: {\n    apiKey: '...',\n    projectId: 'asyb-dev'\n  }\n};\n```\n\n**Comandos de build por entorno:**\n\n```bash\nnpm run build:dev   # Desarrollo\nnpm run build:pre   # Preproducción\nnpm run build:pro   # Producción\n```\n\n## Patrones de Diseño Implementados\n\n### Container-Presenter Pattern\n\nSeparación entre componentes inteligentes (containers) y de presentación (presenters):\n\n```typescript\n// Container Component (smart)\n@Component({\n  selector: 'app-dashboard-container',\n  template: `\n    <app-dashboard-presenter\n      [userData]=\"userData$ | async\"\n      (actionClick)=\"handleAction($event)\">\n    </app-dashboard-presenter>\n  `\n})\nexport class DashboardContainerComponent {\n  userData$ = this.store.select(selectUserData);\n\n  handleAction(action: string) {\n    this.store.dispatch(dashboardAction({ action }));\n  }\n}\n\n// Presenter Component (dumb)\n@Component({\n  selector: 'app-dashboard-presenter',\n  template: `<div>{{ userData.name }}</div>`\n})\nexport class DashboardPresenterComponent {\n  @Input() userData: UserData;\n  @Output() actionClick = new EventEmitter<string>();\n}\n```\n\n### Flux Pattern con NgRx\n\nFlujo unidireccional de datos para predictibilidad:\n\n```\nComponent → Action → Effect → API → Action → Reducer → Store → Component\n```\n\n## Dependencias Principales\n\n```json\n{\n  \"@ionic/angular\": \"^6.7.5\",\n  \"@angular/core\": \"^15.2.8\",\n  \"@ngrx/store\": \"^15.4.0\",\n  \"@capacitor/core\": \"^6.1.2\",\n  \"rxjs\": \"^7.8.0\"\n}\n```\n\n## Performance\n\n### Métricas de Build\n\n- **Bundle inicial:** ~2.5 MB (gzipped)\n- **Tiempo de build (prod):** ~45 segundos\n- **Lazy chunks:** 15+ módulos bajo demanda\n\n### Optimizaciones Aplicadas\n\n- Lazy loading de módulos\n- Tree shaking automático\n- AOT compilation\n- Preloading strategy personalizada\n- Service Workers para cache\n\n## Convenciones de Código\n\n### Naming Conventions\n\n```typescript\n// Componentes: PascalCase + Component\nexport class DashboardComponent {}\n\n// Servicios: PascalCase + Service\nexport class AuthService {}\n\n// Interfaces: PascalCase\nexport interface UserData {}\n\n// Constantes: UPPER_SNAKE_CASE\nexport const API_TIMEOUT = 30000;\n```\n\n### Estructura de Archivos\n\n```\nfeature-name/\n├── feature-name.component.ts      // Lógica del componente\n├── feature-name.component.html    // Template\n├── feature-name.component.scss    // Estilos\n├── feature-name.component.spec.ts // Tests\n└── feature-name.module.ts         // Módulo\n```\n\n## Versionado\n\nEl proyecto sigue **Semantic Versioning** (SemVer):\n\n- **MAJOR:** Cambios incompatibles en API\n- **MINOR:** Nueva funcionalidad compatible\n- **PATCH:** Correcciones de bugs\n\n**Versión Actual:** 5.0.0\n",
+          "# Microfrontends y Web Components\n\n## Arquitectura de Microfrontends\n\nAsyb-Portal implementa una arquitectura de **microfrontends** usando **Web Components** personalizados. Esta arquitectura permite desarrollar, deployar y mantener funcionalidades de forma independiente.\n\n### Ventajas de la Arquitectura\n\n-\n\n **Independencia Tecnológica:** Cada microfrontend puede usar su stack\n- **Deploy Independiente:** Actualizar sin redeployar la app completa\n- **Equipos Autónomos:** Diferentes equipos trabajando en paralelo\n- **Escalabilidad:** Añadir features sin afectar el core\n- **Reutilización:** Mismo componente en múltiples apps\n\n## Web Components en el Proyecto\n\n### Listado de Microfrontends Activos\n\n| Paquete npm | Función | Versión |\n|-------------|---------|---------|\n| `@wc-sca/citation-hub` | Centro de citas médicas | 2.5.1 |\n| `@wc-sca/medical-dashboard` | Dashboard médico completo | 3.1.0 |\n| `@wc-sca/health-diary` | Diario personal de salud | 1.8.2 |\n| `@wc-sca/policy-management` | Gestión de pólizas de seguros | 2.2.4 |\n| `@wc-sca/virtual-card` | Tarjeta sanitaria virtual | 1.5.0 |\n| `@wc-sca/dhs-refund` | Sistema de reembolsos DHS | 2.0.1 |\n| `@wc-sca/compauthorizationrequest` | Solicitudes de autorización | 1.9.3 |\n| `@wc-sca/contactability` | Sistema de contactabilidad | 1.4.0 |\n| `@wc-sca/dhs-card-duplication` | Duplicación de tarjetas DHS | 1.2.1 |\n| `@wc-sca/dhs-receipts-management` | Gestión de recibos DHS | 1.6.0 |\n| `@wc-sca/multirolcustomerregister` | Registro multirol de usuarios | 2.3.0 |\n\n## Integración de Web Components\n\n### Instalación de un Microfrontend\n\n```bash\n# Añadir paquete al proyecto\nnpm install @wc-sca/citation-hub@2.5.1\n\n# Verificar instalación\nnpm list @wc-sca/citation-hub\n```\n\n### Importación en Angular\n\n```typescript\n// app.module.ts o feature.module.ts\nimport { CUSTOM_ELEMENTS_SCHEMA, NgModule } from '@angular/core';\n\n// Importar el Web Component\nimport '@wc-sca/citation-hub';\n\n@NgModule({\n  schemas: [CUSTOM_ELEMENTS_SCHEMA], // Importante para usar custom elements\n  // ...\n})\nexport class AppointmentsModule {}\n```\n\n### Uso en Templates\n\n```html\n<!-- appointments.component.html -->\n<citation-hub\n  [attr.user-id]=\"currentUser.id\"\n  [attr.locale]=\"'es-ES'\"\n  [attr.theme]=\"'adeslas'\"\n  (appointmentBooked)=\"onAppointmentBooked($event)\"\n  (error)=\"onError($event)\">\n</citation-hub>\n```\n\n### Comunicación con Web Components\n\n#### Input Properties\n\n```typescript\n// Pasar datos al Web Component\nexport class AppointmentsComponent {\n  currentUser = {\n    id: '12345',\n    name: 'Juan Pérez'\n  };\n\n  config = {\n    apiUrl: 'https://api.adeslas.com',\n    allowCancel: true\n  };\n}\n```\n\n```html\n<citation-hub\n  [attr.user-id]=\"currentUser.id\"\n  [attr.config]=\"config | json\">\n</citation-hub>\n```\n\n#### Output Events\n\n```typescript\n// Escuchar eventos del Web Component\nexport class AppointmentsComponent {\n  onAppointmentBooked(event: CustomEvent) {\n    const appointment = event.detail;\n    console.log('Cita reservada:', appointment);\n\n    // Actualizar estado de la app\n    this.store.dispatch(AppointmentActions.addAppointment({\n      appointment: appointment.data\n    }));\n\n    // Mostrar notificación\n    this.toastService.success('Cita reservada correctamente');\n  }\n\n  onError(event: CustomEvent) {\n    const error = event.detail;\n    console.error('Error en el componente:', error);\n\n    this.toastService.error(error.message);\n  }\n}\n```\n\n### Tipos de Eventos Comunes\n\n```typescript\n// Tipos de eventos que emiten los Web Components\ninterface AppointmentBookedEvent {\n  detail: {\n    appointmentId: string;\n    date: string;\n    doctorName: string;\n    specialty: string;\n  };\n}\n\ninterface ErrorEvent {\n  detail: {\n    code: string;\n    message: string;\n    stack?: string;\n  };\n}\n\ninterface LoadingEvent {\n  detail: {\n    isLoading: boolean;\n  };\n}\n```\n\n## Configuración en angular.json\n\n### Assets de Web Components\n\nLos Web Components suelen tener assets (imágenes, fonts, estilos). Configurar en `angular.json`:\n\n```json\n{\n  \"projects\": {\n    \"asyb-portal\": {\n      \"architect\": {\n        \"build\": {\n          \"options\": {\n            \"assets\": [\n              \"src/favicon.ico\",\n              \"src/assets\",\n              {\n                \"glob\": \"**/*\",\n                \"input\": \"node_modules/@wc-sca/citation-hub/dist/assets\",\n                \"output\": \"/assets/wc/citation-hub\"\n              },\n              {\n                \"glob\": \"**/*\",\n                \"input\": \"node_modules/@wc-sca/medical-dashboard/dist/assets\",\n                \"output\": \"/assets/wc/medical-dashboard\"\n              }\n            ]\n          }\n        }\n      }\n    }\n  }\n}\n```\n\n### Scripts Globales\n\nAlgunos Web Components requieren scripts globales:\n\n```json\n{\n  \"scripts\": [\n    \"node_modules/@wc-sca/citation-hub/dist/polyfills.js\",\n    \"node_modules/@wc-sca/citation-hub/dist/runtime.js\"\n  ]\n}\n```\n\n## Comunicación Avanzada\n\n### Event Bus\n\nPara comunicación entre Web Components que no tienen relación padre-hijo:\n\n```typescript\n// shared/services/event-bus.service.ts\nimport { Injectable } from '@angular/core';\nimport { Subject, Observable } from 'rxjs';\nimport { filter, map } from 'rxjs/operators';\n\ninterface AppEvent {\n  type: string;\n  payload: any;\n}\n\n@Injectable({ providedIn: 'root' })\nexport class EventBusService {\n  private eventSubject = new Subject<AppEvent>();\n\n  // Emitir evento\n  emit(type: string, payload: any) {\n    this.eventSubject.next({ type, payload });\n  }\n\n  // Escuchar eventos\n  on(eventType: string): Observable<any> {\n    return this.eventSubject.pipe(\n      filter(event => event.type === eventType),\n      map(event => event.payload)\n    );\n  }\n}\n```\n\nUso en componentes:\n\n```typescript\n// Emitir desde un Web Component\nexport class CitationHubWrapperComponent {\n  constructor(private eventBus: EventBusService) {}\n\n  onAppointmentBooked(event: CustomEvent) {\n    this.eventBus.emit('appointment:booked', event.detail);\n  }\n}\n\n// Escuchar en otro componente\nexport class DashboardComponent implements OnInit {\n  constructor(private eventBus: EventBusService) {}\n\n  ngOnInit() {\n    this.eventBus.on('appointment:booked').subscribe((data) => {\n      console.log('Nueva cita desde otro componente:', data);\n      this.refreshAppointments();\n    });\n  }\n}\n```\n\n## Lazy Loading de Web Components\n\n### Carga Bajo Demanda\n\n```typescript\n// appointments-routing.module.ts\nimport { NgModule } from '@angular/core';\nimport { RouterModule, Routes } from '@angular/router';\n\nconst routes: Routes = [\n  {\n    path: 'appointments',\n    loadChildren: () =>\n      import('./appointments/appointments.module').then(m => m.AppointmentsModule)\n  }\n];\n\n@NgModule({\n  imports: [RouterModule.forChild(routes)],\n  exports: [RouterModule]\n})\nexport class AppointmentsRoutingModule {}\n```\n\n```typescript\n// appointments.module.ts\nimport { NgModule, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';\n\n// Solo se carga cuando se navega a /appointments\nimport '@wc-sca/citation-hub';\n\n@NgModule({\n  schemas: [CUSTOM_ELEMENTS_SCHEMA]\n})\nexport class AppointmentsModule {}\n```\n\n### Verificar Carga\n\n```typescript\nexport class AppointmentsComponent implements AfterViewInit {\n  @ViewChild('citationHub', { read: ElementRef }) citationHub!: ElementRef;\n\n  ngAfterViewInit() {\n    // Verificar que el Web Component está definido\n    if (customElements.get('citation-hub')) {\n      console.log('Web Component citation-hub cargado correctamente');\n    } else {\n      console.error('Error: citation-hub no está registrado');\n    }\n\n    // Acceder al elemento DOM\n    const element = this.citationHub.nativeElement;\n    console.log('Propiedades del elemento:', element);\n  }\n}\n```\n\n## Styling de Web Components\n\n### Shadow DOM\n\nLos Web Components usan **Shadow DOM**, lo que encapsula sus estilos:\n\n```typescript\n// ❌ No funciona: estilos globales no afectan Shadow DOM\n/* styles.scss */\ncitation-hub {\n  background: red; /* Solo afecta al host, no al contenido interno */\n}\n\n// ✅ Funciona: CSS Custom Properties (variables)\n:root {\n  --primary-color: #007bff;\n  --font-family: 'Roboto', sans-serif;\n}\n```\n\nDentro del Web Component:\n\n```css\n/* citation-hub/styles.css */\n.button {\n  background: var(--primary-color); /* Usa la variable global */\n  font-family: var(--font-family);\n}\n```\n\n### Theming\n\n```typescript\n// app.component.ts\nexport class AppComponent implements OnInit {\n  ngOnInit() {\n    // Aplicar tema a todos los Web Components\n    document.documentElement.style.setProperty('--primary-color', '#00a859');\n    document.documentElement.style.setProperty('--secondary-color', '#0066cc');\n    document.documentElement.style.setProperty('--error-color', '#dc3545');\n  }\n}\n```\n\n## Versionado y Compatibilidad\n\n### Estrategia de Versiones\n\n```json\n// package.json\n{\n  \"dependencies\": {\n    \"@wc-sca/citation-hub\": \"^2.5.1\",  // Minor updates automáticos\n    \"@wc-sca/medical-dashboard\": \"~3.1.0\",  // Solo patch updates\n    \"@wc-sca/health-diary\": \"1.8.2\"  // Versión fija\n  }\n}\n```\n\n### Breaking Changes\n\nAl actualizar un Web Component con breaking changes:\n\n1. **Revisar CHANGELOG** del paquete\n2. **Actualizar interfaces** de eventos\n3. **Modificar props** si cambiaron\n4. **Testear integración** completa\n\n## Debugging de Web Components\n\n### Chrome DevTools\n\n```javascript\n// En la consola del navegador\n// Obtener referencia al Web Component\nconst citationHub = document.querySelector('citation-hub');\n\n// Ver propiedades\nconsole.log(citationHub);\n\n// Llamar métodos públicos (si los expone)\ncitationHub.refresh();\n\n// Inspeccionar Shadow DOM\nconst shadowRoot = citationHub.shadowRoot;\nconsole.log(shadowRoot.innerHTML);\n```\n\n### Logs y Eventos\n\n```typescript\nexport class AppointmentsComponent {\n  constructor() {\n    // Log de todos los eventos del Web Component\n    const element = document.querySelector('citation-hub');\n\n    element?.addEventListener('appointmentBooked', (e) => {\n      console.log('[Event] appointmentBooked', e);\n    });\n\n    element?.addEventListener('error', (e) => {\n      console.error('[Event] error', e);\n    });\n\n    element?.addEventListener('loading', (e) => {\n      console.log('[Event] loading', e);\n    });\n  }\n}\n```\n\n## Testing de Integración\n\n### Unit Tests\n\n```typescript\ndescribe('CitationHubWrapperComponent', () => {\n  let component: CitationHubWrapperComponent;\n  let fixture: ComponentFixture<CitationHubWrapperComponent>;\n\n  beforeEach(async () => {\n    await TestBed.configureTestingModule({\n      declarations: [CitationHubWrapperComponent],\n      schemas: [CUSTOM_ELEMENTS_SCHEMA] // Ignorar Web Components en tests\n    }).compileComponents();\n\n    fixture = TestBed.createComponent(CitationHubWrapperComponent);\n    component = fixture.componentInstance;\n  });\n\n  it('should emit event when appointment is booked', () => {\n    spyOn(component.appointmentBooked, 'emit');\n\n    const mockEvent = new CustomEvent('appointmentBooked', {\n      detail: { id: '123' }\n    });\n\n    component.onAppointmentBooked(mockEvent);\n\n    expect(component.appointmentBooked.emit).toHaveBeenCalledWith({ id: '123' });\n  });\n});\n```\n\n## Best Practices\n\n### 1. Wrapper Components\n\nCrear wrappers Angular para los Web Components:\n\n```typescript\n// wrappers/citation-hub-wrapper.component.ts\n@Component({\n  selector: 'app-citation-hub',\n  template: `\n    <citation-hub\n      [attr.user-id]=\"userId\"\n      [attr.locale]=\"locale\"\n      (appointmentBooked)=\"appointmentBooked.emit($event.detail)\"\n      (error)=\"handleError($event)\">\n    </citation-hub>\n  `\n})\nexport class CitationHubWrapperComponent {\n  @Input() userId!: string;\n  @Input() locale = 'es-ES';\n  @Output() appointmentBooked = new EventEmitter();\n\n  handleError(event: CustomEvent) {\n    console.error('Error en citation-hub:', event.detail);\n    // Manejo centralizado de errores\n  }\n}\n```\n\n### 2. Error Boundaries\n\n```typescript\n@Component({\n  selector: 'app-wc-error-boundary',\n  template: `\n    <div *ngIf=\"!hasError\">\n      <ng-content></ng-content>\n    </div>\n    <div *ngIf=\"hasError\" class=\"error-fallback\">\n      <p>Error cargando el componente</p>\n      <button (click)=\"retry()\">Reintentar</button>\n    </div>\n  `\n})\nexport class WcErrorBoundaryComponent {\n  hasError = false;\n\n  retry() {\n    this.hasError = false;\n  }\n}\n```\n\n### 3. Performance\n\n- Usar **lazy loading** para Web Components grandes\n- Implementar **preloading** para componentes críticos\n- Monitorear **bundle size** de cada microfrontend\n\n```typescript\n// Preload strategy personalizada\nexport class CustomPreloadingStrategy implements PreloadingStrategy {\n  preload(route: Route, load: () => Observable<any>): Observable<any> {\n    return route.data?.['preload'] ? load() : of(null);\n  }\n}\n```\n\n## Troubleshooting\n\n### Problema: Web Component no se renderiza\n\n```typescript\n// Verificar que está registrado\nif (!customElements.get('citation-hub')) {\n  console.error('citation-hub no está definido');\n  // Intentar importar manualmente\n  import('@wc-sca/citation-hub');\n}\n```\n\n### Problema: Estilos no se aplican\n\n```css\n/* Usar CSS Custom Properties */\n:root {\n  --primary-color: #007bff;\n}\n\n/* NO usar estilos directos */\ncitation-hub {\n  /* Esto no funcionará en Shadow DOM */\n}\n```\n\n### Problema: Eventos no se capturan\n\n```typescript\n// ❌ Mal: addEventListener en ngOnInit puede ser muy temprano\nngOnInit() {\n  element.addEventListener('event', handler);\n}\n\n// ✅ Bien: Esperar a que el elemento esté en el DOM\nngAfterViewInit() {\n  element.addEventListener('event', handler);\n}\n```\n",
+          "# CI/CD y Deployment\n\n## Pipeline de Jenkins\n\nAsyb-Portal utiliza **Jenkins** para automatizar el proceso de build y deploy.\n\n### Jenkinsfile\n\n```groovy\n// Jenkinsfile\npipeline {\n  agent any\n\n  parameters {\n    choice(name: 'ENVIRONMENT', choices: ['dev', 'pre', 'pro'], description: 'Target environment')\n    choice(name: 'PLATFORM', choices: ['web', 'android', 'ios'], description: 'Platform to build')\n  }\n\n  environment {\n    NODE_VERSION = '16.x'\n    ANDROID_HOME = '/usr/local/android-sdk'\n  }\n\n  stages {\n    stage('Checkout') {\n      steps {\n        checkout scm\n      }\n    }\n\n    stage('Install Dependencies') {\n      steps {\n        sh 'npm ci'\n      }\n    }\n\n    stage('Lint') {\n      steps {\n        sh 'npm run lint'\n      }\n    }\n\n    stage('Test') {\n      steps {\n        sh 'npm run test -- --watch=false --browsers=ChromeHeadless'\n      }\n    }\n\n    stage('Build') {\n      steps {\n        script {\n          if (params.PLATFORM == 'web') {\n            sh \"npm run build:${params.ENVIRONMENT}\"\n          } else if (params.PLATFORM == 'android') {\n            sh \"npm run build:${params.ENVIRONMENT}\"\n            sh 'npx cap sync android'\n            sh 'cd android && ./gradlew assembleRelease'\n          } else if (params.PLATFORM == 'ios') {\n            sh \"npm run build:${params.ENVIRONMENT}\"\n            sh 'npx cap sync ios'\n            // iOS build se hace manual en Xcode\n          }\n        }\n      }\n    }\n\n    stage('Deploy') {\n      when {\n        expression { params.PLATFORM == 'web' }\n      }\n      steps {\n        script {\n          if (params.ENVIRONMENT == 'pro') {\n            sh 'npm run deploy:prod'\n          } else if (params.ENVIRONMENT == 'pre') {\n            sh 'npm run deploy:pre'\n          }\n        }\n      }\n    }\n  }\n\n  post {\n    success {\n      echo 'Build successful!'\n      // Notificar en Slack\n    }\n    failure {\n      echo 'Build failed!'\n      // Notificar en Slack\n    }\n  }\n}\n```\n\n## Git Workflow\n\n### Branching Strategy\n\n```\nmain (producción)\n├── develop (integración)\n│   ├── feature/ASYB-123-nueva-feature\n│   ├── feature/ASYB-124-otra-feature\n│   └── bugfix/ASYB-125-fix-login\n└── hotfix/ASYB-126-critical-bug\n```\n\n### Convención de Commits\n\n```bash\n# Formato: ASYB-XXXXX: descripción\n\n# Ejemplos válidos\ngit commit -m \"ASYB-12345: Añadir validación de email en login\"\ngit commit -m \"ASYB-67890: Corregir error en dashboard\"\n\n# Ejemplo inválido (Husky lo rechaza)\ngit commit -m \"fix bug\"  # ❌ Falta ASYB-XXXXX\n```\n\n## Husky Pre-commit Hooks\n\n### Configuración\n\n```json\n// .husky/pre-commit\n#!/bin/sh\n. \"$(dirname \"$0\")/_/husky.sh\"\n\n# Ejecutar lint-staged\nnpx lint-staged\n\n# Validar mensaje de commit\nnpx commitlint --edit $1\n```\n\n### lint-staged\n\n```json\n// .lintstagedrc.json\n{\n  \"*.ts\": [\n    \"eslint --fix\",\n    \"prettier --write\"\n  ],\n  \"*.html\": [\n    \"prettier --write\"\n  ],\n  \"*.scss\": [\n    \"prettier --write\"\n  ]\n}\n```\n\n## Firma de Aplicaciones\n\n### Android\n\n```bash\n# Generar keystore\nkeytool -genkey -v -keystore asyb-release-key.keystore \\\n  -alias asyb-key -keyalg RSA -keysize 2048 -validity 10000\n\n# Configurar en gradle.properties\nMYAPP_RELEASE_STORE_FILE=asyb-release-key.keystore\nMYAPP_RELEASE_KEY_ALIAS=asyb-key\nMYAPP_RELEASE_STORE_PASSWORD=***\nMYAPP_RELEASE_KEY_PASSWORD=***\n```\n\n```gradle\n// android/app/build.gradle\nandroid {\n  signingConfigs {\n    release {\n      storeFile file(MYAPP_RELEASE_STORE_FILE)\n      storePassword MYAPP_RELEASE_STORE_PASSWORD\n      keyAlias MYAPP_RELEASE_KEY_ALIAS\n      keyPassword MYAPP_RELEASE_KEY_PASSWORD\n    }\n  }\n\n  buildTypes {\n    release {\n      signingConfig signingConfigs.release\n      minifyEnabled true\n      proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'\n    }\n  }\n}\n```\n\n### iOS\n\nLa firma de iOS se gestiona desde Xcode con certificados de Apple Developer Program.\n\n## Deploy Scripts\n\n### Deploy Web\n\n```bash\n# scripts/deploy-web.sh\n#!/bin/bash\n\nENV=$1\n\nif [ \"$ENV\" == \"pro\" ]; then\n  echo \"Deploying to PRODUCTION\"\n  aws s3 sync www/ s3://asyb-prod-website --delete\n  aws cloudfront create-invalidation --distribution-id EXXXXX --paths \"/*\"\nelif [ \"$ENV\" == \"pre\" ]; then\n  echo \"Deploying to PREPRODUCTION\"\n  aws s3 sync www/ s3://asyb-pre-website --delete\nfi\n\necho \"✅ Deploy completed\"\n```\n\n### Deploy Android\n\n```bash\n# scripts/deploy-android.sh\n#!/bin/bash\n\n# Build release\ncd android\n./gradlew assembleRelease\n\n# Upload a Play Console (manual)\necho \"APK generado en: android/app/build/outputs/apk/release/app-release.apk\"\n```\n\n## Monitoreo\n\n### Error Tracking con Sentry\n\n```typescript\n// app.module.ts\nimport * as Sentry from \"@sentry/angular\";\n\nSentry.init({\n  dsn: \"https://xxxx@sentry.io/xxxx\",\n  integrations: [\n    new Sentry.BrowserTracing(),\n    new Sentry.Replay()\n  ],\n  environment: environment.environmentName,\n  tracesSampleRate: environment.production ? 0.2 : 1.0,\n  replaysSessionSampleRate: 0.1,\n  replaysOnErrorSampleRate: 1.0\n});\n```\n\n### Analytics con Firebase\n\n```typescript\nimport { Analytics, logEvent } from '@capacitor-firebase/analytics';\n\nexport class AnalyticsService {\n  logPageView(pageName: string) {\n    logEvent(Analytics, {\n      name: 'page_view',\n      params: { page_name: pageName }\n    });\n  }\n\n  logAppointmentBooked(appointmentId: string) {\n    logEvent(Analytics, {\n      name: 'appointment_booked',\n      params: { appointment_id: appointmentId }\n    });\n  }\n}\n```\n\n## Versionado\n\n### Bump Version\n\n```bash\n# Incrementar versión\nnpm version patch  # 5.0.0 → 5.0.1\nnpm version minor  # 5.0.0 → 5.1.0\nnpm version major  # 5.0.0 → 6.0.0\n\n# Actualizar también en Capacitor\n# capacitor.config.ts y archivos nativos\n```\n\n### Changelog\n\n```markdown\n# Changelog\n\n## [5.0.0] - 2026-01-31\n\n### Added\n- Nueva funcionalidad de telemedicina\n- Integración con Apple Health\n\n### Changed\n- Migración a Angular 15\n- Actualización de diseño del dashboard\n\n### Fixed\n- Corrección de bug en el proceso de login\n- Fix de crash en iOS 13\n```\n\n## Best Practices\n\n1. **Nunca commitear secrets** en el repositorio\n2. **Usar environment variables** para configuración sensible\n3. **Automatizar todo** lo posible\n4. **Tests en CI** antes de merge\n5. **Code review** obligatorio\n6. **Semantic versioning** estricto\n7. **Changelog** actualizado\n8. **Rollback plan** documentado\n"
+        ],
+        "retrieved_sources": [
+          "01-arquitectura-general.md",
+          "03-microfrontends-web-components.md",
+          "07-ci-cd-deployment.md"
+        ],
+        "faithfulness_score": 0.5,
+        "answer_relevancy_score": 0.9,
+        "context_precision_score": 0.5,
+        "context_recall_score": 1,
+        "context_relevancy_score": 0.2,
+        "answer_correctness_score": 0.7679671946826723,
+        "answer_similarity_score": 0,
+        "answer_completeness_score": 0.9,
+        "hallucination_score": 0.6,
+        "hallucinations_detected": [
+          "La aplicación utiliza Jenkins para automatizar el proceso de build y deploy, pero no se proporciona la configuración completa del Jenkinsfile.",
+          "El proyecto utiliza Angular 15 como frontend framework y Ionic 6 como framework principal. Sin embargo, en el contexto [2], se menciona que el frontend framework es Angular 15, pero no se confirma explícitamente que Ionic 6 sea el framework principal."
+        ],
+        "latency_ms": 50174,
+        "timestamp": "2026-02-03T08:35:34.116Z",
+        "error_analysis": {
+          "error_types": [
+            "hallucination",
+            "contradictory"
+          ],
+          "error_description": "Respuesta contiene alucinaciones (información no soportada por contextos). Alucinaciones detectadas: La aplicación utiliza Jenkins para automatizar el proceso de build y deploy, pero no se proporciona la configuración completa del Jenkinsfile.; El proyecto utiliza Angular 15 como frontend framework y Ionic 6 como framework principal. Sin embargo, en el contexto [2], se menciona que el frontend framework es Angular 15, pero no se confirma explícitamente que Ionic 6 sea el framework principal.. Contextos contienen mucha información irrelevante o contradictoria.",
+          "suggested_fix": "Revisar prompt del LLM para enfatizar uso estricto de contextos. Reducir temperatura a 0.0. Mejorar filtrado de contextos, ajustar reranker threshold.",
+          "severity": "critical"
+        }
+      },
+      "user_validation": {
+        "is_factually_correct": true,
+        "uses_only_context": true,
+        "hallucinations_correct": "false-positive",
+        "contexts_relevant": true,
+        "quality_rating": 4,
+        "issue_type": "correct_but_flagged",
+        "notes": "The answer is factually correct and uses only information from the retrieved contexts. The hallucination detector incorrectly flagged this as a hallucination."
+      },
+      "discrepancies": [
+        "hallucination detection false positive",
+        "user confirms correct but faithfulness low (0.50)",
+        "user confirms uses only context but hallucination score high (0.60)"
+      ]
+    },
+    {
+      "test_case_id": "basica_2",
+      "automated_scores": {
+        "test_case_id": "basica_2",
+        "question": "¿Qué versión de Angular se usa?",
+        "generated_answer": "",
+        "retrieved_contexts": [],
+        "retrieved_sources": [],
+        "faithfulness_score": 0,
+        "answer_relevancy_score": 0,
+        "context_precision_score": 0,
+        "context_recall_score": 0,
+        "latency_ms": 120000,
+        "timestamp": "2026-02-03T08:37:34.131Z",
+        "error": "Test case timeout after 120s",
+        "error_analysis": {
+          "error_types": [
+            "hallucination",
+            "irrelevant",
+            "poor_retrieval",
+            "context_not_found"
+          ],
+          "error_description": "Respuesta contiene alucinaciones (información no soportada por contextos). Respuesta no es relevante para la pregunta. Contextos recuperados son poco relevantes. No se recuperaron todos los documentos esperados.",
+          "suggested_fix": "Revisar prompt del LLM para enfatizar uso estricto de contextos. Reducir temperatura a 0.0. Revisar prompt de generación para enfocarse en la pregunta. Ajustar BM25/vector weights, revisar embeddings o aumentar retrieval k. Revisar chunking, embeddings, BM25 cache o multi-query generation.",
+          "severity": "critical"
+        }
+      },
+      "user_validation": {
+        "is_factually_correct": false,
+        "uses_only_context": false,
+        "hallucinations_correct": true,
+        "contexts_relevant": false,
+        "quality_rating": 1,
+        "issue_type": "timeout_masked",
+        "notes": "Timeout prevented evaluation. Latency: 120000ms. Need to investigate LLM API or reranker performance."
+      },
+      "discrepancies": [
+        "no contexts retrieved - retrieval failure",
+        "timeout prevented proper evaluation"
+      ]
+    },
+    {
+      "test_case_id": "basica_3",
+      "automated_scores": {
+        "test_case_id": "basica_3",
+        "question": "¿Qué versión de Ionic se usa?",
+        "generated_answer": "",
+        "retrieved_contexts": [],
+        "retrieved_sources": [],
+        "faithfulness_score": 0,
+        "answer_relevancy_score": 0,
+        "context_precision_score": 0,
+        "context_recall_score": 0,
+        "latency_ms": 120000,
+        "timestamp": "2026-02-03T08:39:34.140Z",
+        "error": "Test case timeout after 120s",
+        "error_analysis": {
+          "error_types": [
+            "hallucination",
+            "irrelevant",
+            "poor_retrieval",
+            "context_not_found"
+          ],
+          "error_description": "Respuesta contiene alucinaciones (información no soportada por contextos). Respuesta no es relevante para la pregunta. Contextos recuperados son poco relevantes. No se recuperaron todos los documentos esperados.",
+          "suggested_fix": "Revisar prompt del LLM para enfatizar uso estricto de contextos. Reducir temperatura a 0.0. Revisar prompt de generación para enfocarse en la pregunta. Ajustar BM25/vector weights, revisar embeddings o aumentar retrieval k. Revisar chunking, embeddings, BM25 cache o multi-query generation.",
+          "severity": "critical"
+        }
+      },
+      "user_validation": {
+        "is_factually_correct": false,
+        "uses_only_context": false,
+        "hallucinations_correct": true,
+        "contexts_relevant": false,
+        "quality_rating": 1,
+        "issue_type": "timeout_masked",
+        "notes": "Timeout prevented evaluation. Latency: 120000ms. Need to investigate LLM API or reranker performance."
+      },
+      "discrepancies": [
+        "no contexts retrieved - retrieval failure",
+        "timeout prevented proper evaluation"
+      ]
+    }
+  ],
+  "patterns": [
+    {
+      "pattern_name": "Total Retrieval Failure",
+      "frequency": 2,
+      "case_ids": [
+        "basica_2",
+        "basica_3"
+      ],
+      "characteristics": [
+        "retrieved_contexts: []",
+        "No documents returned by retriever",
+        "All scores affected",
+        "67% of cases affected"
+      ],
+      "root_cause_hypothesis": "BM25 cache empty, vector store not indexed, or parent retriever not working",
+      "recommended_fix": "Check backend retrieval logs, rebuild BM25 cache, verify vector store indexing, test parent retriever independently",
+      "priority": "critical",
+      "effort_estimate": "High (2-4 hours investigation + debugging)"
+    },
+    {
+      "pattern_name": "False Hallucination Detection",
+      "frequency": 1,
+      "case_ids": [
+        "basica_1"
+      ],
+      "characteristics": [
+        "User confirms answer is correct",
+        "User confirms uses only context",
+        "Automated detector flags as hallucination (avg score: 0.60)",
+        "Information is present in retrieved contexts"
+      ],
+      "root_cause_hypothesis": "Hallucination detector too strict, prompt issue, or synthesis considered as hallucination",
+      "recommended_fix": "Review hallucination detection prompt, add test cases for valid synthesis, lower detection threshold, or improve context matching logic",
+      "priority": "high",
+      "effort_estimate": "Medium (2-3 hours)"
+    },
+    {
+      "pattern_name": "Systematic Timeouts",
+      "frequency": 2,
+      "case_ids": [
+        "basica_2",
+        "basica_3"
+      ],
+      "characteristics": [
+        "Timeout after 120s",
+        "Empty responses",
+        "All scores set to 0",
+        "Cannot evaluate RAG quality"
+      ],
+      "root_cause_hypothesis": "LLM API calls too slow, reranker performance issues, or network problems",
+      "recommended_fix": "Profile LLM API calls, check reranker performance, increase timeout temporarily, add detailed timing logs, consider caching",
+      "priority": "critical",
+      "effort_estimate": "High (3-5 hours profiling + optimization)"
+    },
+    {
+      "pattern_name": "Wrong Answers Generated",
+      "frequency": 2,
+      "case_ids": [
+        "basica_2",
+        "basica_3"
+      ],
+      "characteristics": [
+        "User confirms answer is incorrect or incomplete",
+        "2 cases with no contexts (retrieval issue)"
+      ],
+      "root_cause_hypothesis": "Retrieval failure - no contexts to answer from",
+      "recommended_fix": "Fix retrieval first - check BM25 cache, vector store, and embeddings",
+      "priority": "critical",
+      "effort_estimate": "High (3-6 hours)"
+    }
+  ],
+  "recommendations": []
+}
