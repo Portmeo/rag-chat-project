@@ -82,6 +82,10 @@ async function getRAGConfig(projectRoot: string) {
       chunk_overlap: parseInt(envVars.CHUNK_OVERLAP || '200'),
       use_bm25_retriever: envVars.USE_BM25_RETRIEVER === 'true',
       use_parent_retriever: envVars.USE_PARENT_RETRIEVER === 'true',
+      child_chunk_size: parseInt(envVars.CHILD_CHUNK_SIZE || '200'),
+      child_chunk_overlap: parseInt(envVars.CHILD_CHUNK_OVERLAP || '50'),
+      parent_chunk_size: parseInt(envVars.PARENT_CHUNK_SIZE || '1000'),
+      parent_chunk_overlap: parseInt(envVars.PARENT_CHUNK_OVERLAP || '200'),
     };
   } catch (error) {
     console.error('⚠️  Could not read backend .env, using defaults');
@@ -96,6 +100,10 @@ async function getRAGConfig(projectRoot: string) {
       chunk_overlap: 200,
       use_bm25_retriever: false,
       use_parent_retriever: false,
+      child_chunk_size: 200,
+      child_chunk_overlap: 50,
+      parent_chunk_size: 1000,
+      parent_chunk_overlap: 200,
     };
   }
 }
@@ -149,7 +157,12 @@ async function main() {
       console.log(`   Reranker final top K: ${config.reranker_final_top_k}`);
     }
     console.log(`   USE_PARENT_RETRIEVER: ${config.use_parent_retriever ? 'true' : 'false'}`);
-    console.log(`   Chunk size: ${config.chunk_size}`);
+    if (config.use_parent_retriever) {
+      console.log(`   Child chunk size: ${config.child_chunk_size} (overlap: ${config.child_chunk_overlap})`);
+      console.log(`   Parent chunk size: ${config.parent_chunk_size} (overlap: ${config.parent_chunk_overlap})`);
+    } else {
+      console.log(`   Chunk size: ${config.chunk_size} (overlap: ${config.chunk_overlap})`);
+    }
 
     // Run evaluation
     const evaluator = new RAGASEvaluator('http://localhost:3001', projectRoot);
