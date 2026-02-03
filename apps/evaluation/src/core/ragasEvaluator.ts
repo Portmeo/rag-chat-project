@@ -360,17 +360,27 @@ Responde SOLO con un número decimal entre 0.0 y 1.0 (ej: 0.60)`;
           }
 
           // Otherwise, check semantic similarity
-          // Embed the expected context and all retrieved contexts
-          const [expectedEmbed, ...retrievedEmbeds] = await this.embeddings.embedDocuments([
-            expectedCtx,
-            ...retrievedContexts.slice(0, 10) // Limit to top 10 to avoid too many embeddings
-          ]);
+          // Truncate to avoid exceeding model context length (512 tokens ≈ 2048 chars)
+          const truncate = (text: string) => text.slice(0, 2000);
 
-          // Calculate cosine similarity with each retrieved context
+          // Embed expected context first
+          const expectedEmbedArray = await this.embeddings.embedDocuments([truncate(expectedCtx)]);
+          const expectedEmbed = expectedEmbedArray[0];
+
+          // Then embed retrieved contexts one by one to avoid overwhelming Ollama
           let maxSimilarity = 0;
-          for (const retrievedEmbed of retrievedEmbeds) {
-            const similarity = this.cosineSimilarity(expectedEmbed, retrievedEmbed);
-            maxSimilarity = Math.max(maxSimilarity, similarity);
+          const topContexts = retrievedContexts.slice(0, 5); // Reduced to top 5 to avoid timeouts
+
+          for (const retrievedCtx of topContexts) {
+            try {
+              const retrievedEmbedArray = await this.embeddings.embedDocuments([truncate(retrievedCtx)]);
+              const retrievedEmbed = retrievedEmbedArray[0];
+              const similarity = this.cosineSimilarity(expectedEmbed, retrievedEmbed);
+              maxSimilarity = Math.max(maxSimilarity, similarity);
+            } catch (embedError) {
+              console.warn('[RAGAS] Failed to embed retrieved context, skipping:', embedError);
+              continue;
+            }
           }
 
           // If any retrieved context has high similarity (>0.7), count as a match
@@ -442,13 +452,14 @@ Responde SOLO con un número decimal entre 0.0 y 1.0 (ej: 0.65)`;
     if (!generatedAnswer || !groundTruthAnswer) return 0;
 
     try {
-      // Use embedding similarity for semantic correctness
-      const [genEmbed, truthEmbed] = await this.embeddings.embedDocuments([
-        generatedAnswer,
-        groundTruthAnswer
-      ]);
+      // Truncate to avoid exceeding model context length (512 tokens ≈ 2048 chars)
+      const truncate = (text: string) => text.slice(0, 2000);
 
-      return this.cosineSimilarity(genEmbed, truthEmbed);
+      // Generate embeddings sequentially to avoid Ollama overload
+      const genEmbedArray = await this.embeddings.embedDocuments([truncate(generatedAnswer)]);
+      const truthEmbedArray = await this.embeddings.embedDocuments([truncate(groundTruthAnswer)]);
+
+      return this.cosineSimilarity(genEmbedArray[0], truthEmbedArray[0]);
     } catch (error) {
       console.error('Error calculating answer correctness:', error);
       return 0;

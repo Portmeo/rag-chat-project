@@ -268,23 +268,10 @@ function docsToSources(docs: Document[]): RAGSource[] {
   }));
 }
 
-// Filter sources based on rerank score threshold
+// Return all sources without filtering by rerank score
 function filterSourcesByRelevance(relevantDocs: Document[]): RAGSource[] {
-  // If reranker is disabled, show all sources (no filtering)
-  if (!RERANKER_CONFIG.enabled) {
-    console.log(`\n📊 Reranker disabled - showing all ${relevantDocs.length} sources`);
-    return docsToSources(relevantDocs);
-  }
-
-  // Filter by rerank score threshold when reranker is enabled
-  const filtered = relevantDocs.filter(doc => {
-    const rerankScore = (doc as any).rerankScore;
-    return rerankScore !== undefined && rerankScore >= RERANKER_CONFIG.minScore;
-  });
-
-  console.log(`\n📊 Sources filtered by rerank score: ${relevantDocs.length} → ${filtered.length} (threshold: ${RERANKER_CONFIG.minScore})`);
-
-  return docsToSources(filtered);
+  console.log(`\n📊 Returning all ${relevantDocs.length} sources (no filtering)`);
+  return docsToSources(relevantDocs);
 }
 
 // Shared function to retrieve relevant documents
