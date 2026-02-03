@@ -35,7 +35,8 @@ export async function rerankDocuments(
 ): Promise<RerankResult[]> {
   return new Promise((resolve, reject) => {
     // Create worker thread
-    const workerPath = join(__dirname, 'reranker.worker.ts');
+    // Use .js extension as TypeScript is compiled to JavaScript
+    const workerPath = join(__dirname, 'reranker.worker.js');
     const worker = new Worker(workerPath);
 
     // Set timeout (configurable via env, default 30s)
