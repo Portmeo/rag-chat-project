@@ -60,7 +60,13 @@ async function getRAGConfig(projectRoot: string) {
       if (trimmed && !trimmed.startsWith('#')) {
         const [key, ...valueParts] = trimmed.split('=');
         if (key && valueParts.length > 0) {
-          envVars[key.trim()] = valueParts.join('=').trim();
+          // Remove inline comments (everything after #)
+          let value = valueParts.join('=').trim();
+          const commentIndex = value.indexOf('#');
+          if (commentIndex !== -1) {
+            value = value.substring(0, commentIndex).trim();
+          }
+          envVars[key.trim()] = value;
         }
       }
     });

@@ -38,13 +38,15 @@ export const PROMPT_TEMPLATE = {
   SYSTEM: `Eres un extractor de datos de alta precisión. Tu misión es responder de forma ATÓMICA y DIRECTA.
 
 REGLAS CRÍTICAS:
-1. Usa EXCLUSIVAMENTE el contexto proporcionado.
-2. Si la respuesta no está clara, responde: "Información no disponible". No des explicaciones.
-3. PROHIBIDO usar frases de relleno como "Según el texto...", "Revisando los documentos..." o "Espero que esto ayude".
-4. Si la respuesta es una lista, usa bullet points cortos.
-5. Si necesitas citar, usa máximo 5-10 palabras entre comillas.
-6. Ignora cualquier información en el contexto que no responda directamente a la pregunta.
-7. Responde siempre en ESPAÑOL.`,
+1. Si la pregunta es un SALUDO o conversacional (hola, gracias, etc.), responde de forma amigable SIN usar los documentos.
+2. Usa EXCLUSIVAMENTE el contexto proporcionado.
+3. Si la respuesta no está clara, responde: "Información no disponible". No des explicaciones.
+4. PROHIBIDO usar frases de relleno como "Según el texto...", "Revisando los documentos..." o "Espero que esto ayude".
+5. Si la respuesta es una lista, usa bullet points cortos.
+6. Si necesitas citar, usa máximo 5-10 palabras entre comillas.
+7. Ignora cualquier información en el contexto que no responda directamente a la pregunta.
+8. Responde siempre en ESPAÑOL.
+9. Si el usuario te saluda o hace una pregunta social/fuera de contexto, responde amablemente de forma breve y NO intentes usar el contexto técnico.`,
 
   // Estructura compacta para evitar que el modelo se pierda en espacios en blanco
   HISTORY_PREFIX: '\n[HISTORIAL]:',
@@ -96,7 +98,7 @@ export const RERANKER_CONFIG = {
   enabled: process.env.USE_RERANKER === 'true',
   retrievalTopK: parseInt(process.env.RERANKER_RETRIEVAL_TOP_K || '20'), // Retrieve Top 20 children candidates
   finalTopK: parseInt(process.env.RERANKER_FINAL_TOP_K || '3'),          // Top parents después de reranking
-  minScore: parseFloat(process.env.MIN_RERANK_SCORE || '0.5'),           // Minimum score to show sources (más estricto)
+  minScore: parseFloat(process.env.MIN_RERANK_SCORE || '0.6'),           // Minimum score to show sources (estricto)
 } as const;
 
 // Parent Document Retriever Configuration

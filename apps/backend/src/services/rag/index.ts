@@ -424,9 +424,22 @@ async function retrieveRelevantDocuments(
     console.log(`Content preview: ${doc.pageContent.substring(0, 200)}...`);
   });
 
+  // Construir contexto con metadata clara para que el LLM distinga fuentes
   const context = relevantDocs
-    .map((doc: Document) => doc.pageContent)
-    .join(TEXT_SEPARATORS.PARAGRAPH);
+    .map((doc: Document, idx: number) => {
+      const metadata = doc.metadata as DocumentMetadata;
+      const rerankScore = (doc as any).rerankScore;
+
+      // Encabezado con metadata
+      let header = `[DOCUMENTO ${idx + 1} | Fuente: ${metadata.filename}`;
+      if (rerankScore !== undefined) {
+        header += ` | Relevancia: ${(rerankScore * 100).toFixed(0)}%`;
+      }
+      header += ']';
+
+      return `${header}\n${doc.pageContent}`;
+    })
+    .join('\n\n---\n\n');
 
   console.log('\n📝 Full context length:', context.length, 'chars');
   console.log('\n📝 Full context being sent to LLM:\n', context);
