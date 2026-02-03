@@ -68,38 +68,44 @@ async function rerankDocuments(
   const { model, tokenizer } = await initReranker();
   const startTime = Date.now();
 
-  // Get relevance logits for each document
-  const logits = await Promise.all(
-    documents.map(async (doc) => {
-      try {
-        // Tokenize (query, document) pair
-        const inputs = await tokenizer(query, {
-          text_pair: doc.pageContent,
-          padding: true,
-          truncation: true,
-        });
+  // BATCH PROCESSING: Tokenize all pairs at once (much faster)
+  // For batch with text pairs, we need to pass queries and docs as separate arrays
+  const queries = documents.map(() => query);  // Repeat query for each doc
+  const docs = documents.map(doc => doc.pageContent);
 
-        // Get raw logits from model
-        const { logits } = await model(inputs);
-        return logits.data[0];  // Relevance logit
-      } catch (error: any) {
-        console.error('⚠️ Reranking error:', error.message);
-        return -999;  // Very low score for errors
-      }
-    })
-  );
+  // Tokenize all pairs in a single batch operation
+  const inputs = await tokenizer(queries, {
+    text_pair: docs,  // Pass docs as text_pair array
+    padding: true,
+    truncation: true,
+  });
+
+  // Single model inference for all documents (GPU optimized)
+  const { logits } = await model(inputs);
+
+  // Extract relevance logits (one per document)
+  const numDocs = documents.length;
+  const logitsArray = Array.from(logits.data) as number[];
+
+  // For sequence classification, we get [batch_size, num_labels] output
+  // If num_labels = 1: logitsArray = [score1, score2, ...]
+  // If num_labels > 1: extract first logit of each batch
+  const numLabels = logits.dims[1] || 1;
+  const relevanceLogits = numLabels === 1
+    ? logitsArray
+    : logitsArray.filter((_, idx) => idx % numLabels === 0);
 
   // Convert logits to probabilities and rank by relevance
   const rerankedDocs: RerankResult[] = documents
     .map((doc, i) => ({
       ...doc,
-      rerankScore: sigmoid(logits[i])
+      rerankScore: sigmoid(relevanceLogits[i])
     }))
     .sort((a, b) => b.rerankScore - a.rerankScore)
     .slice(0, topK);
 
   const elapsed = Date.now() - startTime;
-  console.log(`✅ Reranking completed in ${elapsed}ms`);
+  console.log(`✅ Reranked ${numDocs} docs → Top ${topK} in ${elapsed}ms (batch)`);
   console.log(`   Top score: ${rerankedDocs[0]?.rerankScore.toFixed(4)}`);
   console.log(`   Bottom score: ${rerankedDocs[rerankedDocs.length - 1]?.rerankScore.toFixed(4)}`);
 
