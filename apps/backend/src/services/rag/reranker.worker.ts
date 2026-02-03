@@ -8,7 +8,7 @@
 // Disable sharp BEFORE importing transformers
 process.env.TRANSFORMERS_DISABLE_SHARP = '1';
 
-import { pipeline, env } from '@xenova/transformers';
+import { pipeline, env, AutoTokenizer, AutoModelForSequenceClassification } from '@xenova/transformers';
 import { parentPort } from 'worker_threads';
 
 // Disable sharp for text-only processing
@@ -31,23 +31,24 @@ interface RerankResult extends Document {
 }
 
 let rerankerModel: any = null;
+let rerankerTokenizer: any = null;
 
 /**
  * Initialize reranker model (lazy loading)
  */
 async function initReranker() {
-  if (!rerankerModel) {
-    console.log('🔄 Loading bge-reranker-base model...');
+  if (!rerankerModel || !rerankerTokenizer) {
+    console.log('🔄 Loading reranker model and tokenizer directly...');
 
-    // Use text-classification pipeline with bge-reranker
-    rerankerModel = await pipeline(
-      'text-classification',
-      'Xenova/bge-reranker-base'
-    );
+    // Load tokenizer and model DIRECTLY (bypass pipeline to access raw logits)
+    const modelName = 'Xenova/ms-marco-MiniLM-L-6-v2';
 
-    console.log('✅ Reranker model loaded');
+    rerankerTokenizer = await AutoTokenizer.from_pretrained(modelName);
+    rerankerModel = await AutoModelForSequenceClassification.from_pretrained(modelName);
+
+    console.log('✅ Reranker model and tokenizer loaded (direct access)');
   }
-  return rerankerModel;
+  return { model: rerankerModel, tokenizer: rerankerTokenizer };
 }
 
 /**
@@ -58,30 +59,62 @@ async function rerankDocuments(
   documents: Document[],
   topK: number = 5
 ): Promise<RerankResult[]> {
-  const model = await initReranker();
+  const { model, tokenizer } = await initReranker();
 
   console.log(`📊 Reranking ${documents.length} documents...`);
   const startTime = Date.now();
 
-  // Create query-document pairs
-  const pairs = documents.map(doc => {
-    // Cross-encoder input format: [query, document]
-    // bge-reranker uses [SEP] token internally
-    return `${query} [SEP] ${doc.pageContent}`;
-  });
-
-  // Batch inference for efficiency
+  // Process documents and get RAW LOGITS (not normalized probabilities)
   const scores = await Promise.all(
-    pairs.map(pair => model(pair))
+    documents.map(async (doc, idx) => {
+      try {
+        // Tokenize the (query, document) pair
+        const inputs = await tokenizer(query, {
+          text_pair: doc.pageContent,
+          padding: true,
+          truncation: true,
+        });
+
+        // Run model inference to get RAW logits
+        const { logits } = await model(inputs);
+
+        // Extract logit for the relevance class
+        // For cross-encoders, typically a single output neuron or first logit
+        const logitArray = logits.data;  // Access raw tensor data
+        const relevanceLogit = logitArray[0];  // First logit is relevance score
+
+        // DEBUG: Log for first 3 docs
+        if (idx < 3) {
+          console.log(`\n🔍 ===== DOC ${idx} RAW LOGITS =====`);
+          console.log('Query:', query.substring(0, 60));
+          console.log('Doc preview:', doc.pageContent.substring(0, 80) + '...');
+          console.log('Logits shape:', logits.dims);
+          console.log('Logits data (first 5):', logitArray.slice(0, 5));
+          console.log('Relevance logit:', relevanceLogit);
+          console.log('================================\n');
+        }
+
+        return relevanceLogit;
+      } catch (error: any) {
+        console.error(`⚠️  Reranking error for doc ${idx}:`, error.message);
+        console.error(`⚠️  Full error:`, error);
+        return -999;  // Very low score for errors
+      }
+    })
   );
 
   // Combine documents with scores
+  // Scores are now RAW LOGITS - apply sigmoid to normalize to 0-1 range
   const rerankedDocs: RerankResult[] = documents
     .map((doc, i) => {
-      // Extract score from model output
-      // Format: [{ label: 'LABEL_0', score: 0.1 }, { label: 'LABEL_1', score: 0.9 }]
-      // LABEL_1 typically represents "relevant"
-      const relevantScore = scores[i].find((s: any) => s.label === 'LABEL_1')?.score || 0;
+      const rawLogit = scores[i];
+
+      // Apply sigmoid to convert logit to probability: σ(x) = 1 / (1 + e^(-x))
+      const relevantScore = 1 / (1 + Math.exp(-rawLogit));
+
+      if (i < 3) {
+        console.log(`📊 Doc ${i}: logit=${rawLogit.toFixed(4)} → score=${relevantScore.toFixed(4)}`);
+      }
 
       return {
         ...doc,

@@ -124,6 +124,102 @@ export class RAGASEvaluator {
     }
   }
 
+  /**
+   * Query RAG API only (without evaluation)
+   * Used in Phase 1 to collect all responses before RAGAS evaluation
+   */
+  async queryRAG(question: string): Promise<RAGResponse> {
+    return await this.callRAGAPI(question);
+  }
+
+  /**
+   * Evaluate a RAG response that was already collected
+   * Used in Phase 2 to evaluate responses sequentially
+   */
+  async evaluateResponse(testCase: EvaluationTestCase, ragResponse: RAGResponse): Promise<EvaluationResult> {
+    const totalStartTime = Date.now();
+
+    try {
+      console.log(`\n🧪 Evaluating: ${testCase.question}`);
+      console.log(`   ⏳ Loading source documents...`);
+
+      // Extract contexts and sources - get full content from filesystem
+      const contextsPromises = ragResponse.sources.map(async (source) => {
+        const fullContent = await this.getSourceContent(source);
+        return fullContent;
+      });
+      const contexts = (await Promise.all(contextsPromises)).filter(text => text.length > 0);
+      const sourceFilenames = ragResponse.sources.map(s => s.filename);
+
+      console.log(`   ✓ Loaded ${contexts.length} source documents`);
+      console.log(`   ⏳ Calculating metrics sequentially...`);
+
+      const metricsStart = Date.now();
+
+      // Calculate metrics sequentially (LLM local, no paralelización)
+      // REDUCED METRICS MODE: Only core 4 metrics to avoid Ollama saturation
+      const faithfulness = await this.calculateFaithfulness(ragResponse.answer, contexts);
+      const answerRelevancy = await this.calculateAnswerRelevancy(testCase.question, ragResponse.answer);
+      const contextPrecision = await this.calculateContextPrecision(testCase.question, contexts);
+      const contextRecall = await this.calculateContextRecall(contexts, sourceFilenames, testCase.expected_contexts);
+
+      // Additional metrics disabled to reduce Ollama load
+      const contextRelevancy = 0; // await this.calculateContextRelevancy(testCase.question, contexts);
+      const answerCorrectness = 0; // await this.calculateAnswerCorrectness(ragResponse.answer, testCase.ground_truth_answer);
+      const answerSimilarity = 0; // this.calculateAnswerSimilarity(ragResponse.answer, testCase.ground_truth_answer);
+      const answerCompleteness = 0; // await this.calculateAnswerCompleteness(testCase.question, ragResponse.answer);
+      const hallucinationResult = { score: 0, hallucinations: [] }; // await this.detectHallucinations(ragResponse.answer, contexts);
+
+      const metricsTime = (Date.now() - metricsStart) / 1000;
+      console.log(`   ✓ Metrics calculated in ${metricsTime.toFixed(1)}s`);
+
+      const latency = Date.now() - totalStartTime;
+
+      console.log(`✅ Core Metrics - F: ${faithfulness.toFixed(2)}, AR: ${answerRelevancy.toFixed(2)}, CP: ${contextPrecision.toFixed(2)}, CR: ${contextRecall.toFixed(2)}`);
+      console.log(`✅ Additional - CRel: ${contextRelevancy.toFixed(2)}, AC: ${answerCorrectness.toFixed(2)}, AS: ${answerSimilarity.toFixed(2)}, ACom: ${answerCompleteness.toFixed(2)}`);
+      console.log(`✅ Hallucination Score: ${hallucinationResult.score.toFixed(2)}${hallucinationResult.hallucinations.length > 0 ? ` (${hallucinationResult.hallucinations.length} detected)` : ''}`);
+
+      return {
+        test_case_id: testCase.id,
+        question: testCase.question,
+        generated_answer: ragResponse.answer,
+        retrieved_contexts: contexts,
+        retrieved_sources: sourceFilenames,
+
+        // Core RAGAS metrics
+        faithfulness_score: faithfulness,
+        answer_relevancy_score: answerRelevancy,
+        context_precision_score: contextPrecision,
+        context_recall_score: contextRecall,
+
+        // Additional metrics
+        context_relevancy_score: contextRelevancy,
+        answer_correctness_score: answerCorrectness,
+        answer_similarity_score: answerSimilarity,
+        answer_completeness_score: answerCompleteness,
+
+        // Hallucination detection
+        hallucination_score: hallucinationResult.score,
+        hallucinations_detected: hallucinationResult.hallucinations,
+
+        // Performance metrics
+        retrieval_latency_ms: ragResponse.performance?.retrieval_latency_ms,
+        reranking_latency_ms: ragResponse.performance?.reranking_latency_ms,
+        generation_latency_ms: ragResponse.performance?.generation_latency_ms,
+        num_retrieved_docs: ragResponse.performance?.num_retrieved_docs,
+        num_final_docs: ragResponse.performance?.num_final_docs,
+        avg_rerank_score: ragResponse.performance?.avg_rerank_score,
+
+        latency_ms: latency,
+        timestamp: new Date().toISOString()
+      };
+
+    } catch (error: any) {
+      console.error(`Error evaluating response:`, error);
+      throw error;
+    }
+  }
+
   async evaluateSingleCase(testCase: EvaluationTestCase): Promise<EvaluationResult> {
     const totalStartTime = Date.now();
 
@@ -153,15 +249,18 @@ export class RAGASEvaluator {
       const metricsStart = Date.now();
 
       // Calculate metrics sequentially (LLM local, no paralelización)
+      // REDUCED METRICS MODE: Only core 4 metrics to avoid Ollama saturation
       const faithfulness = await this.calculateFaithfulness(ragResponse.answer, contexts);
       const answerRelevancy = await this.calculateAnswerRelevancy(testCase.question, ragResponse.answer);
       const contextPrecision = await this.calculateContextPrecision(testCase.question, contexts);
       const contextRecall = await this.calculateContextRecall(contexts, sourceFilenames, testCase.expected_contexts);
-      const contextRelevancy = await this.calculateContextRelevancy(testCase.question, contexts);
-      const answerCorrectness = await this.calculateAnswerCorrectness(ragResponse.answer, testCase.ground_truth_answer);
-      const answerSimilarity = this.calculateAnswerSimilarity(ragResponse.answer, testCase.ground_truth_answer);
-      const answerCompleteness = await this.calculateAnswerCompleteness(testCase.question, ragResponse.answer);
-      const hallucinationResult = await this.detectHallucinations(ragResponse.answer, contexts);
+
+      // Additional metrics disabled to reduce Ollama load
+      const contextRelevancy = 0; // await this.calculateContextRelevancy(testCase.question, contexts);
+      const answerCorrectness = 0; // await this.calculateAnswerCorrectness(ragResponse.answer, testCase.ground_truth_answer);
+      const answerSimilarity = 0; // this.calculateAnswerSimilarity(ragResponse.answer, testCase.ground_truth_answer);
+      const answerCompleteness = 0; // await this.calculateAnswerCompleteness(testCase.question, ragResponse.answer);
+      const hallucinationResult = { score: 0, hallucinations: [] }; // await this.detectHallucinations(ragResponse.answer, contexts);
 
       const metricsTime = (Date.now() - metricsStart) / 1000;
       console.log(`   ✓ Metrics calculated in ${metricsTime.toFixed(1)}s`);

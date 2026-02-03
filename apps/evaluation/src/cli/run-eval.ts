@@ -164,14 +164,20 @@ async function main() {
       console.log(`   Chunk size: ${config.chunk_size} (overlap: ${config.chunk_overlap})`);
     }
 
-    // Run evaluation
+    // Run evaluation in 2 phases to avoid Ollama saturation
     const evaluator = new RAGASEvaluator('http://localhost:3001', projectRoot);
     const results: EvaluationResult[] = [];
 
-    console.log(`\n🔬 Evaluating ${testCases.length} test cases...\n`);
+    const startTime = Date.now();
+
+    // ============================================================================
+    // PHASE 1: Collect all RAG responses (without RAGAS evaluation)
+    // ============================================================================
+    console.log(`\n📥 PHASE 1: Collecting RAG responses for ${testCases.length} test cases...`);
+    console.log('   (This avoids Ollama saturation by separating RAG queries from RAGAS evaluation)\n');
     console.log('Progress: [' + ' '.repeat(50) + '] 0%');
 
-    const startTime = Date.now();
+    const ragResponses: Array<{ testCase: any; response?: any; error?: string }> = [];
 
     for (let i = 0; i < testCases.length; i++) {
       const testCase = testCases[i];
@@ -182,17 +188,47 @@ async function main() {
       process.stdout.write(`\r Progress: [${bar}] ${progress}% - ${testCase.id}` + ' '.repeat(20));
 
       try {
-        // Add a 3-minute timeout per test case (increased from 120s to allow for slower RAG queries)
-        const result = await Promise.race([
-          evaluator.evaluateSingleCase(testCase),
+        const response = await Promise.race([
+          evaluator.queryRAG(testCase.question),
           new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error(`Test case timeout after 180s`)), 180000)
+            setTimeout(() => reject(new Error(`RAG query timeout after 90s`)), 90000)
           )
         ]);
-        results.push(result);
+        ragResponses.push({ testCase, response });
       } catch (error: any) {
-        console.error(`\n❌ Test case ${testCase.id} failed: ${error.message}`);
-        // Push an error result
+        console.error(`\n⚠️  RAG query failed for ${testCase.id}: ${error.message}`);
+        ragResponses.push({ testCase, error: error.message });
+      }
+    }
+
+    process.stdout.write('\n\n');
+
+    const phase1Time = Date.now() - startTime;
+    const successfulQueries = ragResponses.filter(r => r.response).length;
+    console.log(`✅ Phase 1 completed in ${(phase1Time / 1000).toFixed(1)}s`);
+    console.log(`   ${successfulQueries}/${testCases.length} RAG queries successful`);
+    if (successfulQueries < testCases.length) {
+      console.log(`   ⚠️  ${testCases.length - successfulQueries} queries failed (will be marked as errors)`);
+    }
+
+    // ============================================================================
+    // PHASE 2: Evaluate all responses with RAGAS sequentially
+    // ============================================================================
+    console.log(`\n📊 PHASE 2: Evaluating ${ragResponses.length} responses with RAGAS metrics...\n`);
+    console.log('Progress: [' + ' '.repeat(50) + '] 0%');
+
+    const phase2StartTime = Date.now();
+
+    for (let i = 0; i < ragResponses.length; i++) {
+      const { testCase, response, error } = ragResponses[i];
+      const progress = ((i + 1) / ragResponses.length * 100).toFixed(0);
+      const barLength = Math.floor((i + 1) / ragResponses.length * 50);
+      const bar = '█'.repeat(barLength) + ' '.repeat(50 - barLength);
+
+      process.stdout.write(`\r Progress: [${bar}] ${progress}% - ${testCase.id}` + ' '.repeat(20));
+
+      if (error || !response) {
+        // Push error result for failed RAG queries
         results.push({
           test_case_id: testCase.id,
           question: testCase.question,
@@ -203,7 +239,35 @@ async function main() {
           answer_relevancy_score: 0,
           context_precision_score: 0,
           context_recall_score: 0,
-          latency_ms: 120000,
+          latency_ms: 90000,
+          timestamp: new Date().toISOString(),
+          error: error || 'RAG query failed',
+        });
+        continue;
+      }
+
+      try {
+        const result = await Promise.race([
+          evaluator.evaluateResponse(testCase, response),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`RAGAS evaluation timeout after 150s`)), 150000)
+          )
+        ]);
+        results.push(result);
+      } catch (error: any) {
+        console.error(`\n❌ RAGAS evaluation failed for ${testCase.id}: ${error.message}`);
+        // Push error result for failed RAGAS evaluation
+        results.push({
+          test_case_id: testCase.id,
+          question: testCase.question,
+          generated_answer: response.answer || '',
+          retrieved_contexts: [],
+          retrieved_sources: response.sources?.map((s: any) => s.filename) || [],
+          faithfulness_score: 0,
+          answer_relevancy_score: 0,
+          context_precision_score: 0,
+          context_recall_score: 0,
+          latency_ms: 150000,
           timestamp: new Date().toISOString(),
           error: error.message,
         });
@@ -212,9 +276,12 @@ async function main() {
 
     process.stdout.write('\n\n');
 
+    const phase2Time = Date.now() - phase2StartTime;
     const totalTime = Date.now() - startTime;
 
     console.log(`✅ Evaluation completed in ${(totalTime / 1000).toFixed(1)}s`);
+    console.log(`   Phase 1 (RAG queries): ${(phase1Time / 1000).toFixed(1)}s`);
+    console.log(`   Phase 2 (RAGAS eval): ${(phase2Time / 1000).toFixed(1)}s`);
     console.log(`⚡ Average time per case: ${(totalTime / testCases.length / 1000).toFixed(1)}s`);
 
     // Generate comprehensive reports
