@@ -41,7 +41,8 @@ async function initReranker() {
     console.log('🔄 Loading reranker model and tokenizer directly...');
 
     // Load tokenizer and model DIRECTLY (bypass pipeline to access raw logits)
-    const modelName = 'Xenova/ms-marco-MiniLM-L-6-v2';
+    // Changed from ms-marco-MiniLM (English-only) to BGE (multilingual) for better Spanish support
+    const modelName = 'Xenova/bge-reranker-base';
 
     rerankerTokenizer = await AutoTokenizer.from_pretrained(modelName);
     rerankerModel = await AutoModelForSequenceClassification.from_pretrained(modelName);
@@ -95,11 +96,13 @@ async function rerankDocuments(
     ? logitsArray
     : logitsArray.filter((_, idx) => idx % numLabels === 0);
 
-  // Convert logits to probabilities and rank by relevance
+  // BGE reranker uses UNBOUNDED logits (not probabilities)
+  // Higher logit = more relevant. DO NOT apply sigmoid - scores are meant to be compared relatively.
+  // Typical range: -10 to +10, but can be higher/lower
   const rerankedDocs: RerankResult[] = documents
     .map((doc, i) => ({
       ...doc,
-      rerankScore: sigmoid(relevanceLogits[i])
+      rerankScore: relevanceLogits[i]  // Raw logits for BGE
     }))
     .sort((a, b) => b.rerankScore - a.rerankScore)
     .slice(0, topK);

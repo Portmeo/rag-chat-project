@@ -2,232 +2,95 @@
 
 ## ¿Qué es este sistema?
 
-Un sistema RAG (Retrieval-Augmented Generation) que permite hacer preguntas sobre documentación técnica en español. El sistema busca información relevante en los documentos y genera respuestas precisas usando IA.
+Un sistema RAG (Retrieval-Augmented Generation) optimizado para consultas sobre documentación técnica en español. El sistema busca información relevante en los documentos y genera respuestas precisas usando IA, empleando una estrategia de recuperación jerárquica (Parent-Child).
 
-## Arquitectura del Sistema
+## Arquitectura del Sistema (Flujo Optimizado)
 
 ```
-Pregunta del usuario
-    ↓
-1. Multi-Query Generation (3 variaciones de la pregunta)
-    ↓
-2. Búsqueda Híbrida (BM25 + Vectores) → Top 20 candidatos
-    ↓
-3. Reranking (Cross-Encoder) → Top 5 más relevantes
-    ↓
-4. Generación (LLM) → Respuesta en español
+      Pregunta del usuario
+              ↓
+1. Multi-Query Generation (3-4 variaciones)
+              ↓
+2. Búsqueda Híbrida (BM25 + Vectores) sobre CHILDREN
+              ↓
+3. Hydration: Resolución de Children a PARENTS únicos (Qdrant Filter)
+              ↓
+4. Reranking (Cross-Encoder) sobre PARENTS
+              ↓
+5. Generación (LLM) con Encabezados Enriquecidos
 ```
 
 ## Componentes Principales
 
-### 1. Búsqueda Híbrida (70% BM25 + 30% Vectores)
+### 1. Recuperación Jerárquica: Parent-Child (Small-to-Big)
 
 **¿Qué hace?**
-Combina dos tipos de búsqueda complementarias para encontrar los documentos más relevantes.
+Separa la unidad de búsqueda de la unidad de generación. El sistema busca en fragmentos pequeños y específicos (Children) pero entrega al LLM fragmentos grandes y contextualizados (Parents).
 
-**¿Por qué híbrida?**
+**Implementación Custom (No estándar LangChain)**:
+Para optimizar el rendimiento y tener control total, el sistema implementa su propia lógica de Parent-Child:
+- **Hijos (128-200 chars)**: Indexados con vectores para una búsqueda semántica y léxica ultra-precisa.
+- **Padres (512-1500 chars)**: Almacenados en Qdrant con **vectores nulos** (puntos invisibles para la búsqueda vectorial) pero con IDs vinculados.
+- **Deduplicación**: Si varios hijos pertenecen al mismo padre, el sistema los unifica y recupera el padre una sola vez, maximizando la ventana de contexto útil del LLM.
 
-- **BM25 (70%)**: Búsqueda por palabras clave exactas
-  - Excelente para términos técnicos específicos ("Angular", "NgRx", "JWT")
-  - Rápido y preciso para coincidencias exactas
-  - No requiere entrenamiento
+**Almacenamiento**: Todo reside en Qdrant. Los padres actúan como un almacén de documentos integrado, recuperados mediante filtros de metadatos en una sola consulta (`match any`).
 
-- **Vectores semánticos (30%)**: Búsqueda por significado
-  - Encuentra conceptos similares aunque no usen las mismas palabras
-  - Entiende preguntas complejas y relaciones entre conceptos
-  - Funciona bien con sinónimos y paráfrasis
-
-**Resultado**: Lo mejor de ambos mundos - precisión + comprensión semántica
-
-### 2. Embeddings: mxbai-embed-large
+### 2. Búsqueda Híbrida (50% BM25 + 50% Vectores)
 
 **¿Qué hace?**
-Convierte texto en vectores numéricos que representan su significado.
+Combina la precisión léxica de BM25 con la potencia semántica de los embeddings.
 
-**¿Por qué este modelo?**
+- **BM25 (Filtrado)**: El motor BM25 ha sido optimizado para **ignorar los documentos Parent**. Esto evita ruido semántico y duplicidad en los resultados iniciales, asegurando que solo se recuperen fragmentos Children.
+- **Vectores Semánticos**: Usa `mxbai-embed-large` con prefijos de instrucción asimétricos.
 
-Probamos 4 modelos diferentes en benchmarks exhaustivos:
-
-| Modelo | MRR | Recall@5 | Veredicto |
-|--------|-----|----------|-----------|
-| **mxbai-embed-large** | 0.875 | 94% | ✅ Ganador |
-| nomic-embed-text | 0.608 | 81% | Bueno pero inferior |
-| bge-m3 | 0.625 | 81% | Similar a nomic |
-| snowflake-arctic | 0.392 | 69% | No suficiente |
-
-**mxbai-embed-large destacó porque:**
-- 81% de precisión en primera posición (vs 50% de nomic)
-- Excelente comprensión semántica en español
-- 1024 dimensiones (más información capturada)
-- Configuración optimizada con instrucción oficial
-
-### 3. Reranking: bge-reranker-base
+### 3. Reranking Resiliente: bge-reranker-base
 
 **¿Qué hace?**
-Evalúa y reordena los candidatos recuperados para quedarse solo con los más relevantes.
+Evalúa y reordena los candidatos recuperados. A diferencia de otros sistemas, aquí el reranking se realiza sobre el **Parent Document** (el bloque completo).
 
-**¿Por qué necesitamos reranking?**
+**Beneficios**:
+- **Visión Real**: El reranker evalúa exactamente lo mismo que va a leer el LLM.
+- **Fallback Automático**: El sistema incluye una lógica de seguridad: si el Worker Thread falla (común en entornos TS no compilados), el reranking se ejecuta automáticamente en el **hilo principal**, garantizando que el LLM siempre reciba los mejores documentos.
 
-Los embeddings son rápidos pero aproximados. El reranker:
-- Analiza cada par (query, documento) individualmente
-- Usa un modelo Cross-Encoder más potente pero lento
-- Solo procesa 20 candidatos (eficiente)
-- Mejora +10-12% MRR, +15% Precision@3
-
-**Flujo**:
-```
-Búsqueda híbrida → Top 20 candidatos (rápido)
-    ↓
-Reranking → Top 5 más relevantes (preciso)
-    ↓
-LLM solo ve los 5 mejores
-```
-
-**Beneficio**: Contexto de alta calidad para el LLM = mejores respuestas
-
-### 4. LLM: llama3.1:8b
+### 4. Generación: LLM con Contexto Enriquecido
 
 **¿Qué hace?**
-Lee el contexto recuperado y genera una respuesta coherente en español.
+Sintetiza la respuesta basándose en el contexto. El prompt ha sido generalizado para usar **razonamiento técnico** en lugar de ejemplos estáticos.
 
-**¿Por qué este modelo?**
+**Metadatos en el Prompt**:
+Cada fragmento enviado al LLM incluye un encabezado enriquecido con metadatos extraídos manualmente:
+`[DOCUMENTO 1 | Fuente: setup.md | Sección: Instalación > Requisitos | Framework: Angular | Versión: 15.2.8 | Relevancia: 95%]`
 
-Inicialmente usábamos qwen2.5:7b pero tenía un problema:
-- ❌ Mezclaba español con chino (es un modelo chino)
-- ❌ No seguía bien las instrucciones de idioma
+Esto permite que el modelo (Llama 3.1:8b) identifique versiones y tecnologías incluso si el fragmento de texto es muy escueto o puramente técnico (como un JSON).
 
-Cambiamos a llama3.1:8b:
-- ✅ Excelente comprensión de español
-- ✅ Sigue instrucciones fielmente
-- ✅ Síntesis clara y concisa
-- ✅ No necesita conocimiento específico (ya está en el contexto)
-
-**Nota importante**: En RAG, el LLM NO necesita ser especializado en el dominio. Su trabajo es solo sintetizar la información que ya le pasamos en el contexto.
-
-## Proceso de Optimización
-
-### Round 1: Fair Benchmark
-Descubrimos que los modelos tienen requisitos específicos:
-- nomic necesita prefijos: `"search_query: "` y `"search_document: "`
-- mxbai necesita instrucción oficial
-
-**Resultados**: mxbai ganó con MRR 0.844
-
-### Round 2: Optimized Benchmark
-Aplicamos configuraciones óptimas por modelo.
-
-**Mejora**: mxbai subió a MRR 0.875 (+3.7%)
-
-### Queries de prueba
-Diseñamos 16 queries en 5 categorías:
-- Básicas (keywords): "Angular Ionic version"
-- Conceptuales: "¿Por qué se usa NgRx?"
-- Relacionales: "¿Cómo se integran web components?"
-- Proceso: "¿Cómo funciona el flujo de autenticación?"
-- Comparativas: "diferencia entre container y presenter"
-
-**Resultado final del sistema completo**: 85.7% de respuestas correctas
-
-## Configuración Final
+## Configuración Recomendada (.env)
 
 ```bash
-# Qdrant
-QDRANT_URL=http://localhost:6333
-QDRANT_COLLECTION_NAME=documents
-QDRANT_VECTOR_DIMENSION=1024
-QDRANT_DISTANCE_METRIC=Cosine
-
-# Ollama
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=llama3.1:8b
-OLLAMA_EMBEDDINGS_MODEL=mxbai-embed-large
-
-# Document Processing
-CHUNK_SIZE=1000              # 1000 chars per chunk
-CHUNK_OVERLAP=200            # 20% overlap for context continuity
-
 # Búsqueda Híbrida
 USE_BM25_RETRIEVER=true
-BM25_WEIGHT=0.7
-VECTOR_WEIGHT=0.3
-SIMILARITY_SEARCH_MAX_RESULTS=4
+BM25_WEIGHT=0.5
+VECTOR_WEIGHT=0.5
+SIMILARITY_SEARCH_MAX_RESULTS=25 # Recall ampliado para multi-query
 
 # Reranking
 USE_RERANKER=true
-RERANKER_RETRIEVAL_TOP_K=20      # Retrieve 20 candidates
-RERANKER_FINAL_TOP_K=5           # Return top 5 after reranking
-RERANKER_TIMEOUT_MS=30000        # 30s timeout
+RERANKER_RETRIEVAL_TOP_K=20      # Candidatos para rerank
+RERANKER_FINAL_TOP_K=5           # Fragmentos finales para LLM
+
+# Parent-Child
+USE_PARENT_RETRIEVER=true
+CHILD_CHUNK_SIZE=128
+PARENT_CHUNK_SIZE=1000           # Ajustable hasta 1500 para más contexto
 ```
 
-## Métricas de Evaluación
+## Métricas RAGAS (Calidad)
 
-### Métricas de Retrieval (Benchmarks)
-- **MRR (Mean Reciprocal Rank)**: Qué tan alto aparece la respuesta correcta
-  - 0.875 = En promedio, la respuesta correcta está en posición 1.14
+- **Faithfulness**: Target >0.85 (Evaluado con temperatura 0.0 para mayor fidelidad).
+- **Answer Relevancy**: Target >0.80.
+- **Context Recall**: Target 100% (Garantizado por la estrategia Parent-Child).
 
-- **Recall@K**: Probabilidad de encontrar la respuesta en top K
-  - Recall@5 = 94% → 94% de probabilidad de que la respuesta esté en top 5
+## Lecciones de Arquitectura
 
-- **Precision@K**: De los K resultados, cuántos son relevantes
-  - El reranking mejora esto significativamente
-
-### Métricas RAGAS (Calidad End-to-End)
-Evaluación automática del sistema completo usando LLM-as-judge:
-
-- **Faithfulness (0-1)**: ¿La respuesta está soportada por el contexto recuperado?
-  - Detecta alucinaciones (información inventada)
-  - Target: >0.85
-
-- **Answer Relevancy (0-1)**: ¿La respuesta es relevante para la pregunta?
-  - Detecta respuestas fuera de tema
-  - Target: >0.80
-
-- **Context Precision (0-1)**: ¿Los documentos recuperados son relevantes?
-  - Mide calidad del retrieval (BM25 + Vector + Reranking)
-  - Target: >0.75
-
-- **Context Recall (0-1)**: ¿Se recuperaron todos los documentos necesarios?
-  - Detecta documentos faltantes importantes
-  - Target: >0.85
-
-**Cómo ejecutar**: `npx tsx benchmark/evaluation/run_ragas_eval.ts`
-**Dataset**: 17 casos de prueba con ground truth en `benchmark/evaluation/datasets/golden_qa.json`
-
-## Lecciones Aprendidas
-
-1. **Híbrido > Puro**: BM25 + Vectores supera a cada uno por separado
-2. **Configuración importa**: Cada modelo tiene requisitos específicos
-3. **LLM para síntesis**: No necesita conocimiento del dominio
-4. **Reranking vale la pena**: +10-15% mejora con poco overhead
-5. **Testing riguroso**: Los benchmarks revelaron problemas ocultos
-
-## Limitaciones Actuales
-
-### BM25 en Memoria
-- **Problema**: BM25Retriever mantiene TODOS los documentos en memoria
-- El cache se reconstruye completamente en cada upload
-- Memoria crece linealmente con el número de documentos
-- **No escalable** para >10k documentos
-- **Solución recomendada**: Migrar a Qdrant Sparse Vectors (BM42)
-  - Qdrant soporta búsqueda híbrida nativa (dense + sparse)
-  - Escalabilidad a millones de documentos
-  - Referencias: [Qdrant Sparse Vectors](https://qdrant.tech/documentation/concepts/vectors/#sparse-vectors)
-
-## Próximos Pasos Prioritarios
-
-1. **Migrar BM25 a Qdrant Sparse Vectors** (escalabilidad crítica)
-   - Problema: BM25 en memoria no escala >10k documentos
-   - Solución: Usar Qdrant sparse vectors nativos
-
-2. **Parent Document Retriever (Small-to-Big)** (+15-20% precisión esperada)
-   - Problema actual: Chunks de 1000 chars son buenos para LLM pero subóptimos para retrieval
-   - Solución: Buscar con chunks pequeños (200 chars), retornar chunks grandes (1000 chars)
-   - Beneficio: Lo mejor de ambos mundos (precisión en búsqueda + contexto para LLM)
-   - Implementación:
-     1. Al indexar: crear child chunks (200) + parent chunks (1000)
-     2. Indexar child chunks con metadata.parent_id
-     3. En retrieval: buscar child → retornar parent
-
-3. Experimentar con diferentes pesos BM25/Vector
-4. Mejorar RAGAS: más casos de prueba, dashboard visual
-5. Evaluar modelos de reranking más grandes
+1. **Rerank sobre el Padre**: Evaluar el bloque de 1000 caracteres es más preciso que evaluar la línea de 128.
+2. **Filtrar BM25**: Nunca dejes que BM25 indexe a los padres si usas una arquitectura de vectores nulos; el ruido léxico arruina el reranking.
+3. **Metadatos > Texto**: Pasar metadatos estructurados en el encabezado del fragmento reduce alucinaciones en modelos de tamaño medio (8b).

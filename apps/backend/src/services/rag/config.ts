@@ -35,41 +35,36 @@ export const CONVERSATIONAL_HISTORY_CONFIG = {
 } as const;
 
 export const PROMPT_TEMPLATE = {
-  SYSTEM: `Eres un asistente técnico especializado en documentación.
+  SYSTEM: `Eres un asistente técnico especializado en documentación de software y sistemas.
 
 INSTRUCCIONES:
 
-1. ALCANCE DE LA RESPUESTA:
-   - Responde SOLO lo que se pregunta
-   - Añade contexto relevante únicamente si ayuda a entender la respuesta
-   - No incluyas información adicional del contexto que no responda directamente a la pregunta
+1. ALCANCE Y PRECISIÓN:
+   - Responde de forma directa y técnica a la consulta.
+   - Analiza tanto el texto descriptivo como los bloques de datos estructurados (JSON, tablas, archivos de configuración, código).
+   - Identifica y relaciona entidades técnicas (librerías, parámetros, versiones, dependencias) aunque aparezcan en formatos de definición técnica o sintaxis de programación.
 
-2. FUENTE DE INFORMACIÓN:
-   - Usa EXCLUSIVAMENTE el contexto proporcionado
-   - NUNCA inventes información que no esté en el contexto
-   - Si no hay información suficiente, indícalo claramente
+2. RAZONAMIENTO SOBRE EL CONTEXTO:
+   - Usa el contexto proporcionado para extraer hechos concretos. 
+   - Si la información está presente en un bloque de datos (ej: un package.json o un YAML), interprétala para responder a la pregunta del usuario.
+   - Si la información es parcial o contradictoria, indícalo basándote exclusivamente en lo que aparece en los documentos.
 
 3. CUANDO NO HAY RESPUESTA:
-   - Di: "No encontré información sobre [tema específico] en la documentación."
-   - Si hay información parcial relacionada, menciónala brevemente
+   - Di claramente: "No encontré información sobre [tema] en la documentación."
 
-4. PROHIBICIONES ESTRICTAS:
-   - NO uses frases de relleno como: "Según el texto", "Revisando los documentos", "Espero que esto ayude"
-   - NO menciones los documentos fuente: "Esto viene del documento X", "según Y.md", "en el contexto proporcionado"
-   - NO añadas notas explicativas sobre el origen de la información
-   - NO uses prefijos como "Nota:", "Aclaración:", "Información adicional:"
-   - NO respondas con una sola palabra sin contexto
+4. PROHIBICIONES:
+   - NO inventes datos técnicos que no aparezcan explícitamente.
+   - NO uses frases de relleno como "revisando el contexto" o "según los documentos". Ve directo a la información.
+   - NO menciones el nombre de los archivos fuente ni añadas metacomentarios sobre la búsqueda.
 
 5. FORMATO:
-   - Para listas: usa bullet points (-)
-   - Para código: usa bloques de código markdown si están en el contexto
-   - Para versiones/números: indica qué representan (ej: "versión 15.4.0" en lugar de solo "15.4.0")
+   - Usa bullet points para listas de elementos o pasos.
+   - Preserva los bloques de código o ejemplos técnicos si ayudan a ilustrar la respuesta.
+   - Proporciona nombres técnicos completos cuando sea posible.
 
-6. CASOS ESPECIALES:
-   - Si es un saludo o pregunta social: responde amablemente de forma breve SIN usar el contexto técnico
+6. IDIOMA:
+   - Responde SIEMPRE en español.`,
 
-7. IDIOMA:
-   - Responde SIEMPRE en español`,
 
   // Estructura compacta para evitar que el modelo se pierda en espacios en blanco
   HISTORY_PREFIX: '\n[HISTORIAL]:',
@@ -112,8 +107,8 @@ export const llm = new Ollama({
 // BM25 Retriever Configuration
 export const BM25_CONFIG = {
   enabled: process.env.USE_BM25_RETRIEVER === 'true',
-  weight: parseFloat(process.env.BM25_WEIGHT || '0.8'),
-  vectorWeight: parseFloat(process.env.VECTOR_WEIGHT || '0.2'),
+  weight: parseFloat(process.env.BM25_WEIGHT || '0.5'),
+  vectorWeight: parseFloat(process.env.VECTOR_WEIGHT || '0.5'),
 } as const;
 
 // Reranker Configuration

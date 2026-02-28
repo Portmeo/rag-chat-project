@@ -32,11 +32,23 @@ async function rebuildBM25Cache(): Promise<void> {
     return;
   }
 
-  const allDocuments = await getAllDocumentsFromQdrant();
+  let allDocuments = await getAllDocumentsFromQdrant();
 
   if (allDocuments.length === 0) {
     bm25RetrieverCache = null;
     return;
+  }
+
+  // 🎯 FILTRADO ESTRATÉGICO: Si Parent-Child está habilitado, indexamos SOLO los children en BM25.
+  // Esto permite que BM25 encuentre fragmentos específicos (200 chars) que luego resolveParentChunks
+  // hidratará a parents (1000 chars). Si indexamos ambos, BM25 tendrá ruido y hits duplicados.
+  if (PARENT_RETRIEVER_CONFIG.enabled) {
+    const originalCount = allDocuments.length;
+    allDocuments = allDocuments.filter(doc => {
+      const meta = doc.metadata as TechnicalMetadata;
+      return meta.parent_child && meta.parent_child.is_parent === false;
+    });
+    console.log(`🎯 BM25 Filter: Kept ${allDocuments.length} children from ${originalCount} total points (filtered out parents)`);
   }
 
   console.log(`🔄 Rebuilding BM25 cache with ${allDocuments.length} documents`);
@@ -172,6 +184,10 @@ async function resolveParentChunks(childDocs: Document[]): Promise<Document[]> {
       .filter(s => s !== undefined)
       .sort((a, b) => b - a); // Ordenar descendente
 
+    // 🔧 HYDRATION LIMPIA: No anexar children al parent si ya están incluidos
+    // El parent chunk ya contiene el texto de los children.
+    // Solo mantenemos el parentDoc tal cual para evitar redundancia masiva en el contexto.
+
     parentDocs.push(parentDoc);
   }
 
@@ -283,18 +299,19 @@ function filterSourcesByRelevance(relevantDocs: Document[]): RAGSource[] {
     return docsToSources(relevantDocs);
   }
 
+  // BGE reranker uses unbounded logits - no threshold filtering needed
+  // The reranker already returns Top K most relevant docs sorted by score
   const filtered = relevantDocs.filter(doc => {
     const rerankScore = (doc as any).rerankScore;
     if (rerankScore === undefined) return false;
 
-    const passes = rerankScore >= RERANKER_CONFIG.minScore;
-    if (!passes) {
-      console.log(`🚫 Filtered out: score ${rerankScore.toFixed(3)} < threshold ${RERANKER_CONFIG.minScore}`);
-    }
-    return passes;
+    // For BGE: Accept all reranked docs (they're already Top K by relevance)
+    // Logits can be negative - higher is better, but no absolute threshold applies
+    console.log(`✅ Reranked doc: score ${rerankScore.toFixed(3)}`);
+    return true;
   });
 
-  console.log(`\n📊 Filtered ${filtered.length}/${relevantDocs.length} sources by rerank score (threshold: ${RERANKER_CONFIG.minScore})`);
+  console.log(`\n📊 Returning ${filtered.length}/${relevantDocs.length} reranked sources (no threshold - using relative ranking)`);
   return docsToSources(filtered);
 }
 
@@ -372,7 +389,13 @@ async function retrieveRelevantDocuments(
     }
   }
 
-  let candidateDocs = allDocs.slice(0, RERANKER_CONFIG.enabled ? RERANKER_CONFIG.retrievalTopK : SIMILARITY_SEARCH_CONFIG.MAX_RESULTS * 2);
+  // AUMENTADO: Permitir más candidatos para el reranker si hay multi-query
+  // Si tenemos 4 queries y cada una trae 20, queremos evaluar los mejores de todos, no solo los primeros 20
+  const maxCandidates = RERANKER_CONFIG.enabled 
+    ? RERANKER_CONFIG.retrievalTopK * 3 // Permitir hasta 60 candidatos para reranking
+    : SIMILARITY_SEARCH_CONFIG.MAX_RESULTS * 2;
+
+  let candidateDocs = allDocs.slice(0, maxCandidates);
 
   if (candidateDocs.length === 0) {
     return null;
@@ -442,15 +465,21 @@ async function retrieveRelevantDocuments(
   // Construir contexto con metadata clara para que el LLM distinga fuentes
   const context = relevantDocs
     .map((doc: Document, idx: number) => {
-      const metadata = doc.metadata as DocumentMetadata;
+      const metadata = doc.metadata as TechnicalMetadata;
       const rerankScore = (doc as any).rerankScore;
 
-      // Encabezado con metadata
-      let header = `[DOCUMENTO ${idx + 1} | Fuente: ${metadata.filename}`;
+      // Encabezado con metadata enriquecida
+      let headerParts = [`DOCUMENTO ${idx + 1}`, `Fuente: ${metadata.filename}`];
+      
+      if (metadata.section_path) headerParts.push(`Sección: ${metadata.section_path}`);
+      if (metadata.framework) headerParts.push(`Framework: ${metadata.framework}`);
+      if (metadata.version) headerParts.push(`Versión: ${metadata.version}`);
+      
       if (rerankScore !== undefined) {
-        header += ` | Relevancia: ${(rerankScore * 100).toFixed(0)}%`;
+        headerParts.push(`Relevancia: ${(rerankScore * 100).toFixed(0)}%`);
       }
-      header += ']';
+
+      const header = `[${headerParts.join(' | ')}]`;
 
       return `${header}\n${doc.pageContent}`;
     })
