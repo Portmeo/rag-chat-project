@@ -483,10 +483,6 @@ async function retrieveRelevantDocuments(
       if (metadata.framework) headerParts.push(`Framework: ${metadata.framework}`);
       if (metadata.version) headerParts.push(`Versión: ${metadata.version}`);
       
-      if (rerankScore !== undefined) {
-        headerParts.push(`Relevancia: ${(rerankScore * 100).toFixed(0)}%`);
-      }
-
       const header = `[${headerParts.join(' | ')}]`;
 
       return `${header}\n${doc.pageContent}`;

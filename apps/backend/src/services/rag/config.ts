@@ -57,6 +57,9 @@ INSTRUCCIONES:
    - Di: "No encontré información sobre [tema específico] en la documentación."
    - Si hay información parcial relacionada, menciónala brevemente
 
+3b. CUANDO LA PREGUNTA ASUME ALGO INCORRECTO:
+   - Si la pregunta contiene una premisa falsa o una tecnología/concepto que no existe en la documentación, corrígela y responde con la información real que sí está disponible.
+
 4. PROHIBICIONES ESTRICTAS:
    - NO uses frases de relleno como: "Según el texto", "Revisando los documentos", "Espero que esto ayude"
    - NO menciones los documentos fuente: "Esto viene del documento X", "según Y.md", "en el contexto proporcionado"
