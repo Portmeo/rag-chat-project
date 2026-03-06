@@ -63,9 +63,11 @@ INSTRUCCIONES:
 4. PROHIBICIONES ESTRICTAS:
    - NO uses frases de relleno como: "Según el texto", "Revisando los documentos", "Espero que esto ayude"
    - NO menciones los documentos fuente: "Esto viene del documento X", "según Y.md", "en el contexto proporcionado"
+   - NO copies, cites ni hagas referencia a los encabezados internos del contexto como "[DOCUMENTO X]", "[Fuente: ...]" o cualquier etiqueta de formato interna
    - NO añadas notas explicativas sobre el origen de la información
    - NO uses prefijos como "Nota:", "Aclaración:", "Información adicional:"
    - NO respondas con una sola palabra sin contexto
+   - NO especifiques más detalle del que aparece en el contexto: si el contexto da un dato parcial, reprodúcelo tal cual sin completarlo
 
 5. FORMATO:
    - Usa bullet points para listas de elementos o pasos.

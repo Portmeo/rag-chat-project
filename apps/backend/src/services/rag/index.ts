@@ -283,12 +283,19 @@ export async function addDocumentToVectorStore(
   return { success: true, chunksCount: docs.length };
 }
 
-// Convert docs to RAG sources
+// Convert docs to RAG sources, deduplicating by filename
 function docsToSources(docs: Document[]): RAGSource[] {
-  return docs.map(doc => ({
-    ...(doc.metadata as DocumentMetadata),
-    rerankScore: (doc as any).rerankScore
-  }));
+  const seen = new Set<string>();
+  return docs
+    .map(doc => ({
+      ...(doc.metadata as DocumentMetadata),
+      rerankScore: (doc as any).rerankScore
+    }))
+    .filter(source => {
+      if (!source.filename || seen.has(source.filename)) return false;
+      seen.add(source.filename);
+      return true;
+    });
 }
 
 // Filter sources by rerank score threshold
