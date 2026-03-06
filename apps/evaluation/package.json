@@ -8,11 +8,12 @@
     "validate": "tsx src/cli/manual-validate.ts"
   },
   "dependencies": {
+    "@langchain/anthropic": "^1.3.22",
     "@langchain/community": "^0.0.25",
     "langchain": "^0.1.0"
   },
   "devDependencies": {
-    "typescript": "^5.0.0",
-    "tsx": "^4.0.0"
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
   }
 }

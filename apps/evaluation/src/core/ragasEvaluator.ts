@@ -1,5 +1,6 @@
 import { Ollama } from '@langchain/community/llms/ollama';
 import { OllamaEmbeddings } from '@langchain/community/embeddings/ollama';
+import { ChatAnthropic } from '@langchain/anthropic';
 import path from 'path';
 import { readFile } from 'fs/promises';
 import type { EvaluationTestCase, EvaluationResult } from './types';
@@ -23,24 +24,36 @@ interface RAGResponse {
 }
 
 export class RAGASEvaluator {
-  private llm: Ollama;
+  private llm: ChatAnthropic | Ollama;
   private embeddings: OllamaEmbeddings;
   private backendUrl: string;
   private projectRoot: string;
 
   constructor(
     backendUrl: string = 'http://localhost:3001',
-    projectRoot?: string
+    projectRoot?: string,
+    judge: 'ollama' | 'claude' = 'ollama'
   ) {
     this.backendUrl = backendUrl;
     this.projectRoot = projectRoot || process.cwd();
 
-    // Use same LLM for evaluation but with lower temperature for consistency
-    this.llm = new Ollama({
-      baseUrl: 'http://localhost:11434',
-      model: 'llama3.1:8b',
-      temperature: 0.0, // Absolute determinism for the judge
-    });
+    if (judge === 'claude') {
+      const anthropicKey = process.env.ANTHROPIC_API_KEY;
+      if (!anthropicKey) throw new Error('ANTHROPIC_API_KEY not set in environment');
+      this.llm = new ChatAnthropic({
+        anthropicApiKey: anthropicKey,
+        model: 'claude-haiku-4-5-20251001',
+        temperature: 0,
+      });
+      console.log('[RAGAS] Judge: claude-haiku-4-5 (external, unbiased)');
+    } else {
+      this.llm = new Ollama({
+        baseUrl: 'http://localhost:11434',
+        model: 'llama3.1:8b',
+        temperature: 0.0,
+      });
+      console.log('[RAGAS] Judge: llama3.1:8b (local)');
+    }
 
     // Use same embeddings as RAG system
     this.embeddings = new OllamaEmbeddings({
@@ -58,7 +71,13 @@ export class RAGASEvaluator {
 
     try {
       const response = await Promise.race([llmPromise, timeoutPromise]);
-      return typeof response === 'string' ? response : response.toString();
+      if (typeof response === 'string') return response;
+      // ChatAnthropic returns AIMessage with .content
+      if (response && typeof response === 'object' && 'content' in response) {
+        const c = (response as any).content;
+        return typeof c === 'string' ? c : String(c);
+      }
+      return String(response);
     } catch (error: any) {
       if (error.message.includes('timeout')) {
         return '0.5';

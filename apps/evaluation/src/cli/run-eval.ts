@@ -41,7 +41,8 @@ function parseArgs() {
   return {
     dataset: options.dataset || 'golden_qa_v2.json',
     output: options.output || './benchmark/evaluation/results',
-    limit: options.limit ? parseInt(options.limit) : undefined
+    limit: options.limit ? parseInt(options.limit) : undefined,
+    judge: (options.judge || 'ollama') as 'ollama' | 'claude',
   };
 }
 
@@ -70,6 +71,9 @@ async function getRAGConfig(projectRoot: string) {
         }
       }
     });
+
+    // Expose API keys to process.env for evaluator constructors
+    if (envVars.ANTHROPIC_API_KEY) process.env.ANTHROPIC_API_KEY = envVars.ANTHROPIC_API_KEY;
 
     return {
       bm25_weight: parseFloat(envVars.BM25_WEIGHT || '0.7'),
@@ -146,7 +150,7 @@ async function main() {
     }
 
     // Run evaluation in 2 phases to avoid Ollama saturation
-    const evaluator = new RAGASEvaluator('http://localhost:3001', projectRoot);
+    const evaluator = new RAGASEvaluator('http://localhost:3001', projectRoot, options.judge);
     const results: EvaluationResult[] = [];
 
     const startTime = Date.now();
