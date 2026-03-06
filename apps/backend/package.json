@@ -9,7 +9,8 @@
     "type-check": "tsc --noEmit",
     "test:base": "tsx --env-file=.env src/scripts/test-base-retrieval.ts",
     "test:ensemble": "tsx --env-file=.env src/scripts/test-ensemble-retrieval.ts",
-    "test:parent-child": "tsx --env-file=.env src/scripts/test-parent-child.ts"
+    "test:parent-child": "tsx --env-file=.env src/scripts/test-parent-child.ts",
+    "test:reranker": "tsx --env-file=.env src/scripts/test-reranker.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
