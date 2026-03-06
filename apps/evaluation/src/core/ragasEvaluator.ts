@@ -105,7 +105,7 @@ export class RAGASEvaluator {
         throw new Error(`RAG API failed (${response.status}): ${error}`);
       }
 
-      return response.json();
+      return response.json() as Promise<RAGResponse>;
     } catch (error: any) {
       clearTimeout(timeout);
       if (error.name === 'AbortError') {
