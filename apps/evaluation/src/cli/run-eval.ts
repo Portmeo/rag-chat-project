@@ -26,7 +26,11 @@ import { dirname } from 'path';
 import { RAGASEvaluator } from '../core/ragasEvaluator';
 import { loadDataset, validateDataset } from '../core/datasetLoader';
 import { ReportGenerator } from '../core/reportGenerator';
+import { createLogger } from '../lib/logger';
 import type { EvaluationResult } from '../core/types';
+
+const logger = createLogger('EVAL');
+const log = (msg: string) => console.log(`[EVAL] ${msg}`);
 
 // Parse command line arguments
 function parseArgs() {
@@ -125,9 +129,6 @@ async function main() {
     ? options.output
     : path.join(projectRoot, options.output);
 
-  if (options.limit) {
-  }
-
   try {
     // Load and validate dataset
     const dataset = await loadDataset(datasetPath);
@@ -138,22 +139,15 @@ async function main() {
       testCases = testCases.slice(0, options.limit);
     }
 
+    log(`Dataset: ${options.dataset} — ${testCases.length} casos | Judge: ${options.judge}`);
 
     // Get current configuration from backend .env
     const config = await getRAGConfig(projectRoot);
-    if (config.use_bm25_retriever) {
-    }
-    if (config.use_reranker) {
-    }
-    if (config.use_parent_retriever) {
-    } else {
-    }
+    log(`Config: BM25=${config.use_bm25_retriever} | Reranker=${config.use_reranker} | ParentRetriever=${config.use_parent_retriever}`);
 
     // Run evaluation in 2 phases to avoid Ollama saturation
     const evaluator = new RAGASEvaluator('http://localhost:3001', projectRoot, options.judge);
     const results: EvaluationResult[] = [];
-
-    const startTime = Date.now();
 
     // ============================================================================
     // PHASE 1: Collect all RAG responses (without RAGAS evaluation)
@@ -184,16 +178,12 @@ async function main() {
 
     process.stdout.write('\n\n');
 
-    const phase1Time = Date.now() - startTime;
-    const successfulQueries = ragResponses.filter(r => r.response).length;
-    if (successfulQueries < testCases.length) {
-    }
+    const failed = ragResponses.filter(r => r.error).length;
+    if (failed > 0) logger.warn(`Phase 1: ${failed}/${testCases.length} queries fallaron`);
 
     // ============================================================================
     // PHASE 2: Evaluate all responses with RAGAS sequentially
     // ============================================================================
-
-    const phase2StartTime = Date.now();
 
     for (let i = 0; i < ragResponses.length; i++) {
       const { testCase, response, error } = ragResponses[i];
@@ -251,64 +241,23 @@ async function main() {
 
     process.stdout.write('\n\n');
 
-    const phase2Time = Date.now() - phase2StartTime;
-    const totalTime = Date.now() - startTime;
-
-
-    // Generate comprehensive reports
+    // Generate reports
     const reportGenerator = new ReportGenerator();
-
-    const { markdownPath, jsonPath } = await reportGenerator.saveReports(
-      results,
-      options.dataset,
-      config,
-      outputDir
-    );
+    const { markdownPath, jsonPath } = await reportGenerator.saveReports(results, options.dataset, config, outputDir);
 
     // Print summary to console
     const report = reportGenerator.generateReport(results, options.dataset, config);
     reportGenerator.printReportSummary(report);
 
-    // Calculate additional stats
-    const avgContextRelevancy = results
-      .map(r => r.context_relevancy_score || 0)
-      .reduce((a, b) => a + b, 0) / results.length;
-    const avgAnswerCorrectness = results
-      .map(r => r.answer_correctness_score || 0)
-      .reduce((a, b) => a + b, 0) / results.length;
-    const avgHallucination = results
-      .map(r => r.hallucination_score || 0)
-      .reduce((a, b) => a + b, 0) / results.length;
+    // Extra stats behind EVAL_LOGS
+    const avgHallucination = results.map(r => r.hallucination_score || 0).reduce((a, b) => a + b, 0) / results.length;
+    const avgCorrectness = results.map(r => r.answer_correctness_score || 0).reduce((a, b) => a + b, 0) / results.length;
+    logger.log(`Hallucination avg: ${avgHallucination.toFixed(2)} | Answer correctness avg: ${avgCorrectness.toFixed(2)}`);
 
-    if (avgContextRelevancy > 0) {
-    }
-    if (avgAnswerCorrectness > 0) {
-    }
-    if (avgHallucination > 0) {
-    }
-
-    // Count errors by severity
-    const { ErrorAnalyzer } = await import('../core/errorAnalyzer');
-    const errorAnalyzer = new ErrorAnalyzer();
-    const analyses = results.map(r => errorAnalyzer.analyzeResult(r));
-    const criticalCount = analyses.filter(a => a.severity === 'critical').length;
-    const highCount = analyses.filter(a => a.severity === 'high').length;
-    const mediumCount = analyses.filter(a => a.severity === 'medium').length;
-
-    if (criticalCount > 0) {
-    }
-    if (highCount > 0) {
-    }
-    if (mediumCount > 0) {
-    }
-    if (criticalCount === 0 && highCount === 0 && mediumCount === 0) {
-    }
-
-
-    if (criticalCount > 0 || highCount > 0) {
-    }
+    log(`Reportes guardados:\n  MD:   ${markdownPath}\n  JSON: ${jsonPath}`);
 
   } catch (error: any) {
+    console.error('[EVAL] Error:', error.message);
     process.exit(1);
   }
 }
