@@ -10,6 +10,9 @@ import { Worker } from 'worker_threads';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname, join } from 'path';
 import { env, AutoTokenizer, AutoModelForSequenceClassification } from '@xenova/transformers';
+import { createLogger } from '../../lib/logger.js';
+
+const logger = createLogger('RERANKER');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -37,12 +40,12 @@ let rerankerTokenizer: any = null;
  */
 async function initRerankerInMainThread() {
   if (!rerankerModel || !rerankerTokenizer) {
-    console.log('🔄 [Reranker] Loading model in main thread (fallback)...');
+    logger.log('Loading model in main thread (fallback)...');
     const { RERANKER_CONFIG } = await import('./config.js');
     const modelName = RERANKER_CONFIG.model;
     rerankerTokenizer = await AutoTokenizer.from_pretrained(modelName);
     rerankerModel = await AutoModelForSequenceClassification.from_pretrained(modelName);
-    console.log(`✅ [Reranker] Model loaded in main thread: ${modelName}`);
+    logger.log(`Model loaded in main thread: ${modelName}`);
   }
   return { model: rerankerModel, tokenizer: rerankerTokenizer };
 }
@@ -83,7 +86,7 @@ async function rerankInMainThread(
     .slice(0, topK);
 
   const elapsed = Date.now() - startTime;
-  console.log(`✅ [Reranker] Reranked ${documents.length} docs → Top ${topK} in ${elapsed}ms (Main Thread)`);
+  logger.log(`Reranked ${documents.length} docs → Top ${topK} in ${elapsed}ms (Main Thread)`);
   
   return rerankedDocs;
 }
@@ -144,7 +147,7 @@ export async function rerankDocuments(
       worker.postMessage({ query, documents, topK });
     });
   } catch (error) {
-    console.warn(`⚠️  Reranker worker failed, falling back to main thread:`, error instanceof Error ? error.message : String(error));
+    logger.warn(`Reranker worker failed, falling back to main thread:`, error instanceof Error ? error.message : String(error));
     // Fallback to main thread
     return await rerankInMainThread(query, documents, topK);
   }

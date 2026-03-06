@@ -3,6 +3,9 @@ import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import { initQdrant, qdrantClient, COLLECTION_NAME } from './repositories/qdrantRepository.js';
+import { createLogger } from './lib/logger.js';
+
+const logger = createLogger('SERVER');
 import {
   uploadDocument,
   getDocuments,
@@ -102,11 +105,11 @@ async function startServer() {
 
   try {
     await fastify.listen({ port: Number(PORT), host: '0.0.0.0' });
-    console.log(`🚀 Backend running on http://localhost:${PORT}`);
+    logger.log(`Backend running on http://localhost:${PORT}`);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
   }
 }
 
-startServer().catch(console.error);
+startServer().catch((err) => logger.error('Failed to start server:', err));

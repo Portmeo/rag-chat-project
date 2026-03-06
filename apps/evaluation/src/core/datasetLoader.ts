@@ -6,7 +6,6 @@ export async function loadDataset(datasetPath: string): Promise<EvaluationDatase
     const content = await readFile(datasetPath, 'utf-8');
     const dataset = JSON.parse(content) as EvaluationDataset;
 
-    console.log(`📂 Loaded dataset: ${dataset.test_cases.length} test cases (version ${dataset.version})`);
 
     return dataset;
   } catch (error: any) {

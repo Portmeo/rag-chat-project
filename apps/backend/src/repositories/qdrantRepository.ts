@@ -1,5 +1,8 @@
 import { QdrantClient } from '@qdrant/js-client-rest';
 import { QDRANT_CONFIG } from '../config/qdrant';
+import { createLogger } from '../lib/logger.js';
+
+const logger = createLogger('QDRANT');
 
 // ============================================================================
 // CLIENTE
@@ -31,7 +34,7 @@ export async function initQdrant(): Promise<void> {
     const exists = collections.collections.some((col) => col.name === COLLECTION_NAME);
 
     if (exists) {
-      console.log(`${MESSAGES.COLLECTION_EXISTS}: ${COLLECTION_NAME}`);
+      logger.log(`${MESSAGES.COLLECTION_EXISTS}: ${COLLECTION_NAME}`);
       return;
     }
 
@@ -42,11 +45,11 @@ export async function initQdrant(): Promise<void> {
       },
     });
 
-    console.log(
+    logger.log(
       `${MESSAGES.COLLECTION_CREATED}: ${COLLECTION_NAME} with dimension ${QDRANT_CONFIG.vectorDimension}`
     );
   } catch (error) {
-    console.error(MESSAGES.ERROR_INITIALIZING, error);
+    logger.error(MESSAGES.ERROR_INITIALIZING, error);
     throw error;
   }
 }
@@ -67,9 +70,9 @@ export async function clearQdrant(): Promise<void> {
       },
     });
 
-    console.log(MESSAGES.COLLECTION_CLEARED);
+    logger.log(MESSAGES.COLLECTION_CLEARED);
   } catch (error) {
-    console.error(MESSAGES.ERROR_CLEARING, error);
+    logger.error(MESSAGES.ERROR_CLEARING, error);
     throw error;
   }
 }

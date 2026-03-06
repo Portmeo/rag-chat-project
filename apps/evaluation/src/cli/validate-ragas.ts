@@ -124,11 +124,6 @@ async function main() {
   const jsonPath = process.argv[2];
 
   if (!jsonPath) {
-    console.error('❌ Error: Debes proporcionar la ruta al archivo JSON de resultados');
-    console.error('\nUso:');
-    console.error('  npx tsx apps/evaluation/src/cli/validate-ragas.ts <ruta-json>');
-    console.error('\nEjemplo:');
-    console.error('  npx tsx apps/evaluation/src/cli/validate-ragas.ts benchmark/evaluation/results/ragas_2026-02-02.json');
     process.exit(1);
   }
 
@@ -137,35 +132,20 @@ async function main() {
     const report: EvaluationReport = JSON.parse(content);
 
     if (!report.detailed_results || report.detailed_results.length === 0) {
-      console.error('❌ Error: No se encontraron resultados en el archivo JSON');
       process.exit(1);
     }
 
-    console.log('🔍 VALIDACIÓN MANUAL DE RAGAS');
-    console.log('═'.repeat(80));
-    console.log(`Archivo: ${jsonPath}`);
-    console.log(`Total de casos: ${report.detailed_results.length}`);
-    console.log('═'.repeat(80));
 
     // Detectar casos con posibles timeouts
     const timeoutCases = report.detailed_results.filter(detectTimeout);
     if (timeoutCases.length > 0) {
-      console.log(`\n⚠️  ALERTA: ${timeoutCases.length}/${report.detailed_results.length} casos tienen indicios de TIMEOUT`);
-      console.log('   → Considera aumentar el timeout del evaluador (actualmente 90s)');
-      console.log('   → O usar un modelo más rápido para evaluación\n');
     }
 
     // Mostrar cada caso para validación manual
     for (const result of report.detailed_results) {
-      console.log(getManualEvaluationPrompt(result));
-      console.log('\n\n');
     }
 
     // Resumen final
-    console.log('═'.repeat(80));
-    console.log('📋 RESUMEN DE VALIDACIÓN');
-    console.log('═'.repeat(80));
-    console.log(`
 Después de revisar manualmente los casos:
 
 1. Si la mayoría de tus scores coinciden con RAGAS (±0.2):
@@ -188,7 +168,6 @@ Casos con posibles timeouts: ${timeoutCases.length}/${report.detailed_results.le
 `);
 
   } catch (error: any) {
-    console.error('❌ Error:', error.message);
     process.exit(1);
   }
 }

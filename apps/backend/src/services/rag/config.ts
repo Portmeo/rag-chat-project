@@ -3,6 +3,9 @@ import { OllamaEmbeddings } from '@langchain/community/embeddings/ollama';
 import { ChatAnthropic } from '@langchain/anthropic';
 import { OLLAMA_CONFIG } from '../../config/ollama';
 import { InstructionPrefixedEmbeddings } from './instructionPrefixedEmbeddings';
+import { createLogger } from '../../lib/logger.js';
+
+const logger = createLogger('CONFIG');
 
 export const CHUNK_CONFIG = {
   SIZE: parseInt(process.env.CHUNK_SIZE || '1000'),
@@ -124,8 +127,8 @@ export const llm = CLAUDE_CONFIG.enabled
     });
 
 // Log which LLM is being used
-console.log('🤖 LLM Configuration:', CLAUDE_CONFIG.enabled 
-  ? `Claude API (${CLAUDE_CONFIG.model})` 
+logger.log('LLM Configuration:', CLAUDE_CONFIG.enabled
+  ? `Claude API (${CLAUDE_CONFIG.model})`
   : `Ollama (${OLLAMA_CONFIG.model})`
 );
 
@@ -159,7 +162,7 @@ export const PARENT_RETRIEVER_CONFIG = {
 } as const;
 
 // Debug log
-console.log('🔧 Parent Retriever Config:', {
+logger.log('Parent Retriever Config:', {
   enabled: PARENT_RETRIEVER_CONFIG.enabled,
   env_value: process.env.USE_PARENT_RETRIEVER,
   childChunkSize: PARENT_RETRIEVER_CONFIG.childChunkSize,

@@ -4,6 +4,13 @@ import { BaseRetriever } from '@langchain/core/retrievers';
 import { randomUUID } from 'crypto';
 import { BM25Retriever } from './bm25Retriever';
 import { EnsembleRetriever } from './ensembleRetriever';
+import { createLogger } from '../../lib/logger.js';
+
+const pipelineLogger = createLogger('PIPELINE');
+const qdrantLogger = createLogger('QDRANT');
+const parentLogger = createLogger('PARENT');
+const rerankerLogger = createLogger('RERANKER');
+const llmLogger = createLogger('LLM');
 import { qdrantClient, COLLECTION_NAME } from '../../repositories/qdrantRepository';
 import { embeddings, llm, MESSAGES, SIMILARITY_SEARCH_CONFIG, TEXT_SEPARATORS, BM25_CONFIG, RERANKER_CONFIG, PARENT_RETRIEVER_CONFIG } from './config';
 import { createTextSplitter, buildPrompt, checkCollectionExists, getFileExtension, generateMultipleQueries, getAllDocumentsFromQdrant, limitHistory } from './helpers';
@@ -27,7 +34,7 @@ let bm25RetrieverCache: BM25Retriever | null = null;
 
 async function rebuildBM25Cache(): Promise<void> {
   if (!BM25_CONFIG.enabled) {
-    console.log('⏭️  BM25 retriever is disabled, skipping cache rebuild');
+    pipelineLogger.log('BM25 retriever is disabled, skipping cache rebuild');
     bm25RetrieverCache = null;
     return;
   }
@@ -48,10 +55,10 @@ async function rebuildBM25Cache(): Promise<void> {
       const meta = doc.metadata as TechnicalMetadata;
       return meta.parent_child && meta.parent_child.is_parent === false;
     });
-    console.log(`🎯 BM25 Filter: Kept ${allDocuments.length} children from ${originalCount} total points (filtered out parents)`);
+    pipelineLogger.log(`BM25 Filter: Kept ${allDocuments.length} children from ${originalCount} total points (filtered out parents)`);
   }
 
-  console.log(`🔄 Rebuilding BM25 cache with ${allDocuments.length} documents`);
+  pipelineLogger.log(`Rebuilding BM25 cache with ${allDocuments.length} documents`);
 
   bm25RetrieverCache = new BM25Retriever({
     documents: allDocuments,
@@ -141,10 +148,10 @@ async function resolveParentChunks(childDocs: Document[]): Promise<Document[]> {
       }));
     }
 
-    console.log(`✅ Retrieved ${scrollResult.points.length} unique parents in 1 query (from ${childDocs.length} children)`);
+    parentLogger.log(`Retrieved ${scrollResult.points.length} unique parents in 1 query (from ${childDocs.length} children)`);
 
   } catch (error) {
-    console.error('❌ Error retrieving parents from Qdrant:', error);
+    qdrantLogger.error('Error retrieving parents from Qdrant:', error);
     // Si falla la query, parentMap queda vacío y se usará fallback
   }
 
@@ -160,7 +167,7 @@ async function resolveParentChunks(childDocs: Document[]): Promise<Document[]> {
     const parentDoc = parentMap.get(parentId);
 
     if (!parentDoc) {
-      console.warn(`⚠️ Parent not found for ${parentId}, using children as fallback`);
+      parentLogger.warn(`Parent not found for ${parentId}, using children as fallback`);
       parentDocs.push(...children);
       continue;
     }
@@ -191,7 +198,7 @@ async function resolveParentChunks(childDocs: Document[]): Promise<Document[]> {
     parentDocs.push(parentDoc);
   }
 
-  console.log(`📄 Resolved ${childDocs.length} children to ${parentDocs.length} parents`);
+  parentLogger.log(`Resolved ${childDocs.length} children to ${parentDocs.length} parents`);
 
   return parentDocs;
 }
@@ -237,11 +244,11 @@ export async function addDocumentToVectorStore(
       });
     }
 
-    console.log(`📦 Created ${children.length} child chunks + ${parents.length} parent chunks`);
+    pipelineLogger.log(`Created ${children.length} child chunks + ${parents.length} parent chunks`);
 
     // Rebuild cache asynchronously (don't block the response)
     rebuildBM25Cache().catch((error) => {
-      console.error('Error rebuilding BM25 cache:', error);
+      pipelineLogger.error('Error rebuilding BM25 cache:', error);
     });
 
     return { success: true, chunksCount: children.length };
@@ -260,7 +267,7 @@ export async function addDocumentToVectorStore(
       };
     });
 
-    console.log(`📦 Created ${docs.length} chunks (classic mode)`);
+    pipelineLogger.log(`Created ${docs.length} chunks (classic mode)`);
   }
 
   await QdrantVectorStore.fromDocuments(docs, embeddings, {
@@ -270,7 +277,7 @@ export async function addDocumentToVectorStore(
 
   // Rebuild cache asynchronously (don't block the response)
   rebuildBM25Cache().catch((error) => {
-    console.error('Error rebuilding BM25 cache:', error);
+    pipelineLogger.error('Error rebuilding BM25 cache:', error);
   });
 
   return { success: true, chunksCount: docs.length };
@@ -287,7 +294,7 @@ function docsToSources(docs: Document[]): RAGSource[] {
 // Filter sources by rerank score threshold
 function filterSourcesByRelevance(relevantDocs: Document[]): RAGSource[] {
   if (!RERANKER_CONFIG.enabled) {
-    console.log(`\n📊 Reranker disabled, returning all ${relevantDocs.length} sources`);
+    rerankerLogger.log(`Reranker disabled, returning all ${relevantDocs.length} sources`);
     return docsToSources(relevantDocs);
   }
 
@@ -295,7 +302,7 @@ function filterSourcesByRelevance(relevantDocs: Document[]): RAGSource[] {
   const hasRerankScores = relevantDocs.some(doc => (doc as any).rerankScore !== undefined);
 
   if (!hasRerankScores) {
-    console.log(`\n⚠️  No rerank scores found (reranker may have failed), returning all ${relevantDocs.length} sources`);
+    rerankerLogger.warn(`No rerank scores found (reranker may have failed), returning all ${relevantDocs.length} sources`);
     return docsToSources(relevantDocs);
   }
 
@@ -307,11 +314,11 @@ function filterSourcesByRelevance(relevantDocs: Document[]): RAGSource[] {
 
     // For BGE: Accept all reranked docs (they're already Top K by relevance)
     // Logits can be negative - higher is better, but no absolute threshold applies
-    console.log(`✅ Reranked doc: score ${rerankScore.toFixed(3)}`);
+    rerankerLogger.log(`Reranked doc: score ${rerankScore.toFixed(3)}`);
     return true;
   });
 
-  console.log(`\n📊 Returning ${filtered.length}/${relevantDocs.length} reranked sources (no threshold - using relative ranking)`);
+  rerankerLogger.log(`Returning ${filtered.length}/${relevantDocs.length} reranked sources (no threshold - using relative ranking)`);
   return docsToSources(filtered);
 }
 
@@ -346,33 +353,33 @@ async function retrieveRelevantDocuments(
 
   // Configure retriever based on BM25 settings
   if (BM25_CONFIG.enabled) {
-    console.log(`🔧 Using Ensemble Retriever (Vector: ${BM25_CONFIG.vectorWeight}, BM25: ${BM25_CONFIG.weight})`);
+    pipelineLogger.log(`Using Ensemble Retriever (Vector: ${BM25_CONFIG.vectorWeight}, BM25: ${BM25_CONFIG.weight})`);
 
     if (!bm25RetrieverCache) {
-      console.log('🔄 BM25 cache is null, attempting rebuild...');
+      pipelineLogger.log('BM25 cache is null, attempting rebuild...');
       await rebuildBM25Cache();
     }
 
     if (!bm25RetrieverCache) {
-      console.error('❌ BM25 cache failed to build after rebuild attempt');
-      console.log('⚠️  Falling back to vector-only search (performance degraded)');
+      pipelineLogger.error('BM25 cache failed to build after rebuild attempt');
+      pipelineLogger.warn('Falling back to vector-only search (performance degraded)');
       retriever = vectorRetriever;
     } else {
       const docCount = (bm25RetrieverCache as any).documents?.length || 'unknown';
-      console.log(`✓ BM25 cache active with ${docCount} documents`);
+      pipelineLogger.log(`BM25 cache active with ${docCount} documents`);
       retriever = new EnsembleRetriever({
         retrievers: [vectorRetriever as any, bm25RetrieverCache as any],
         weights: [BM25_CONFIG.vectorWeight, BM25_CONFIG.weight],
       }) as any;
     }
   } else {
-    console.log('🔧 Using Vector-only Retriever (BM25 disabled)');
+    pipelineLogger.log('Using Vector-only Retriever (BM25 disabled)');
     retriever = vectorRetriever;
   }
 
 
   const queries = await generateMultipleQueries(question);
-  console.log('Multi-query generated:', queries);
+  pipelineLogger.log('Multi-query generated:', queries);
 
   const allDocs: Document[] = [];
   const seenContent = new Set<string>();
@@ -402,11 +409,11 @@ async function retrieveRelevantDocuments(
     return null;
   }
 
-  console.log(`\n📄 Retrieved ${candidateDocs.length} candidate documents`);
+  pipelineLogger.log(`Retrieved ${candidateDocs.length} candidate documents`);
 
   // PASO 1: Resolver children a parents PRIMERO (Hydration)
   if (PARENT_RETRIEVER_CONFIG.enabled) {
-    console.log(`\n🔄 Resolving ${candidateDocs.length} child chunks to parent chunks...`);
+    parentLogger.log(`Resolving ${candidateDocs.length} child chunks to parent chunks...`);
     candidateDocs = await resolveParentChunks(candidateDocs);
 
     const metrics = {
@@ -415,15 +422,15 @@ async function retrieveRelevantDocuments(
       deduplicationRatio: (1 - (candidateDocs.length / RERANKER_CONFIG.retrievalTopK)).toFixed(2),
     };
 
-    console.log(`✅ Resolved to ${candidateDocs.length} unique parent chunks`);
-    console.log(`📊 Hydration metrics:`, JSON.stringify(metrics, null, 2));
+    parentLogger.log(`Resolved to ${candidateDocs.length} unique parent chunks`);
+    parentLogger.log(`Hydration metrics:`, JSON.stringify(metrics, null, 2));
   }
 
   // PASO 2: Rerank los parents (tienen contexto completo de 512 tokens)
   let relevantDocs: Document[];
 
   if (RERANKER_CONFIG.enabled) {
-    console.log(`\n🔄 Reranking ${candidateDocs.length} parent chunks to Top ${RERANKER_CONFIG.finalTopK}...`);
+    rerankerLogger.log(`Reranking ${candidateDocs.length} parent chunks to Top ${RERANKER_CONFIG.finalTopK}...`);
 
     try {
       relevantDocs = await rerankDocuments(
@@ -432,35 +439,35 @@ async function retrieveRelevantDocuments(
         RERANKER_CONFIG.finalTopK
       );
 
-      console.log(`✅ Reranking completed, got ${relevantDocs.length} top parent chunks`);
-      console.log(`   Top 3 scores: ${relevantDocs.slice(0, 3).map(d => (d as any).rerankScore?.toFixed(3)).join(', ')}`);
+      rerankerLogger.log(`Reranking completed, got ${relevantDocs.length} top parent chunks`);
+      rerankerLogger.log(`Top 3 scores: ${relevantDocs.slice(0, 3).map(d => (d as any).rerankScore?.toFixed(3)).join(', ')}`);
 
       // Calcular tamaño total de contexto para el LLM
       const totalTokens = relevantDocs.reduce((sum, doc) => sum + doc.pageContent.length, 0);
-      console.log(`📏 Total context size: ~${totalTokens} chars (~${Math.round(totalTokens / 4)} tokens)`);
+      rerankerLogger.log(`Total context size: ~${totalTokens} chars (~${Math.round(totalTokens / 4)} tokens)`);
 
     } catch (error) {
-      console.error('⚠️  Reranking failed, falling back to top parents without reranking:', error);
+      rerankerLogger.error('Reranking failed, falling back to top parents without reranking:', error);
       relevantDocs = candidateDocs.slice(0, RERANKER_CONFIG.finalTopK);
     }
 
   } else {
-    console.log('⏭️  Reranker disabled, using top parent chunks directly');
+    rerankerLogger.log('Reranker disabled, using top parent chunks directly');
     relevantDocs = candidateDocs.slice(0, SIMILARITY_SEARCH_CONFIG.MAX_RESULTS);
   }
 
   // DEBUG: Log final documents
-  console.log('\n📄 Final documents for LLM:');
+  llmLogger.log('Final documents for LLM:');
   relevantDocs.forEach((doc, idx) => {
     const metadata = doc.metadata as DocumentMetadata;
     const rerankScore = (doc as any).rerankScore;
-    console.log(`\n--- Document ${idx + 1} ---`);
-    console.log(`File: ${metadata.filename}`);
-    console.log(`Chunk: ${metadata.chunk_index}`);
+    llmLogger.log(`--- Document ${idx + 1} ---`);
+    llmLogger.log(`File: ${metadata.filename}`);
+    llmLogger.log(`Chunk: ${metadata.chunk_index}`);
     if (rerankScore !== undefined) {
-      console.log(`Rerank Score: ${rerankScore.toFixed(4)}`);
+      llmLogger.log(`Rerank Score: ${rerankScore.toFixed(4)}`);
     }
-    console.log(`Content preview: ${doc.pageContent.substring(0, 200)}...`);
+    llmLogger.log(`Content preview: ${doc.pageContent.substring(0, 200)}...`);
   });
 
   // Construir contexto con metadata clara para que el LLM distinga fuentes
@@ -486,11 +493,11 @@ async function retrieveRelevantDocuments(
     })
     .join('\n\n---\n\n');
 
-  console.log('\n📝 Full context length:', context.length, 'chars');
-  console.log('\n📝 Full context being sent to LLM:\n', context);
+  llmLogger.log('Full context length:', context.length, 'chars');
+  llmLogger.log('Full context being sent to LLM:\n', context);
 
   const prompt = buildPrompt(context, question, history);
-  console.log('\n🤖 Full prompt being sent:\n', prompt);
+  llmLogger.log('Full prompt being sent:\n', prompt);
 
   return {
     relevantDocs,
@@ -534,14 +541,14 @@ export async function queryRAG(
       answer = String(response);
     }
 
-    console.log('\n💬 LLM answer:', answer);
+    llmLogger.log('LLM answer:', answer);
 
     return {
       answer,
       sources: filterSourcesByRelevance(relevantDocs),
     };
   } catch (error: any) {
-    console.error('Error in queryRAG:', error);
+    pipelineLogger.error('Error in queryRAG:', error);
     throw new Error(`${MESSAGES.ERROR_PREFIX}: ${error.message}`);
   }
 }
@@ -552,7 +559,7 @@ export async function* queryRAGStream(
 ) {
   try {
     const limitedHistory = limitHistory(history);
-    console.log(`\n📜 Using ${limitedHistory.length} messages from history`);
+    pipelineLogger.log(`Using ${limitedHistory.length} messages from history`);
 
     const retrieved = await retrieveRelevantDocuments(question, limitedHistory);
 
@@ -564,7 +571,7 @@ export async function* queryRAGStream(
 
     const { relevantDocs, prompt } = retrieved;
 
-    console.log('\n🔄 Starting streaming response...');
+    llmLogger.log('Starting streaming response...');
 
     // Stream the LLM response
     const stream = await llm.stream(prompt);
@@ -602,7 +609,7 @@ export async function* queryRAGStream(
       }
     }
 
-    console.log('\n✅ Streaming completed');
+    llmLogger.log('Streaming completed');
 
     // Filter and send sources
     const sources = filterSourcesByRelevance(relevantDocs);
@@ -613,13 +620,13 @@ export async function* queryRAGStream(
         data: { sources },
       };
     } else {
-      console.log('⚠️  No sources to show');
+      pipelineLogger.warn('No sources to show');
     }
 
     yield { event: 'done', data: { complete: true } };
 
   } catch (error: any) {
-    console.error('Error in queryRAGStream:', error);
+    pipelineLogger.error('Error in queryRAGStream:', error);
     yield { event: 'error', data: { error: error.message } };
   }
 }
@@ -650,14 +657,14 @@ export async function listDocuments(): Promise<DocumentMetadata[]> {
 
     return Array.from(documentsMap.values());
   } catch (error: any) {
-    console.error(MESSAGES.ERROR_LISTING, error);
+    qdrantLogger.error(MESSAGES.ERROR_LISTING, error);
     throw new Error(`${MESSAGES.ERROR_LIST_FAILED}: ${error.message}`);
   }
 }
 
 export async function clearBM25Cache(): Promise<void> {
   bm25RetrieverCache = null;
-  console.log('🗑️  BM25 cache cleared');
+  pipelineLogger.log('BM25 cache cleared');
 }
 
 export async function deleteDocumentFromVectorStore(filename: string): Promise<{ success: boolean; chunksDeleted: number }> {
@@ -682,14 +689,14 @@ export async function deleteDocumentFromVectorStore(filename: string): Promise<{
 
     const chunksDeleted = deleteResult.operation_id ? deleteResult.operation_id : 0;
 
-    console.log(`🗑️  Deleted ${chunksDeleted} chunks for file: ${filename}`);
+    qdrantLogger.log(`Deleted ${chunksDeleted} chunks for file: ${filename}`);
 
     // Rebuild BM25 cache after deletion
     await rebuildBM25Cache();
 
     return { success: true, chunksDeleted: typeof chunksDeleted === 'number' ? chunksDeleted : 0 };
   } catch (error: any) {
-    console.error(`Error deleting document from vector store:`, error);
+    qdrantLogger.error(`Error deleting document from vector store:`, error);
     throw new Error(`Failed to delete document from vector store: ${error.message}`);
   }
 }

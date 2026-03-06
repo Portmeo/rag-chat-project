@@ -3,6 +3,9 @@ import { queryRAG, queryRAGStream } from '../services/rag/index.js';
 import { HTTP_STATUS } from '../shared/http.js';
 import { MESSAGES } from '../shared/messages.js';
 import { initSseResponse } from '../utils/sse.js';
+import { createLogger } from '../lib/logger.js';
+
+const logger = createLogger('CHAT');
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -30,7 +33,7 @@ export async function queryChat(
     const result = await queryRAG(question, { history });
     return result;
   } catch (error: any) {
-    console.error('Error querying RAG:', error);
+    logger.error('Error querying RAG:', error);
     return reply.code(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
       error: error.message,
     });
@@ -64,7 +67,7 @@ export async function queryChatStream(
       reply.raw.end();
     }
   } catch (error: any) {
-    console.error('Error in chat stream:', error);
+    logger.error('Error in chat stream:', error);
     return reply.code(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
       error: error.message,
     });

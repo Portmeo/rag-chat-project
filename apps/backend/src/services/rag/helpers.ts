@@ -3,6 +3,10 @@ import { qdrantClient, COLLECTION_NAME } from '../../repositories/qdrantReposito
 import { getFileExtension, isMarkdownFile, isHtmlFile } from '../documentProcessor/helpers';
 import { CHUNK_CONFIG, TEXT_SEPARATORS, PROMPT_TEMPLATE, CONVERSATIONAL_HISTORY_CONFIG, llm } from './config';
 import type { ConversationMessage } from './types';
+import { createLogger } from '../../lib/logger.js';
+
+const qdrantLogger = createLogger('QDRANT');
+const multiqueryLogger = createLogger('MULTIQUERY');
 
 export function createTextSplitter(extension: string) {
   const baseConfig = {
@@ -99,7 +103,7 @@ export async function generateMultipleQueries(question: string): Promise<string[
 
     return [question, ...queries];
   } catch (error) {
-    console.error('Error generating multiple queries:', error);
+    multiqueryLogger.error('Error generating multiple queries:', error);
     return [question];
   }
 }
@@ -115,7 +119,7 @@ export async function getAllDocumentsFromQdrant() {
 
     // Safety check to prevent infinite loops
     if (iterationCount > MAX_ITERATIONS) {
-      console.error(`[Qdrant] Pagination exceeded ${MAX_ITERATIONS} iterations. Possible infinite loop detected.`);
+      qdrantLogger.error(`Pagination exceeded ${MAX_ITERATIONS} iterations. Possible infinite loop detected.`);
       throw new Error(`Pagination safety limit exceeded (${MAX_ITERATIONS} iterations)`);
     }
 
@@ -131,7 +135,7 @@ export async function getAllDocumentsFromQdrant() {
 
       // DEBUG: Log first payload to see structure
       if (allDocs.length === 0) {
-        console.log('🔍 First payload structure:', JSON.stringify(payload, null, 2));
+        qdrantLogger.log('First payload structure:', JSON.stringify(payload, null, 2));
       }
 
       // LangChain stores content in 'text' field, not 'content'
@@ -144,7 +148,7 @@ export async function getAllDocumentsFromQdrant() {
     }
 
     if (!scrollResult.next_page_offset) {
-      console.log(`[Qdrant] Loaded ${allDocs.length} documents in ${iterationCount} iterations`);
+      qdrantLogger.log(`Loaded ${allDocs.length} documents in ${iterationCount} iterations`);
       break;
     }
     offset = scrollResult.next_page_offset as string;

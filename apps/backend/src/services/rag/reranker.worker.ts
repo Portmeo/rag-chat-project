@@ -10,6 +10,9 @@ process.env.TRANSFORMERS_DISABLE_SHARP = '1';
 
 import { pipeline, env, AutoTokenizer, AutoModelForSequenceClassification } from '@xenova/transformers';
 import { parentPort } from 'worker_threads';
+import { createLogger } from '../../lib/logger.js';
+
+const logger = createLogger('RERANKER');
 
 // Disable sharp for text-only processing
 env.allowLocalModels = false;
@@ -38,7 +41,7 @@ let rerankerTokenizer: any = null;
  */
 async function initReranker() {
   if (!rerankerModel || !rerankerTokenizer) {
-    console.log('🔄 Loading reranker model and tokenizer directly...');
+    logger.log('Loading reranker model and tokenizer directly...');
 
     // Load tokenizer and model DIRECTLY (bypass pipeline to access raw logits)
     const modelName = process.env.RERANKER_MODEL || 'Xenova/bge-reranker-base';
@@ -46,7 +49,7 @@ async function initReranker() {
     rerankerTokenizer = await AutoTokenizer.from_pretrained(modelName);
     rerankerModel = await AutoModelForSequenceClassification.from_pretrained(modelName);
 
-    console.log(`✅ Reranker model and tokenizer loaded: ${modelName}`);
+    logger.log(`Reranker model and tokenizer loaded: ${modelName}`);
   }
   return { model: rerankerModel, tokenizer: rerankerTokenizer };
 }
@@ -101,9 +104,9 @@ async function rerankDocuments(
     .slice(0, topK);
 
   const elapsed = Date.now() - startTime;
-  console.log(`✅ Reranked ${numDocs} docs → Top ${topK} in ${elapsed}ms (batch)`);
-  console.log(`   Top score: ${rerankedDocs[0]?.rerankScore.toFixed(4)}`);
-  console.log(`   Bottom score: ${rerankedDocs[rerankedDocs.length - 1]?.rerankScore.toFixed(4)}`);
+  logger.log(`Reranked ${numDocs} docs → Top ${topK} in ${elapsed}ms (batch)`);
+  logger.log(`   Top score: ${rerankedDocs[0]?.rerankScore.toFixed(4)}`);
+  logger.log(`   Bottom score: ${rerankedDocs[rerankedDocs.length - 1]?.rerankScore.toFixed(4)}`);
 
   return rerankedDocs;
 }
@@ -124,7 +127,7 @@ if (parentPort) {
         documents: rerankedDocs,
       });
     } catch (error) {
-      console.error('❌ Reranker worker error:', error);
+      logger.error('Reranker worker error:', error);
       parentPort!.postMessage({
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',

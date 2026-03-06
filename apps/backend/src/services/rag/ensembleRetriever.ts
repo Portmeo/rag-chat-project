@@ -1,6 +1,9 @@
 import type { Document } from 'langchain/document';
 import { BaseRetriever, type BaseRetrieverInput } from '@langchain/core/retrievers';
 import { CallbackManagerForRetrieverRun } from 'langchain/callbacks';
+import { createLogger } from '../../lib/logger.js';
+
+const logger = createLogger('ENSEMBLE');
 
 export interface EnsembleRetrieverInput extends BaseRetrieverInput {
   retrievers: BaseRetriever[];
@@ -40,13 +43,12 @@ export class EnsembleRetriever extends BaseRetriever {
       )
     );
 
-    // DEBUG: Log what each retriever returned
-    console.log('\n📊 Ensemble Retriever Results:');
+    logger.log('Ensemble Retriever Results:');
     allResults.forEach((docs, retrieverIndex) => {
-      console.log(`\nRetriever ${retrieverIndex} (weight: ${this.weights[retrieverIndex]}): ${docs.length} docs`);
+      logger.log(`Retriever ${retrieverIndex} (weight: ${this.weights[retrieverIndex]}): ${docs.length} docs`);
       docs.slice(0, 3).forEach((doc, idx) => {
         const metadata = doc.metadata as any;
-        console.log(`  ${idx + 1}. ${metadata.filename} chunk ${metadata.chunk_index}`);
+        logger.log(`  ${idx + 1}. ${metadata.filename} chunk ${metadata.chunk_index}`);
       });
     });
 
@@ -72,10 +74,10 @@ export class EnsembleRetriever extends BaseRetriever {
       .sort((a, b) => b.score - a.score)
       .map((item) => item.doc);
 
-    console.log(`\n✅ Final ensemble results: ${sortedDocs.length} docs`);
+    logger.log(`Final ensemble results: ${sortedDocs.length} docs`);
     sortedDocs.slice(0, 5).forEach((doc, idx) => {
       const metadata = doc.metadata as any;
-      console.log(`  ${idx + 1}. ${metadata.filename} chunk ${metadata.chunk_index}`);
+      logger.log(`  ${idx + 1}. ${metadata.filename} chunk ${metadata.chunk_index}`);
     });
 
     return sortedDocs;

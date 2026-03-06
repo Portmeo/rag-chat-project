@@ -50,7 +50,7 @@ Este es un **monorepo** con la siguiente estructura:
   - ~1,199 documentos indexados
 
 * **Ollama** - Servidor LLM local en `localhost:11434`
-  - Modelos: llama3.1:8b (LLM), bge-m3 (embeddings)
+  - Modelos: llama3.1:8b (LLM), mxbai-embed-large (embeddings)
 
 ---
 

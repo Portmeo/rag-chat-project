@@ -363,16 +363,9 @@ export class ReportGenerator {
       await fs.writeFile(markdownPath, markdownReport, 'utf-8');
       await fs.writeFile(jsonPath, JSON.stringify(jsonReport, null, 2), 'utf-8');
     } catch (error) {
-      console.error(`❌ Failed to write report files to ${outputDir}:`);
-      console.error(`   Markdown: ${markdownPath}`);
-      console.error(`   JSON: ${jsonPath}`);
-      console.error(`   Error:`, error);
       throw error;
     }
 
-    console.log(`\n📄 Reports saved:`);
-    console.log(`  - Markdown: ${markdownPath}`);
-    console.log(`  - JSON: ${jsonPath}`);
 
     return { markdownPath, jsonPath };
   }
@@ -381,32 +374,12 @@ export class ReportGenerator {
    * Print summary to console
    */
   printReportSummary(report: EvaluationReport): void {
-    console.log('\n' + '='.repeat(60));
-    console.log('📊 RAGAS EVALUATION REPORT');
-    console.log('='.repeat(60));
 
-    console.log('\n📈 SUMMARY:');
-    console.log(`  Total cases: ${report.summary.total_cases}`);
-    console.log(`  Successful: ${report.summary.successful}`);
-    console.log(`  Failed: ${report.summary.failed}`);
-    console.log(`  Avg Latency: ${report.summary.avg_latency_ms.toFixed(0)}ms`);
 
-    console.log('\n🎯 OVERALL METRICS:');
-    console.log(`  Faithfulness: ${(report.summary.avg_faithfulness * 100).toFixed(1)}%`);
-    console.log(`  Answer Relevancy: ${(report.summary.avg_answer_relevancy * 100).toFixed(1)}%`);
-    console.log(`  Context Precision: ${(report.summary.avg_context_precision * 100).toFixed(1)}%`);
-    console.log(`  Context Recall: ${(report.summary.avg_context_recall * 100).toFixed(1)}%`);
 
-    console.log('\n📂 BY CATEGORY:');
     for (const [category, metrics] of Object.entries(report.by_category)) {
-      console.log(`\n  ${category} (${metrics.count} cases):`);
-      console.log(`    Faithfulness: ${(metrics.avg_faithfulness * 100).toFixed(1)}%`);
-      console.log(`    Answer Relevancy: ${(metrics.avg_answer_relevancy * 100).toFixed(1)}%`);
-      console.log(`    Context Precision: ${(metrics.avg_context_precision * 100).toFixed(1)}%`);
-      console.log(`    Context Recall: ${(metrics.avg_context_recall * 100).toFixed(1)}%`);
     }
 
-    console.log('\n' + '='.repeat(60));
   }
 
   /**
@@ -481,7 +454,6 @@ export function generateReport(results: EvaluationResult[]): EvaluationReport {
 export async function saveReport(report: EvaluationReport, outputPath: string): Promise<void> {
   const json = JSON.stringify(report, null, 2);
   await fs.writeFile(outputPath, json, 'utf-8');
-  console.log(`\n💾 Report saved to: ${outputPath}`);
 }
 
 export function printReportSummary(report: EvaluationReport): void {

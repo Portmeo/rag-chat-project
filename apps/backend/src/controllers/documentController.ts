@@ -7,6 +7,9 @@ import { addDocumentToVectorStore, listDocuments, clearBM25Cache, deleteDocument
 import { clearQdrant } from '../repositories/qdrantRepository.js';
 import { HTTP_STATUS } from '../shared/http.js';
 import { MESSAGES } from '../shared/messages.js';
+import { createLogger } from '../lib/logger.js';
+
+const logger = createLogger('DOCUMENT');
 
 const DOCUMENTS_DIR = join('uploads', 'documents');
 
@@ -56,13 +59,13 @@ export async function uploadDocument(
     if (storedPath) {
       try {
         await unlink(storedPath);
-        console.log(`🔄 Rollback: deleted ${storedPath}`);
+        logger.log(`Rollback: deleted ${storedPath}`);
       } catch (unlinkError) {
-        console.error('⚠️  Failed to rollback file:', unlinkError);
+        logger.error('Failed to rollback file:', unlinkError);
       }
     }
 
-    console.error(MESSAGES.ERROR_PROCESSING_DOC, error);
+    logger.error(MESSAGES.ERROR_PROCESSING_DOC, error);
     return reply.code(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
       error: error.message || 'Failed to upload document',
     });
@@ -77,7 +80,7 @@ export async function getDocuments(
     const documents = await listDocuments();
     return { documents };
   } catch (error: any) {
-    console.error(MESSAGES.ERROR_GETTING_DOCS, error);
+    logger.error(MESSAGES.ERROR_GETTING_DOCS, error);
     return reply.code(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
       error: error.message,
     });
@@ -103,7 +106,7 @@ export async function downloadDocument(
       .header('Content-Disposition', `attachment; filename="${filename}"`)
       .send(fileContent);
   } catch (error: any) {
-    console.error('Error downloading document:', error);
+    logger.error('Error downloading document:', error);
     return reply.code(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
       error: 'Document not found',
     });
@@ -130,7 +133,7 @@ export async function deleteDocument(
       await unlink(filePath);
     } catch (error: any) {
       // File might not exist on disk - just warn, don't fail
-      console.warn(`File not found on disk: ${filename}`);
+      logger.warn(`File not found on disk: ${filename}`);
     }
 
     return {
@@ -139,7 +142,7 @@ export async function deleteDocument(
       chunksDeleted: result.chunksDeleted,
     };
   } catch (error: any) {
-    console.error(MESSAGES.ERROR_DELETING_DOC, error);
+    logger.error(MESSAGES.ERROR_DELETING_DOC, error);
     return reply.code(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
       error: error.message,
     });
@@ -159,7 +162,7 @@ export async function clearDocuments(
 
     return { message: MESSAGES.DOCUMENTS_CLEARED };
   } catch (error: any) {
-    console.error(MESSAGES.ERROR_CLEARING_DOCS, error);
+    logger.error(MESSAGES.ERROR_CLEARING_DOCS, error);
     return reply.code(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
       error: error.message,
     });

@@ -108,11 +108,9 @@ class ManualValidationCLI {
     const files = this.listResultFiles();
 
     if (files.length === 0) {
-      console.log(formatter.colorize('\n❌ No evaluation result files found', 'red'));
       return null;
     }
 
-    console.log(formatter.formatFileMenu(files));
 
     const answer = await this.prompt(`Select file [1-${files.length}] or 'q' to quit: `);
 
@@ -125,7 +123,6 @@ class ManualValidationCLI {
       return files[index].path;
     }
 
-    console.log(formatter.colorize('Invalid selection', 'red'));
     return this.selectFile();
   }
 
@@ -145,26 +142,17 @@ class ManualValidationCLI {
     index: number,
     total: number
   ): Promise<UserValidation | null> {
-    console.clear();
-    console.log(formatter.formatTestCase(result, index, total));
 
     // Ask if user wants to view full contexts
     if (result.retrieved_contexts.length > 0) {
       const viewContexts = await this.prompt('\nView full contexts? [y/n]: ');
       if (viewContexts.toLowerCase() === 'y') {
         result.retrieved_contexts.forEach((context, i) => {
-          console.log(`\n${formatter.colorize(`[${i + 1}] ${result.retrieved_sources[i]}`, 'cyan')}`);
-          console.log('─'.repeat(65));
-          console.log(context);
-          console.log('─'.repeat(65));
         });
         await this.prompt('\nPress Enter to continue...');
-        console.clear();
-        console.log(formatter.formatTestCase(result, index, total));
       }
     }
 
-    console.log(formatter.formatValidationQuestions());
 
     // Collect validation
     const isFactuallyCorrect = await this.prompt('1. Factually correct? [y/n/partial]: ');
@@ -222,7 +210,6 @@ class ManualValidationCLI {
       notes: notes || undefined,
     };
 
-    console.log(formatter.colorize(`\n✓ Validation recorded for ${result.test_case_id}`, 'green'));
     await this.prompt('\nPress Enter to continue...');
 
     return validation;
@@ -232,15 +219,10 @@ class ManualValidationCLI {
    * Run the validation session
    */
   async run(): Promise<void> {
-    console.clear();
-    console.log(formatter.formatHeader('Manual RAGAS Evaluation Validator'));
-    console.log('\nThis tool allows you to manually validate RAGAS evaluation results');
-    console.log('and identify patterns of failures or inconsistencies.\n');
 
     // Select file
     const filepath = await this.selectFile();
     if (!filepath) {
-      console.log('\nExiting...');
       this.rl.close();
       return;
     }
@@ -250,12 +232,10 @@ class ManualValidationCLI {
     try {
       report = this.loadReport(filepath);
     } catch (error) {
-      console.log(formatter.colorize(`\n❌ Error loading file: ${error}`, 'red'));
       this.rl.close();
       return;
     }
 
-    console.log(
       formatter.colorize(
         `\n✓ Loaded: ${path.basename(filepath)} (${report.detailed_results.length} cases)`,
         'green'
@@ -264,7 +244,6 @@ class ManualValidationCLI {
 
     const validateAll = await this.prompt('\nValidate all cases? [y/n]: ');
     if (validateAll.toLowerCase() !== 'y') {
-      console.log('\nExiting...');
       this.rl.close();
       return;
     }
@@ -284,7 +263,6 @@ class ManualValidationCLI {
       const validation = await this.validateCase(result, i + 1, report.detailed_results.length);
 
       if (!validation) {
-        console.log('\nValidation cancelled by user.');
         break;
       }
 
@@ -294,25 +272,19 @@ class ManualValidationCLI {
     }
 
     // Detect patterns
-    console.log('\n\nAnalyzing patterns...');
     session.patterns = patternDetector.detectPatterns(session.validated_cases);
 
     // Generate reports
-    console.log('Generating reports...\n');
 
     const jsonPath = reportGenerator.saveSessionJson(session, this.outputDir);
-    console.log(formatter.colorize(`✓ Session saved: ${path.basename(jsonPath)}`, 'green'));
 
     const patternPath = reportGenerator.generatePatternReport(session, this.outputDir);
-    console.log(formatter.colorize(`✓ Patterns report: ${path.basename(patternPath)}`, 'green'));
 
     const recommendPath = reportGenerator.generateRecommendationsReport(session, this.outputDir);
-    console.log(
       formatter.colorize(`✓ Recommendations: ${path.basename(recommendPath)}`, 'green')
     );
 
     // Summary
-    console.log(
       formatter.formatSummary(
         session.total_cases_reviewed,
         report.detailed_results.length,
@@ -320,16 +292,11 @@ class ManualValidationCLI {
       )
     );
 
-    console.log('📄 Reports saved to:');
-    console.log(`   ${this.outputDir}\n`);
 
     // Show pattern summary
     if (session.patterns.length > 0) {
-      console.log(formatter.colorize('⚠️  Patterns Detected:', 'yellow'));
       session.patterns.forEach((pattern) => {
-        console.log(`   - ${pattern.pattern_name} (${pattern.priority}, ${pattern.frequency} cases)`);
       });
-      console.log('');
     }
 
     this.rl.close();
@@ -339,6 +306,5 @@ class ManualValidationCLI {
 // Run CLI
 const cli = new ManualValidationCLI();
 cli.run().catch((error) => {
-  console.error('Error:', error);
   process.exit(1);
 });

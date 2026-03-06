@@ -119,7 +119,6 @@ export default function FileUpload({ onFileUploaded }: FileUploadProps) {
         }
       }, 2000);
     } catch (error) {
-      console.error('Error uploading files:', error);
       toast.error('Upload failed', {
         description: 'An unexpected error occurred',
       });

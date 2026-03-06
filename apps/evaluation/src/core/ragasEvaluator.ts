@@ -61,7 +61,6 @@ export class RAGASEvaluator {
       return typeof response === 'string' ? response : response.toString();
     } catch (error: any) {
       if (error.message.includes('timeout')) {
-        console.warn(`[RAGAS] LLM timeout, returning fallback score`);
         return '0.5';
       }
       throw error;
@@ -110,7 +109,6 @@ export class RAGASEvaluator {
       } catch (e) {}
     }
     
-    console.warn(`Could not read source ${source.filename} from any location`);
     return '';
   }
 
@@ -122,17 +120,12 @@ export class RAGASEvaluator {
     const totalStartTime = Date.now();
 
     try {
-      console.log(`\n🧪 Evaluating: ${testCase.question}`);
-      
       // Load contexts
       const contextsPromises = ragResponse.sources.map(async (source) => {
         return await this.getSourceContent(source);
       });
       const contexts = (await Promise.all(contextsPromises)).filter(text => text.length > 0);
       const sourceFilenames = ragResponse.sources.map(s => s.filename);
-
-      console.log(`   ✓ Loaded ${contexts.length} source documents`);
-      console.log(`   ⏳ Calculating metrics with Deep Reasoning...`);
 
       const metricsStart = Date.now();
 
@@ -149,15 +142,7 @@ export class RAGASEvaluator {
       const answerCorrectness = testCase.ground_truth_answer ? 
         await this.calculateAnswerCorrectness(ragResponse.answer, testCase.ground_truth_answer) : 0;
 
-      const metricsTime = (Date.now() - metricsStart) / 1000;
-      console.log(`   ✓ Metrics calculated in ${metricsTime.toFixed(1)}s`);
-
       const latency = Date.now() - totalStartTime;
-
-      console.log(`✅ Core Metrics - F: ${faithfulness.toFixed(2)}, AR: ${answerRelevancy.toFixed(2)}, CP: ${contextPrecision.toFixed(2)}, CR: ${contextRecall.toFixed(2)}`);
-      if (hallucinationResult.hallucinations.length > 0) {
-        console.log(`🚨 HALLUCINATIONS DETECTED: ${hallucinationResult.hallucinations.length}`);
-      }
 
       return {
         test_case_id: testCase.id,
@@ -191,7 +176,6 @@ export class RAGASEvaluator {
       };
 
     } catch (error: any) {
-      console.error(`Error evaluating response:`, error);
       throw error;
     }
   }

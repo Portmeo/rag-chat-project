@@ -2,8 +2,10 @@ import type { Document } from 'langchain/document';
 import { BaseRetriever, type BaseRetrieverInput } from '@langchain/core/retrievers';
 import { CallbackManagerForRetrieverRun } from 'langchain/callbacks';
 import natural from 'natural';
+import { createLogger } from '../../lib/logger.js';
 
 const { TfIdf } = natural;
+const logger = createLogger('BM25');
 
 export interface BM25RetrieverInput extends BaseRetrieverInput {
   documents: Document[];
@@ -48,12 +50,11 @@ export class BM25Retriever extends BaseRetriever {
 
     scores.sort((a, b) => b.score - a.score);
 
-    // DEBUG: Log top BM25 results
-    console.log(`\n🔍 BM25 query: "${query}"`);
-    console.log('Top 5 BM25 results:');
+    logger.log(`query: "${query}"`);
+    logger.log('Top 5 BM25 results:');
     scores.slice(0, 5).forEach((item, idx) => {
       const metadata = item.doc.metadata as any;
-      console.log(`  ${idx + 1}. Score: ${item.score.toFixed(4)} | File: ${metadata.filename} | Chunk: ${metadata.chunk_index} | Preview: ${item.doc.pageContent.substring(0, 80)}...`);
+      logger.log(`  ${idx + 1}. Score: ${item.score.toFixed(4)} | File: ${metadata.filename} | Chunk: ${metadata.chunk_index} | Preview: ${item.doc.pageContent.substring(0, 80)}...`);
     });
 
     return scores.slice(0, this.k).map((item) => item.doc);
