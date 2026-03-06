@@ -28,13 +28,15 @@ export class EnsembleRetriever extends BaseRetriever {
     }
   }
 
+  // @ts-ignore - Type conflict between @langchain/core versions
   async _getRelevantDocuments(
     query: string,
     runManager?: CallbackManagerForRetrieverRun
-  ): Promise<Document[]> {
+  ): Promise<Document<Record<string, any>>[]> {
     const allResults = await Promise.all(
       this.retrievers.map((retriever) =>
-        retriever.getRelevantDocuments(query, runManager?.getChild())
+        // Use invoke() for compatibility with newer LangChain versions
+        retriever.invoke(query)
       )
     );
 

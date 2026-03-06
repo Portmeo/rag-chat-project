@@ -38,10 +38,11 @@ let rerankerTokenizer: any = null;
 async function initRerankerInMainThread() {
   if (!rerankerModel || !rerankerTokenizer) {
     console.log('🔄 [Reranker] Loading model in main thread (fallback)...');
-    const modelName = 'Xenova/bge-reranker-base';
+    const { RERANKER_CONFIG } = await import('./config.js');
+    const modelName = RERANKER_CONFIG.model;
     rerankerTokenizer = await AutoTokenizer.from_pretrained(modelName);
     rerankerModel = await AutoModelForSequenceClassification.from_pretrained(modelName);
-    console.log('✅ [Reranker] Model loaded in main thread');
+    console.log(`✅ [Reranker] Model loaded in main thread: ${modelName}`);
   }
   return { model: rerankerModel, tokenizer: rerankerTokenizer };
 }

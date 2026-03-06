@@ -39,7 +39,7 @@ export class RAGASEvaluator {
     this.llm = new Ollama({
       baseUrl: 'http://localhost:11434',
       model: 'llama3.1:8b',
-      temperature: 0.1, // Low temperature for consistent scoring
+      temperature: 0.0, // Absolute determinism for the judge
     });
 
     // Use same embeddings as RAG system
@@ -49,9 +49,6 @@ export class RAGASEvaluator {
     });
   }
 
-  /**
-   * Invoke LLM with timeout protection
-   */
   private async invokeLLMWithTimeout(prompt: string, timeoutMs: number = 90000): Promise<string> {
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => reject(new Error(`LLM call timeout after ${timeoutMs}ms`)), timeoutMs);
@@ -65,27 +62,21 @@ export class RAGASEvaluator {
     } catch (error: any) {
       if (error.message.includes('timeout')) {
         console.warn(`[RAGAS] LLM timeout, returning fallback score`);
-        return '0.5'; // Return neutral score on timeout
+        return '0.5';
       }
       throw error;
     }
   }
 
-  /**
-   * Call RAG backend via HTTP API
-   */
   private async callRAGAPI(question: string): Promise<RAGResponse> {
-    // Create an AbortController with timeout
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+    const timeout = setTimeout(() => controller.abort(), 60000);
 
     try {
       const response = await fetch(`${this.backendUrl}/api/chat/query`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question
-        }),
+        body: JSON.stringify({ question }),
         signal: controller.signal
       });
 
@@ -100,75 +91,63 @@ export class RAGASEvaluator {
     } catch (error: any) {
       clearTimeout(timeout);
       if (error.name === 'AbortError') {
-        throw new Error(`RAG API timeout after 60 seconds for question: "${question}"`);
+        throw new Error(`RAG API timeout for question: "${question}"`);
       }
       throw error;
     }
   }
 
-  /**
-   * Get full content of a source file from filesystem
-   */
   private async getSourceContent(source: RAGSource): Promise<string> {
-    const filePath = path.join(
-      this.projectRoot,
-      'apps/backend/uploads/documents',
-      source.filename
-    );
+    // Intentar leer de files/ primero, luego de uploads (más robusto)
+    const possiblePaths = [
+      path.join(this.projectRoot, 'files', source.filename),
+      path.join(this.projectRoot, 'apps/backend/uploads/documents', source.filename)
+    ];
 
-    try {
-      return await readFile(filePath, 'utf-8');
-    } catch (error) {
-      console.warn(`Could not read ${source.filename}:`, error);
-      return '';
+    for (const p of possiblePaths) {
+      try {
+        return await readFile(p, 'utf-8');
+      } catch (e) {}
     }
+    
+    console.warn(`Could not read source ${source.filename} from any location`);
+    return '';
   }
 
-  /**
-   * Query RAG API only (without evaluation)
-   * Used in Phase 1 to collect all responses before RAGAS evaluation
-   */
   async queryRAG(question: string): Promise<RAGResponse> {
     return await this.callRAGAPI(question);
   }
 
-  /**
-   * Evaluate a RAG response that was already collected
-   * Used in Phase 2 to evaluate responses sequentially
-   */
   async evaluateResponse(testCase: EvaluationTestCase, ragResponse: RAGResponse): Promise<EvaluationResult> {
     const totalStartTime = Date.now();
 
     try {
       console.log(`\n🧪 Evaluating: ${testCase.question}`);
-      console.log(`   ⏳ Loading source documents...`);
-
-      // Extract contexts and sources - get full content from filesystem
+      
+      // Load contexts
       const contextsPromises = ragResponse.sources.map(async (source) => {
-        const fullContent = await this.getSourceContent(source);
-        return fullContent;
+        return await this.getSourceContent(source);
       });
       const contexts = (await Promise.all(contextsPromises)).filter(text => text.length > 0);
       const sourceFilenames = ragResponse.sources.map(s => s.filename);
 
       console.log(`   ✓ Loaded ${contexts.length} source documents`);
-      console.log(`   ⏳ Calculating metrics sequentially...`);
+      console.log(`   ⏳ Calculating metrics with Deep Reasoning...`);
 
       const metricsStart = Date.now();
 
-      // Calculate metrics sequentially (LLM local, no paralelización)
-      // REDUCED METRICS MODE: Only core 4 metrics to avoid Ollama saturation
+      // ✅ ACTIVA: Detección de alucinaciones real
+      const hallucinationResult = await this.detectHallucinations(ragResponse.answer, contexts);
+      
+      // ✅ ACTIVA: Métricas CORE con razonamiento
       const faithfulness = await this.calculateFaithfulness(ragResponse.answer, contexts);
       const answerRelevancy = await this.calculateAnswerRelevancy(testCase.question, ragResponse.answer);
       const contextPrecision = await this.calculateContextPrecision(testCase.question, contexts);
       const contextRecall = await this.calculateContextRecall(contexts, sourceFilenames, testCase.expected_contexts);
 
-      // Additional metrics disabled to reduce Ollama load
-      const contextRelevancy = 0; // await this.calculateContextRelevancy(testCase.question, contexts);
-      const answerCorrectness = 0; // await this.calculateAnswerCorrectness(ragResponse.answer, testCase.ground_truth_answer);
-      const answerSimilarity = 0; // this.calculateAnswerSimilarity(ragResponse.answer, testCase.ground_truth_answer);
-      const answerCompleteness = 0; // await this.calculateAnswerCompleteness(testCase.question, ragResponse.answer);
-      const hallucinationResult = { score: 0, hallucinations: [] }; // await this.detectHallucinations(ragResponse.answer, contexts);
+      // ✅ OPCIONAL: Correctness comparada con Ground Truth
+      const answerCorrectness = testCase.ground_truth_answer ? 
+        await this.calculateAnswerCorrectness(ragResponse.answer, testCase.ground_truth_answer) : 0;
 
       const metricsTime = (Date.now() - metricsStart) / 1000;
       console.log(`   ✓ Metrics calculated in ${metricsTime.toFixed(1)}s`);
@@ -176,8 +155,9 @@ export class RAGASEvaluator {
       const latency = Date.now() - totalStartTime;
 
       console.log(`✅ Core Metrics - F: ${faithfulness.toFixed(2)}, AR: ${answerRelevancy.toFixed(2)}, CP: ${contextPrecision.toFixed(2)}, CR: ${contextRecall.toFixed(2)}`);
-      console.log(`✅ Additional - CRel: ${contextRelevancy.toFixed(2)}, AC: ${answerCorrectness.toFixed(2)}, AS: ${answerSimilarity.toFixed(2)}, ACom: ${answerCompleteness.toFixed(2)}`);
-      console.log(`✅ Hallucination Score: ${hallucinationResult.score.toFixed(2)}${hallucinationResult.hallucinations.length > 0 ? ` (${hallucinationResult.hallucinations.length} detected)` : ''}`);
+      if (hallucinationResult.hallucinations.length > 0) {
+        console.log(`🚨 HALLUCINATIONS DETECTED: ${hallucinationResult.hallucinations.length}`);
+      }
 
       return {
         test_case_id: testCase.id,
@@ -186,23 +166,19 @@ export class RAGASEvaluator {
         retrieved_contexts: contexts,
         retrieved_sources: sourceFilenames,
 
-        // Core RAGAS metrics
         faithfulness_score: faithfulness,
         answer_relevancy_score: answerRelevancy,
         context_precision_score: contextPrecision,
         context_recall_score: contextRecall,
 
-        // Additional metrics
-        context_relevancy_score: contextRelevancy,
+        context_relevancy_score: 0, // not calculated
         answer_correctness_score: answerCorrectness,
-        answer_similarity_score: answerSimilarity,
-        answer_completeness_score: answerCompleteness,
+        answer_similarity_score: 0, // not calculated
+        answer_completeness_score: 0, // not calculated
 
-        // Hallucination detection
         hallucination_score: hallucinationResult.score,
         hallucinations_detected: hallucinationResult.hallucinations,
 
-        // Performance metrics
         retrieval_latency_ms: ragResponse.performance?.retrieval_latency_ms,
         reranking_latency_ms: ragResponse.performance?.reranking_latency_ms,
         generation_latency_ms: ragResponse.performance?.generation_latency_ms,
@@ -220,192 +196,88 @@ export class RAGASEvaluator {
     }
   }
 
-  async evaluateSingleCase(testCase: EvaluationTestCase): Promise<EvaluationResult> {
-    const totalStartTime = Date.now();
-
-    try {
-      // 1. Execute RAG pipeline via HTTP API
-      console.log(`\n🧪 Evaluating: ${testCase.question}`);
-      console.log(`   ⏳ Calling RAG API...`);
-
-      const ragStartTime = Date.now();
-      const ragResponse = await this.callRAGAPI(testCase.question);
-      const ragEndTime = Date.now();
-
-      console.log(`   ✓ RAG API responded in ${((ragEndTime - ragStartTime) / 1000).toFixed(1)}s`);
-      console.log(`   ⏳ Loading source documents...`);
-
-      // Extract contexts and sources - get full content from filesystem
-      const contextsPromises = ragResponse.sources.map(async (source) => {
-        const fullContent = await this.getSourceContent(source);
-        return fullContent;
-      });
-      const contexts = (await Promise.all(contextsPromises)).filter(text => text.length > 0);
-      const sourceFilenames = ragResponse.sources.map(s => s.filename);
-
-      console.log(`   ✓ Loaded ${contexts.length} source documents`);
-      console.log(`   ⏳ Calculating metrics sequentially...`);
-
-      const metricsStart = Date.now();
-
-      // Calculate metrics sequentially (LLM local, no paralelización)
-      // REDUCED METRICS MODE: Only core 4 metrics to avoid Ollama saturation
-      const faithfulness = await this.calculateFaithfulness(ragResponse.answer, contexts);
-      const answerRelevancy = await this.calculateAnswerRelevancy(testCase.question, ragResponse.answer);
-      const contextPrecision = await this.calculateContextPrecision(testCase.question, contexts);
-      const contextRecall = await this.calculateContextRecall(contexts, sourceFilenames, testCase.expected_contexts);
-
-      // Additional metrics disabled to reduce Ollama load
-      const contextRelevancy = 0; // await this.calculateContextRelevancy(testCase.question, contexts);
-      const answerCorrectness = 0; // await this.calculateAnswerCorrectness(ragResponse.answer, testCase.ground_truth_answer);
-      const answerSimilarity = 0; // this.calculateAnswerSimilarity(ragResponse.answer, testCase.ground_truth_answer);
-      const answerCompleteness = 0; // await this.calculateAnswerCompleteness(testCase.question, ragResponse.answer);
-      const hallucinationResult = { score: 0, hallucinations: [] }; // await this.detectHallucinations(ragResponse.answer, contexts);
-
-      const metricsTime = (Date.now() - metricsStart) / 1000;
-      console.log(`   ✓ Metrics calculated in ${metricsTime.toFixed(1)}s`);
-
-      const latency = Date.now() - totalStartTime;
-
-      console.log(`✅ Core Metrics - F: ${faithfulness.toFixed(2)}, AR: ${answerRelevancy.toFixed(2)}, CP: ${contextPrecision.toFixed(2)}, CR: ${contextRecall.toFixed(2)}`);
-      console.log(`✅ Additional - CRel: ${contextRelevancy.toFixed(2)}, AC: ${answerCorrectness.toFixed(2)}, AS: ${answerSimilarity.toFixed(2)}, ACom: ${answerCompleteness.toFixed(2)}`);
-      console.log(`✅ Hallucination Score: ${hallucinationResult.score.toFixed(2)}${hallucinationResult.hallucinations.length > 0 ? ` (${hallucinationResult.hallucinations.length} detected)` : ''}`);
-
-      return {
-        test_case_id: testCase.id,
-        question: testCase.question,
-        generated_answer: ragResponse.answer,
-        retrieved_contexts: contexts,
-        retrieved_sources: sourceFilenames,
-
-        // Core RAGAS metrics
-        faithfulness_score: faithfulness,
-        answer_relevancy_score: answerRelevancy,
-        context_precision_score: contextPrecision,
-        context_recall_score: contextRecall,
-
-        // Additional metrics
-        context_relevancy_score: contextRelevancy,
-        answer_correctness_score: answerCorrectness,
-        answer_similarity_score: answerSimilarity,
-        answer_completeness_score: answerCompleteness,
-
-        // Hallucination detection
-        hallucination_score: hallucinationResult.score,
-        hallucinations_detected: hallucinationResult.hallucinations,
-
-        // Performance metrics
-        retrieval_latency_ms: ragResponse.performance?.retrieval_latency_ms,
-        reranking_latency_ms: ragResponse.performance?.reranking_latency_ms,
-        generation_latency_ms: ragResponse.performance?.generation_latency_ms,
-        num_retrieved_docs: ragResponse.performance?.num_retrieved_docs,
-        num_final_docs: ragResponse.performance?.num_final_docs,
-        avg_rerank_score: ragResponse.performance?.avg_rerank_score,
-
-        latency_ms: latency,
-        timestamp: new Date().toISOString(),
-      };
-    } catch (error: any) {
-      console.error(`❌ Error evaluating ${testCase.id}:`, error.message);
-
-      return {
-        test_case_id: testCase.id,
-        question: testCase.question,
-        generated_answer: '',
-        retrieved_contexts: [],
-        retrieved_sources: [],
-        faithfulness_score: 0,
-        answer_relevancy_score: 0,
-        context_precision_score: 0,
-        context_recall_score: 0,
-        latency_ms: Date.now() - totalStartTime,
-        timestamp: new Date().toISOString(),
-        error: error.message,
-      };
-    }
-  }
-
   private async calculateFaithfulness(answer: string, contexts: string[]): Promise<number> {
     if (contexts.length === 0 || !answer) return 0;
 
-    const prompt = `Evalúa si la respuesta está completamente soportada por los contextos proporcionados.
+    const prompt = `Actúa como un Juez de Veracidad para un sistema RAG.
+Tu tarea es decidir si la RESPUESTA se puede deducir EXCLUSIVAMENTE de los CONTEXTOS.
 
-Contextos:
-${contexts.map((c, i) => `[${i + 1}] ${c.substring(0, 500)}...`).join('\n---\n')}
+CONTEXTOS:
+${contexts.map((c, i) => `[${i + 1}] ${c.substring(0, 800)}...`).join('\n---\n')}
 
-Respuesta:
+RESPUESTA:
 ${answer}
 
-Criterios:
-- 1.0 = Toda la información en la respuesta está soportada por los contextos
-- 0.5 = Parte de la respuesta está soportada, pero hay información no verificable
-- 0.0 = La respuesta contiene información no presente en los contextos (alucinación)
+PASOS:
+1. Extrae las afirmaciones clave de la respuesta.
+2. Busca evidencia directa en los contextos para cada afirmación.
+3. Si una afirmación NO está en el contexto, es una falta de fidelidad.
 
-Responde SOLO con un número decimal entre 0.0 y 1.0 (ej: 0.85)`;
+PUNTUACIÓN (0.0 a 1.0):
+- 1.0: Toda la respuesta está en el contexto.
+- 0.0: La respuesta ignora el contexto por completo.
+
+Responde con el formato:
+RAZONAMIENTO: <tu explicación breve>
+SCORE: <solo el número>`;
 
     try {
       const content = await this.invokeLLMWithTimeout(prompt);
-      const score = this.extractScore(content.trim());
-      return score;
+      return this.extractScoreFromReasoning(content);
     } catch (error) {
-      console.error('Error calculating faithfulness:', error);
-      return 0;
+      return 0.5;
     }
   }
 
   private async calculateAnswerRelevancy(question: string, answer: string): Promise<number> {
     if (!answer || !question) return 0;
 
-    const prompt = `Evalúa qué tan relevante es la respuesta para la pregunta.
+    const prompt = `Evalúa si la respuesta resuelve DIRECTAMENTE la pregunta del usuario.
 
-Pregunta:
+PREGUNTA:
 ${question}
 
-Respuesta:
+RESPUESTA:
 ${answer}
 
-Criterios:
-- 1.0 = La respuesta responde directamente y completamente la pregunta
-- 0.5 = La respuesta es parcialmente relevante o incompleta
-- 0.0 = La respuesta no responde la pregunta
-
-Responde SOLO con un número decimal entre 0.0 y 1.0 (ej: 0.75)`;
+FORMATO:
+RAZONAMIENTO: <explicación>
+SCORE: <número entre 0.0 y 1.0>`;
 
     try {
       const content = await this.invokeLLMWithTimeout(prompt);
-      const score = this.extractScore(content.trim());
-      return score;
+      return this.extractScoreFromReasoning(content);
     } catch (error) {
-      console.error('Error calculating answer relevancy:', error);
-      return 0;
+      return 0.5;
     }
   }
 
   private async calculateContextPrecision(question: string, contexts: string[]): Promise<number> {
     if (contexts.length === 0) return 0;
 
-    const prompt = `Evalúa cuántos de los contextos proporcionados son relevantes para responder la pregunta.
+    const prompt = `Evalúa la calidad de los documentos recuperados para la pregunta.
+¿Cuántos de estos documentos son ÚTILES para dar una respuesta correcta?
 
-Pregunta:
+PREGUNTA:
 ${question}
 
-Contextos:
-${contexts.map((c, i) => `[${i + 1}] ${c.substring(0, 300)}...`).join('\n---\n')}
+CONTEXTOS:
+${contexts.map((c, i) => `[${i + 1}] ${c.substring(0, 400)}...`).join('\n---\n')}
 
-Criterios:
-- 1.0 = Todos los contextos son relevantes para la pregunta
-- 0.5 = Aproximadamente la mitad de los contextos son relevantes
-- 0.0 = Ninguno de los contextos es relevante
+SCORE:
+1.0 = Todos son muy útiles.
+0.5 = Algunos son paja/ruido.
+0.0 = Ninguno sirve.
 
-Responde SOLO con un número decimal entre 0.0 y 1.0 (ej: 0.60)`;
+FORMATO:
+RAZONAMIENTO: <explicación>
+SCORE: <número>`;
 
     try {
       const content = await this.invokeLLMWithTimeout(prompt);
-      const score = this.extractScore(content.trim());
-      return score;
+      return this.extractScoreFromReasoning(content);
     } catch (error) {
-      console.error('Error calculating context precision:', error);
-      return 0;
+      return 0.5;
     }
   }
 
@@ -415,206 +287,48 @@ Responde SOLO con un número decimal entre 0.0 y 1.0 (ej: 0.60)`;
     expectedContexts: string[]
   ): Promise<number> {
     if (expectedContexts.length === 0) return 1;
-
-    // Method 1: Filename matching (fast, for when expected_contexts are filenames)
-    const retrieved = new Set(retrievedSources);
-    const expected = new Set(expectedContexts);
-
-    let filenameMatches = 0;
-    for (const expectedFile of expected) {
-      // Check if any retrieved file contains the expected filename
-      for (const retrievedFile of retrieved) {
-        if (retrievedFile.includes(expectedFile) || expectedFile.includes(retrievedFile)) {
-          filenameMatches++;
-          break;
+    
+    // Comparación por nombre de archivo (robusto para nuestro sistema)
+    const retrieved = new Set(retrievedSources.map(s => s.toLowerCase()));
+    let matches = 0;
+    
+    for (const expected of expectedContexts) {
+      if (retrieved.has(expected.toLowerCase())) {
+        matches++;
+      } else {
+        // Búsqueda parcial (ej: "arquitectura" coincide con "01-arquitectura-general.md")
+        for (const r of retrieved) {
+          if (r.includes(expected.toLowerCase()) || expected.toLowerCase().includes(r)) {
+            matches++;
+            break;
+          }
         }
       }
     }
-
-    // If all expected contexts are found by filename, return perfect score
-    if (filenameMatches === expected.size) {
-      return 1.0;
-    }
-
-    // Method 2: Semantic similarity (slower, more accurate for content-based expected contexts)
-    // This handles cases where expected_contexts might be text descriptions rather than filenames
-    if (retrievedContexts.length > 0) {
-      try {
-        // For each expected context, find if any retrieved context is semantically similar
-        let semanticMatches = 0;
-
-        for (const expectedCtx of expectedContexts) {
-          // Check if this is a filename first (fast path)
-          let foundByFilename = false;
-          for (const retrievedFile of retrieved) {
-            if (retrievedFile.includes(expectedCtx) || expectedCtx.includes(retrievedFile)) {
-              foundByFilename = true;
-              break;
-            }
-          }
-
-          if (foundByFilename) {
-            semanticMatches++;
-            continue;
-          }
-
-          // Otherwise, check semantic similarity
-          // Truncate to avoid exceeding model context length (512 tokens ≈ 2048 chars)
-          const truncate = (text: string) => text.slice(0, 2000);
-
-          // Embed expected context first
-          const expectedEmbedArray = await this.embeddings.embedDocuments([truncate(expectedCtx)]);
-          const expectedEmbed = expectedEmbedArray[0];
-
-          // Then embed retrieved contexts one by one to avoid overwhelming Ollama
-          let maxSimilarity = 0;
-          const topContexts = retrievedContexts.slice(0, 5); // Reduced to top 5 to avoid timeouts
-
-          for (const retrievedCtx of topContexts) {
-            try {
-              const retrievedEmbedArray = await this.embeddings.embedDocuments([truncate(retrievedCtx)]);
-              const retrievedEmbed = retrievedEmbedArray[0];
-              const similarity = this.cosineSimilarity(expectedEmbed, retrievedEmbed);
-              maxSimilarity = Math.max(maxSimilarity, similarity);
-            } catch (embedError) {
-              console.warn('[RAGAS] Failed to embed retrieved context, skipping:', embedError);
-              continue;
-            }
-          }
-
-          // If any retrieved context has high similarity (>0.7), count as a match
-          if (maxSimilarity > 0.7) {
-            semanticMatches++;
-          }
-        }
-
-        return semanticMatches / expected.size;
-      } catch (error) {
-        console.warn('[RAGAS] Semantic Context Recall failed, falling back to filename matching:', error);
-        return filenameMatches / expected.size;
-      }
-    }
-
-    // Fallback to filename matching only
-    return filenameMatches / expected.size;
-  }
-
-  private cosineSimilarity(vecA: number[], vecB: number[]): number {
-    if (vecA.length !== vecB.length) return 0;
-
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < vecA.length; i++) {
-      dotProduct += vecA[i] * vecB[i];
-      normA += vecA[i] * vecA[i];
-      normB += vecB[i] * vecB[i];
-    }
-
-    const denominator = Math.sqrt(normA) * Math.sqrt(normB);
-    return denominator === 0 ? 0 : dotProduct / denominator;
-  }
-
-  // ============================================================================
-  // ADDITIONAL RAGAS METRICS
-  // ============================================================================
-
-  private async calculateContextRelevancy(question: string, contexts: string[]): Promise<number> {
-    if (contexts.length === 0) return 0;
-
-    const prompt = `Evalúa qué porcentaje de la información en los contextos es relevante para la pregunta.
-
-Pregunta:
-${question}
-
-Contextos:
-${contexts.map((c, i) => `[${i + 1}] ${c.substring(0, 400)}...`).join('\n---\n')}
-
-Criterios:
-- 1.0 = Toda la información en los contextos es relevante para la pregunta
-- 0.5 = Aproximadamente la mitad de la información es relevante, el resto es ruido
-- 0.0 = Los contextos contienen mucha información irrelevante
-
-Responde SOLO con un número decimal entre 0.0 y 1.0 (ej: 0.65)`;
-
-    try {
-      const content = await this.invokeLLMWithTimeout(prompt);
-      return this.extractScore(content.trim());
-    } catch (error) {
-      console.error('Error calculating context relevancy:', error);
-      return 0;
-    }
+    
+    return matches / expectedContexts.length;
   }
 
   private async calculateAnswerCorrectness(generatedAnswer: string, groundTruthAnswer: string): Promise<number> {
     if (!generatedAnswer || !groundTruthAnswer) return 0;
 
-    try {
-      // Truncate to avoid exceeding model context length (512 tokens ≈ 2048 chars)
-      const truncate = (text: string) => text.slice(0, 2000);
+    const prompt = `Compara la respuesta GENERADA contra la respuesta de REFERENCIA (Ground Truth).
+¿Dicen lo mismo en esencia?
 
-      // Generate embeddings sequentially to avoid Ollama overload
-      const genEmbedArray = await this.embeddings.embedDocuments([truncate(generatedAnswer)]);
-      const truthEmbedArray = await this.embeddings.embedDocuments([truncate(groundTruthAnswer)]);
+REFERENCIA: ${groundTruthAnswer}
+GENERADA: ${generatedAnswer}
 
-      return this.cosineSimilarity(genEmbedArray[0], truthEmbedArray[0]);
-    } catch (error) {
-      console.error('Error calculating answer correctness:', error);
-      return 0;
-    }
-  }
+Puntuación 1.0 si los datos técnicos coinciden. 0.0 si son distintos.
 
-  private calculateAnswerSimilarity(generatedAnswer: string, groundTruthAnswer: string): number {
-    if (!generatedAnswer || !groundTruthAnswer) return 0;
-
-    // Tokenize into words
-    const genWords = new Set(
-      generatedAnswer.toLowerCase()
-        .split(/\s+/)
-        .filter(w => w.length > 2) // Filter out very short words
-    );
-
-    const truthWords = new Set(
-      groundTruthAnswer.toLowerCase()
-        .split(/\s+/)
-        .filter(w => w.length > 2)
-    );
-
-    // Calculate F1 score
-    const intersection = new Set([...genWords].filter(w => truthWords.has(w)));
-    const precision = genWords.size > 0 ? intersection.size / genWords.size : 0;
-    const recall = truthWords.size > 0 ? intersection.size / truthWords.size : 0;
-
-    if (precision + recall === 0) return 0;
-    return (2 * precision * recall) / (precision + recall);
-  }
-
-  private async calculateAnswerCompleteness(question: string, answer: string): Promise<number> {
-    if (!answer || !question) return 0;
-
-    const prompt = `Evalúa qué tan completa es la respuesta para la pregunta.
-
-Pregunta:
-${question}
-
-Respuesta:
-${answer}
-
-Criterios:
-- 1.0 = La respuesta cubre completamente todos los aspectos de la pregunta
-- 0.7 = La respuesta cubre la mayoría de los aspectos pero falta algo
-- 0.5 = La respuesta es parcial, cubre solo algunos aspectos
-- 0.0 = La respuesta no aborda la pregunta o está muy incompleta
-
-Responde SOLO con un número decimal entre 0.0 y 1.0 (ej: 0.80)`;
+FORMATO:
+RAZONAMIENTO: <explicación>
+SCORE: <número>`;
 
     try {
       const content = await this.invokeLLMWithTimeout(prompt);
-      return this.extractScore(content.trim());
+      return this.extractScoreFromReasoning(content);
     } catch (error) {
-      console.error('Error calculating answer completeness:', error);
-      return 0;
+      return 0.5;
     }
   }
 
@@ -623,110 +337,56 @@ Responde SOLO con un número decimal entre 0.0 y 1.0 (ej: 0.80)`;
     hallucinations: string[];
   }> {
     if (!answer || contexts.length === 0) {
-      return { score: 0, hallucinations: ['No contexts provided'] };
+      return { score: 1.0, hallucinations: [] };
     }
 
-    const prompt = `Identifica TODAS las afirmaciones en la respuesta que NO están soportadas por los contextos proporcionados.
+    const prompt = `Actúa como un Auditor de Alucinaciones.
+Busca datos técnicos (versiones, nombres, configuraciones) en la RESPUESTA que NO estén en los CONTEXTOS.
 
-Contextos:
-${contexts.map((c, i) => `[${i + 1}] ${c.substring(0, 500)}...`).join('\n---\n')}
+CONTEXTOS:
+${contexts.map((c, i) => `[${i + 1}] ${c.substring(0, 600)}...`).join('\n---\n')}
 
-Respuesta:
+RESPUESTA:
 ${answer}
 
-Instrucciones:
-- Lista cada alucinación (afirmación no soportada) en una línea nueva precedida por "-"
-- Si NO hay alucinaciones, responde exactamente: "NINGUNA"
-- Una alucinación es cualquier información que no se puede verificar en los contextos
+INSTRUCCIONES:
+- Lista cada dato inventado con un guion "-".
+- Si todo es correcto, escribe "NINGUNA".
 
-Formato:
-- [Alucinación 1]
-- [Alucinación 2]
-
-o bien:
-
-NINGUNA`;
+FORMATO:
+ALUCINACIONES:
+- <dato 1>
+- <dato 2>
+...o "NINGUNA"`;
 
     try {
       const content = await this.invokeLLMWithTimeout(prompt);
-
-      // Parse hallucinations
-      const lines = content.split('\n').map(l => l.trim());
+      const lines = content.split('\n');
       const hallucinations = lines
-        .filter(line => line.startsWith('-'))
-        .map(line => line.replace(/^-\s*/, '').trim())
-        .filter(line => line.length > 0);
+        .filter(l => l.trim().startsWith('-'))
+        .map(l => l.trim().substring(1).trim());
 
-      // Check for "NINGUNA" response
       if (content.toUpperCase().includes('NINGUNA') || hallucinations.length === 0) {
         return { score: 1.0, hallucinations: [] };
       }
 
-      // Calculate score: 1.0 = no hallucinations, decreases by 0.2 per hallucination
+      // Penalización: -0.2 por cada alucinación
       const score = Math.max(0, 1 - hallucinations.length * 0.2);
-
       return { score, hallucinations };
     } catch (error) {
-      console.error('Error detecting hallucinations:', error);
       return { score: 0.5, hallucinations: [] };
     }
   }
 
-  private extractScore(content: string): number {
-    // 1. Try to extract decimal in range 0.0-1.0 (most precise)
-    const decimalMatch = content.match(/\b(0?\.\d+|1\.0+|0\.0+)\b/);
-    if (decimalMatch) {
-      const score = parseFloat(decimalMatch[1]);
-      if (score >= 0 && score <= 1) {
-        return score;
-      }
+  private extractScoreFromReasoning(content: string): number {
+    const scoreMatch = content.match(/SCORE:\s*([\d.]+)/i);
+    if (scoreMatch) {
+      const val = parseFloat(scoreMatch[1]);
+      return isNaN(val) ? 0.5 : Math.max(0, Math.min(1, val));
     }
-
-    // 2. Try to extract percentage (0-100%)
-    const percentMatch = content.match(/(\d+(?:\.\d+)?)\s*%/);
-    if (percentMatch) {
-      const percent = parseFloat(percentMatch[1]);
-      if (percent >= 0 && percent <= 100) {
-        return percent / 100;
-      }
-    }
-
-    // 3. Try to extract any number and clamp it
-    const anyNumberMatch = content.match(/\d+\.?\d*/);
-    if (anyNumberMatch) {
-      const num = parseFloat(anyNumberMatch[0]);
-      // If it's in range 0-1, use it directly
-      if (num >= 0 && num <= 1) {
-        return num;
-      }
-      // If it's in range 0-100, treat as percentage
-      if (num >= 0 && num <= 100) {
-        return num / 100;
-      }
-      // Otherwise clamp to 0-1
-      return Math.max(0, Math.min(1, num));
-    }
-
-    // 4. Look for keyword indicators if no number found
-    const lowerContent = content.toLowerCase();
-    if (lowerContent.includes('completamente') || lowerContent.includes('totalmente') || lowerContent.includes('perfecta')) {
-      return 1.0;
-    }
-    if (lowerContent.includes('alta') || lowerContent.includes('mayoría')) {
-      return 0.8;
-    }
-    if (lowerContent.includes('parcialmente') || lowerContent.includes('medianamente') || lowerContent.includes('mitad')) {
-      return 0.5;
-    }
-    if (lowerContent.includes('baja') || lowerContent.includes('poco')) {
-      return 0.2;
-    }
-    if (lowerContent.includes('ninguna') || lowerContent.includes('nada') || lowerContent.includes(' no ')) {
-      return 0.0;
-    }
-
-    // 5. Fallback: log warning and return neutral score
-    console.warn(`[RAGAS] Could not extract score from LLM response: "${content.substring(0, 100)}..."`);
-    return 0.5; // Neutral score instead of 0
+    
+    // Fallback al extractor genérico si falla el formato estricto
+    const decimalMatch = content.match(/\b(0\.\d+|1\.0|0\.0|1|0)\b/);
+    return decimalMatch ? parseFloat(decimalMatch[0]) : 0.5;
   }
 }

@@ -81,10 +81,21 @@ export async function generateMultipleQueries(question: string): Promise<string[
     const prompt = PROMPT_TEMPLATE.MULTI_QUERY_PROMPT.replace('{question}', question);
     const response = await llm.invoke(prompt);
 
-    const queries = response
+    // Handle both ChatModel (Claude) and LLM (Ollama) responses
+    let content: string;
+    if (typeof response === 'string') {
+      content = response;
+    } else if (response && typeof response === 'object' && 'content' in response) {
+      const responseContent = (response as any).content;
+      content = typeof responseContent === 'string' ? responseContent : String(responseContent);
+    } else {
+      content = String(response);
+    }
+
+    const queries = content
       .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0 && !line.match(/^\d+[\.)]/));
+      .map((line: string) => line.trim())
+      .filter((line: string) => line.length > 0 && !line.match(/^\d+[\.)]/));
 
     return [question, ...queries];
   } catch (error) {

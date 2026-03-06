@@ -35,7 +35,7 @@ User Query
     ↓ 20 documentos candidatos
 ┌─────────────────────────────────────────┐
 │ 2. RERANKING (Worker Thread)           │
-│    - bge-reranker-base (Cross-Encoder)  │
+│    - bge-reranker-base (Cross-Encoder)       │
 │    - Scoring: Query ↔ Documento         │
 │    - Sort por score                     │
 └─────────────────────────────────────────┘
@@ -146,10 +146,12 @@ Basado en el benchmark actual con **mxbai-embed-large**:
 
 ### Modelo Usado
 
-**bge-reranker-base** (BAAI/bge-reranker-base)
+**bge-reranker-base** (Xenova/bge-reranker-base)
 - Tamaño: ~278 MB
 - Velocidad: ~500ms para 20 documentos
 - Precisión: State-of-the-art en MTEB Reranking
+
+> **Alternativa pendiente de probar:** `Xenova/bge-reranker-v2-m3` (versión multilingüe mejorada, mejor soporte español)
 
 ### Worker Thread
 

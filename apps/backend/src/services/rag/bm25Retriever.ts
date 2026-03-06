@@ -28,10 +28,11 @@ export class BM25Retriever extends BaseRetriever {
     }
   }
 
+  // @ts-ignore - Type conflict between @langchain/core versions
   async _getRelevantDocuments(
     query: string,
     _runManager?: CallbackManagerForRetrieverRun
-  ): Promise<Document[]> {
+  ): Promise<Document<Record<string, any>>[]> {
     const scores: Array<{ doc: Document; score: number; index: number }> = [];
 
     this.documents.forEach((doc, index) => {

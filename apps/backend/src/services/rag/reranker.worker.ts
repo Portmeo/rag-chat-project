@@ -41,22 +41,15 @@ async function initReranker() {
     console.log('🔄 Loading reranker model and tokenizer directly...');
 
     // Load tokenizer and model DIRECTLY (bypass pipeline to access raw logits)
-    // Changed from ms-marco-MiniLM (English-only) to BGE (multilingual) for better Spanish support
-    const modelName = 'Xenova/bge-reranker-base';
+    const modelName = process.env.RERANKER_MODEL || 'Xenova/bge-reranker-base';
 
     rerankerTokenizer = await AutoTokenizer.from_pretrained(modelName);
     rerankerModel = await AutoModelForSequenceClassification.from_pretrained(modelName);
 
-    console.log('✅ Reranker model and tokenizer loaded (direct access)');
+    console.log(`✅ Reranker model and tokenizer loaded: ${modelName}`);
   }
   return { model: rerankerModel, tokenizer: rerankerTokenizer };
 }
-
-/**
- * Sigmoid activation function
- * Converts logits to probabilities in range [0, 1]
- */
-const sigmoid = (x: number): number => 1 / (1 + Math.exp(-x));
 
 /**
  * Rerank documents using cross-encoder

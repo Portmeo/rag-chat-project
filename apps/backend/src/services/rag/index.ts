@@ -342,7 +342,7 @@ async function retrieveRelevantDocuments(
     k: retrievalK,
   });
 
-  let retriever: BaseRetriever;
+  let retriever: any;
 
   // Configure retriever based on BM25 settings
   if (BM25_CONFIG.enabled) {
@@ -361,9 +361,9 @@ async function retrieveRelevantDocuments(
       const docCount = (bm25RetrieverCache as any).documents?.length || 'unknown';
       console.log(`✓ BM25 cache active with ${docCount} documents`);
       retriever = new EnsembleRetriever({
-        retrievers: [vectorRetriever, bm25RetrieverCache],
+        retrievers: [vectorRetriever as any, bm25RetrieverCache as any],
         weights: [BM25_CONFIG.vectorWeight, BM25_CONFIG.weight],
-      });
+      }) as any;
     }
   } else {
     console.log('🔧 Using Vector-only Retriever (BM25 disabled)');
@@ -378,7 +378,8 @@ async function retrieveRelevantDocuments(
   const seenContent = new Set<string>();
 
   for (const query of queries) {
-    const docs = await retriever.getRelevantDocuments(query);
+    // Use invoke() instead of getRelevantDocuments() for compatibility with newer LangChain versions
+    const docs = await retriever.invoke(query);
 
     for (const doc of docs) {
       const contentHash = `${doc.pageContent}-${(doc.metadata as DocumentMetadata)?.filename}`;
@@ -520,7 +521,18 @@ export async function queryRAG(
 
     const { relevantDocs, prompt } = retrieved;
 
-    const answer = await llm.invoke(prompt);
+    const response = await llm.invoke(prompt);
+    
+    // Handle both ChatModel (Claude) and LLM (Ollama) responses
+    let answer: string;
+    if (typeof response === 'string') {
+      answer = response;
+    } else if (response && typeof response === 'object' && 'content' in response) {
+      const responseContent = (response as any).content;
+      answer = typeof responseContent === 'string' ? responseContent : String(responseContent);
+    } else {
+      answer = String(response);
+    }
 
     console.log('\n💬 LLM answer:', answer);
 
@@ -558,9 +570,35 @@ export async function* queryRAGStream(
     const stream = await llm.stream(prompt);
 
     for await (const chunk of stream) {
-      const content = typeof chunk === 'string' ? chunk : (chunk as any).content || chunk;
+      // Handle different response types from Claude (ChatModel) vs Ollama (LLM)
+      let content = '';
+      
+      if (typeof chunk === 'string') {
+        content = chunk;
+      } else if (chunk && typeof chunk === 'object') {
+        // For Claude AIMessageChunk: extract text from content
+        if ('content' in chunk) {
+          const chunkContent = (chunk as any).content;
+          // Handle array of content blocks (Claude format)
+          if (Array.isArray(chunkContent)) {
+            content = chunkContent
+              .filter(block => block.type === 'text')
+              .map(block => block.text)
+              .join('');
+          } 
+          // Handle string content
+          else if (typeof chunkContent === 'string') {
+            content = chunkContent;
+          }
+        }
+        // Fallback: try to extract text property
+        else if ('text' in chunk) {
+          content = (chunk as any).text;
+        }
+      }
+      
       if (content) {
-        yield { event: 'token', data: { chunk: String(content) } };
+        yield { event: 'token', data: { chunk: content } };
       }
     }
 
