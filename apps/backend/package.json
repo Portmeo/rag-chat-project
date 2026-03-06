@@ -6,7 +6,10 @@
     "dev": "tsx watch --clear-screen=false src/index.ts",
     "build": "tsc",
     "start": "npx tsx dist/index.js",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test:base": "tsx --env-file=.env src/scripts/test-base-retrieval.ts",
+    "test:ensemble": "tsx --env-file=.env src/scripts/test-ensemble-retrieval.ts",
+    "test:parent-child": "tsx --env-file=.env src/scripts/test-parent-child.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
