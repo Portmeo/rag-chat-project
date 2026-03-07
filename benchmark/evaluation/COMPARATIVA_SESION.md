@@ -165,6 +165,33 @@ Dataset: `golden_qa_v2.json` — 52 casos
 
 ---
 
+## Run 4 — Sonnet como juez (validación de Haiku)
+
+**Objetivo**: Verificar si Haiku como juez era demasiado benévolo. Solo Comparativa + Multi-Hop (9 casos).
+**Config RAG**: Igual que Run 3 (Claude Haiku LLM + Reranker)
+**Resultados**: `ragas_2026-03-07T05-41-58.json`
+
+| Métrica                       | Haiku juez (R3) | Sonnet juez (R4) | Δ          |
+|-------------------------------|-----------------|------------------|------------|
+| Faithfulness Comparativa      | 0.33            | 0.31             | -0.02      |
+| Faithfulness Multi-Hop        | 0.57            | 0.22             | -0.35 ↓   |
+| Relevancy Comparativa         | 0.76            | 0.63             | -0.13      |
+| Relevancy Multi-Hop           | 0.81            | 0.90             | +0.09      |
+| Context Precision Comparativa | 0.15            | 0.10             | -0.05      |
+| Context Recall                | 1.00 / 0.83     | 1.00 / 0.83      | Idéntico   |
+| Hallucination (global)        | 0.92            | 0.60             | -0.32 ↓   |
+
+**Conclusiones:**
+- Haiku era significativamente benévolo en Multi-Hop Faithfulness (0.57 → 0.22 real)
+- Hallucination real: 0.60, no 0.92 — Sonnet detecta alucinaciones que Haiku ignoraba
+- El recall es idéntico → la retrieval está bien. El problema es 100% en generación/faithfulness
+- Alucinaciones concretas detectadas por Sonnet: sintaxis de `store.select()`, memoización, `createAction()` — Claude Haiku añade conocimiento de Angular/NgRx que no está en el contexto
+- **Faithfulness Multi-Hop 0.22 es el nuevo baseline real** — el problema es más grave que lo estimado con Haiku
+
+**Recomendación confirmada**: Prompt Compression es la mejora más urgente. El LLM tiene conocimiento previo de Angular/NgRx y lo usa aunque el contexto sea insuficiente.
+
+---
+
 ## Cambios aplicados en esta sesión
 
 ### Pipeline
