@@ -11,7 +11,9 @@ import {
   getDocuments,
   clearDocuments,
   downloadDocument,
-  deleteDocument
+  deleteDocument,
+  getDocumentStatus,
+  optimizeAll,
 } from './controllers/documentController.js';
 import { queryChat, queryChatStream } from './controllers/chatController.js';
 
@@ -87,10 +89,12 @@ fastify.get('/api/debug/qdrant', async (request, reply) => {
 
 // Document routes
 fastify.get('/api/documents', getDocuments);
+fastify.get('/api/documents/:filename/status', getDocumentStatus);
 fastify.get('/api/documents/:filename', downloadDocument);
 fastify.post('/api/documents/upload', uploadDocument);
 fastify.delete('/api/documents/:filename', deleteDocument);
 fastify.delete('/api/documents', clearDocuments);
+fastify.post('/api/documents/optimize-all', optimizeAll);
 
 // Chat routes
 fastify.post('/api/chat/query', queryChat);

@@ -3,7 +3,7 @@ import type { MultipartFile } from '@fastify/multipart';
 import { unlink, writeFile, readFile, readdir, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { processDocument } from '../services/documentProcessor/index.js';
-import { addDocumentToVectorStore, listDocuments, clearBM25Cache, deleteDocumentFromVectorStore } from '../services/rag/index.js';
+import { addDocumentToVectorStore, listDocuments, clearBM25Cache, deleteDocumentFromVectorStore, getAlignmentStatus, optimizeExistingDocuments } from '../services/rag/index.js';
 import { clearQdrant } from '../repositories/qdrantRepository.js';
 import { HTTP_STATUS } from '../shared/http.js';
 import { MESSAGES } from '../shared/messages.js';
@@ -147,6 +147,24 @@ export async function deleteDocument(
       error: error.message,
     });
   }
+}
+
+export async function optimizeAll(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const result = await optimizeExistingDocuments();
+  return result;
+}
+
+export async function getDocumentStatus(
+  request: FastifyRequest<{ Params: { filename: string } }>,
+  reply: FastifyReply
+) {
+  const filename = decodeURIComponent(request.params.filename);
+  const status = await getAlignmentStatus(filename);
+  if (!status) return reply.code(404).send({ error: 'Status not found' });
+  return status;
 }
 
 export async function clearDocuments(

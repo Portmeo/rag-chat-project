@@ -1,7 +1,7 @@
 import { QdrantVectorStore } from '@langchain/community/vectorstores/qdrant';
 import { Document } from 'langchain/document';
 import { BaseRetriever } from '@langchain/core/retrievers';
-import { randomUUID } from 'crypto';
+import { randomUUID, createHash } from 'crypto';
 import { BM25Retriever } from './bm25Retriever';
 import { EnsembleRetriever } from './ensembleRetriever';
 import { createLogger } from '../../lib/logger.js';
@@ -21,6 +21,94 @@ import type { TechnicalMetadata } from '../documentProcessor/templates/types';
 import type { DocumentMetadata, RAGResponse, RAGSource, AddDocumentResult, ConversationMessage } from './types';
 import { rerankDocuments } from './reranker';
 import { createParentChildChunks } from './parentChildChunker';
+
+// ============================================================================
+// ALIGNMENT STATUS HELPERS
+// ============================================================================
+
+const ALIGNMENT_STATUS_TYPE = 'alignment_status';
+const NULL_VECTOR = new Array(1024).fill(0);
+
+function filenameToStatusId(filename: string): string {
+  const hash = createHash('md5').update(`status:${filename}`).digest('hex');
+  return `${hash.slice(0,8)}-${hash.slice(8,12)}-${hash.slice(12,16)}-${hash.slice(16,20)}-${hash.slice(20,32)}`;
+}
+
+async function upsertAlignmentStatusPoint(
+  filename: string,
+  status: 'optimizing' | 'ready',
+  progress: number,
+  total: number
+): Promise<void> {
+  await qdrantClient.upsert(COLLECTION_NAME, {
+    wait: false,
+    points: [{
+      id: filenameToStatusId(filename),
+      vector: NULL_VECTOR,
+      payload: {
+        type: ALIGNMENT_STATUS_TYPE,
+        metadata: {
+          type: ALIGNMENT_STATUS_TYPE,
+          filename,
+          alignment_status: status,
+          alignment_progress: progress,
+          alignment_total: total,
+        },
+      },
+    }],
+  });
+}
+
+async function runAlignmentOptimization(filename: string, parents: Document[]): Promise<void> {
+  try {
+    await upsertAlignmentStatusPoint(filename, 'optimizing', 0, parents.length);
+
+    const allQuestionDocs: Document[] = [];
+    let progress = 0;
+
+    for (const parent of parents) {
+      const questions = await generateAlignmentQuestions(parent, llm, ALIGNMENT_OPTIMIZATION_CONFIG.questionsPerChunk);
+      allQuestionDocs.push(...questions);
+      progress++;
+
+      if (progress % 5 === 0 || progress === parents.length) {
+        await upsertAlignmentStatusPoint(filename, 'optimizing', progress, parents.length);
+      }
+    }
+
+    if (allQuestionDocs.length > 0) {
+      await QdrantVectorStore.fromDocuments(allQuestionDocs, embeddings, {
+        client: qdrantClient,
+        collectionName: COLLECTION_NAME,
+      });
+      pipelineLogger.log(`Indexed ${allQuestionDocs.length} alignment question chunks for ${filename}`);
+    }
+
+    await upsertAlignmentStatusPoint(filename, 'ready', parents.length, parents.length);
+    pipelineLogger.log(`Alignment optimization complete for ${filename}`);
+  } catch (error: any) {
+    pipelineLogger.warn(`Alignment optimization failed for ${filename}: ${error.message}`);
+  }
+}
+
+export async function getAlignmentStatus(filename: string): Promise<{ status: string; progress: number; total: number } | null> {
+  try {
+    const result = await qdrantClient.retrieve(COLLECTION_NAME, {
+      ids: [filenameToStatusId(filename)],
+      with_payload: true,
+      with_vector: false,
+    });
+    if (result.length === 0) return null;
+    const meta = (result[0].payload as any)?.metadata;
+    return {
+      status: meta?.alignment_status || 'unknown',
+      progress: meta?.alignment_progress || 0,
+      total: meta?.alignment_total || 0,
+    };
+  } catch {
+    return null;
+  }
+}
 
 // ============================================================================
 // CACHE BM25
@@ -248,20 +336,9 @@ export async function addDocumentToVectorStore(
 
     pipelineLogger.log(`Created ${children.length} child chunks + ${parents.length} parent chunks`);
 
-    // Alignment Optimization: generate hypothetical questions per parent and index as extra children
+    // Alignment Optimization: generate hypothetical questions in background
     if (ALIGNMENT_OPTIMIZATION_CONFIG.enabled) {
-      const allQuestionDocs: Document[] = [];
-      for (const parent of parents) {
-        const questions = await generateAlignmentQuestions(parent, llm, ALIGNMENT_OPTIMIZATION_CONFIG.questionsPerChunk);
-        allQuestionDocs.push(...questions);
-      }
-      if (allQuestionDocs.length > 0) {
-        await QdrantVectorStore.fromDocuments(allQuestionDocs, embeddings, {
-          client: qdrantClient,
-          collectionName: COLLECTION_NAME,
-        });
-        pipelineLogger.log(`Indexed ${allQuestionDocs.length} alignment question chunks`);
-      }
+      setImmediate(() => runAlignmentOptimization(filename, parents));
     }
 
     // Rebuild cache asynchronously (don't block the response)
@@ -679,8 +756,28 @@ export async function listDocuments(): Promise<DocumentMetadata[]> {
     for (const point of scrollResult.points) {
       const payload = point.payload as any;
       const metadata = payload?.metadata as DocumentMetadata;
-      if (metadata?.filename && !documentsMap.has(metadata.filename)) {
+      if (metadata?.filename && (metadata as any).type !== ALIGNMENT_STATUS_TYPE && !documentsMap.has(metadata.filename)) {
         documentsMap.set(metadata.filename, metadata);
+      }
+    }
+
+    // Merge alignment status if feature is enabled
+    if (ALIGNMENT_OPTIMIZATION_CONFIG.enabled && documentsMap.size > 0) {
+      const statusResult = await qdrantClient.scroll(COLLECTION_NAME, {
+        filter: { must: [{ key: 'type', match: { value: ALIGNMENT_STATUS_TYPE } }] },
+        limit: 200,
+        with_payload: true,
+        with_vector: false,
+      });
+
+      for (const point of statusResult.points) {
+        const meta = (point.payload as any)?.metadata;
+        if (meta?.filename && documentsMap.has(meta.filename)) {
+          const doc = documentsMap.get(meta.filename)!;
+          (doc as any).alignment_status = meta.alignment_status;
+          (doc as any).alignment_progress = meta.alignment_progress;
+          (doc as any).alignment_total = meta.alignment_total;
+        }
       }
     }
 
@@ -689,6 +786,46 @@ export async function listDocuments(): Promise<DocumentMetadata[]> {
     qdrantLogger.error(MESSAGES.ERROR_LISTING, error);
     throw new Error(`${MESSAGES.ERROR_LIST_FAILED}: ${error.message}`);
   }
+}
+
+export async function optimizeExistingDocuments(): Promise<{ queued: number }> {
+  const collectionExists = await checkCollectionExists();
+  if (!collectionExists) return { queued: 0 };
+
+  // Scroll all parent chunks
+  const parentsByFilename = new Map<string, Document[]>();
+  let offset: string | number | null = null;
+
+  do {
+    const result = await qdrantClient.scroll(COLLECTION_NAME, {
+      filter: {
+        must: [{ key: 'metadata.parent_child.is_parent', match: { value: true } }],
+      },
+      limit: 100,
+      offset: offset ?? undefined,
+      with_payload: true,
+      with_vector: false,
+    });
+
+    for (const point of result.points) {
+      const payload = point.payload as any;
+      const filename = payload?.metadata?.filename;
+      if (!filename) continue;
+
+      const doc = new Document({ pageContent: payload.text, metadata: payload.metadata });
+      if (!parentsByFilename.has(filename)) parentsByFilename.set(filename, []);
+      parentsByFilename.get(filename)!.push(doc);
+    }
+
+    offset = result.next_page_offset ?? null;
+  } while (offset !== null);
+
+  for (const [filename, parents] of parentsByFilename.entries()) {
+    setImmediate(() => runAlignmentOptimization(filename, parents));
+  }
+
+  pipelineLogger.log(`Queued alignment optimization for ${parentsByFilename.size} documents`);
+  return { queued: parentsByFilename.size };
 }
 
 export async function clearBM25Cache(): Promise<void> {

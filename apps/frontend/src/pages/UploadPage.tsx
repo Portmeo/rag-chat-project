@@ -7,12 +7,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { FileText, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Search } from 'lucide-react';
+import { FileText, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Search, Loader2, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Document {
   filename: string;
   uploadDate: string;
+  alignment_status?: 'optimizing' | 'ready';
+  alignment_progress?: number;
+  alignment_total?: number;
 }
 
 type SortField = 'filename' | 'uploadDate';
@@ -47,6 +50,13 @@ export default function UploadPage() {
   useEffect(() => {
     fetchDocuments();
   }, []);
+
+  useEffect(() => {
+    const hasOptimizing = documents.some(d => d.alignment_status === 'optimizing');
+    if (!hasOptimizing) return;
+    const interval = setInterval(fetchDocuments, 3000);
+    return () => clearInterval(interval);
+  }, [documents]);
 
   const handleFileUploaded = () => {
     fetchDocuments();
@@ -227,6 +237,7 @@ export default function UploadPage() {
                           {getSortIcon('uploadDate')}
                         </button>
                       </TableHead>
+                      <TableHead className="w-[160px]">Optimization</TableHead>
                       <TableHead className="w-[100px]">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -245,6 +256,20 @@ export default function UploadPage() {
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {formatDate(doc.uploadDate)}
+                        </TableCell>
+                        <TableCell>
+                          {doc.alignment_status === 'optimizing' && (
+                            <span className="flex items-center gap-1.5 text-xs text-amber-600">
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              {doc.alignment_progress}/{doc.alignment_total}
+                            </span>
+                          )}
+                          {doc.alignment_status === 'ready' && (
+                            <span className="flex items-center gap-1.5 text-xs text-green-600">
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              Listo
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Button
