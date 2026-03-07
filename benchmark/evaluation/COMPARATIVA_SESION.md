@@ -287,6 +287,59 @@ Dataset: `golden_qa_v2.json` — 52 casos
 
 ---
 
+## Run 8 — Claude Haiku + Alignment Optimization
+
+**Config:**
+- LLM RAG: `claude-haiku-4-5-20251001` (Anthropic API)
+- Reranker: `true` — Top 20 → Top 5
+- BM25: `true` (weight 0.4) | Vector: `true` (weight 0.6)
+- Parent-Child: `true` (child 128 / parent 512)
+- Alignment Optimization: `true` — preguntas hipotéticas por parent chunk en metadata
+- Contextual Compression: `true` (threshold 0.30) | temp 0.0
+
+**Juez:** claude-sonnet-4-6
+**Dataset:** golden_qa_v2.json v2.2 — 13 casos (Comparativa 7 + Multi-Hop 6)
+**Resultados:** `ragas_2026-03-07T08-47-34.json`
+
+| Métrica            | Score |
+|--------------------|-------|
+| Faithfulness       | 0.36  |
+| Answer Relevancy   | 0.74  |
+| Context Precision  | 0.35  |
+| Context Recall     | 0.92  |
+| Hallucination      | 0.65  |
+| Completados        | 13/13 |
+
+**Por categoría:**
+
+| Categoría        | Faithfulness | Relevancy | Precision | Recall |
+|------------------|-------------|-----------|-----------|--------|
+| Comparativa (7)  | 0.30        | 0.79      | 0.21      | 0.93   |
+| Multi-Hop (6)    | 0.42        | 0.69      | 0.50      | 0.92   |
+
+**Conclusiones:**
+- Alignment **no mejora** Comparativa — Context Precision 21% (vs 30% de qwen R7 sin alignment). Las preguntas hipotéticas no ayudan cuando la query requiere sintetizar dos conceptos de chunks distintos.
+- Alignment es **neutro en Multi-Hop** — Precision 50%, idéntico a R7. No empeora pero tampoco resuelve faithfulness (0.42).
+- **Faithfulness bajó** vs R5 (0.36 vs 0.42): las preguntas hipotéticas en el contexto pueden distraer al LLM del texto original.
+- **Hallucination bajó** vs R5 (0.65 vs 0.76): el alignment añade ruido que el juez Sonnet detecta como alucinación.
+- **Conclusión**: alignment optimization no es la palanca correcta aquí. El problema en Comparativa no es el matching semántico sino que el contexto recuperado no contiene la comparación explícita. Próximo paso: query decomposition.
+
+---
+
+## Comparativa global actualizada (dataset v2.2, juez Sonnet)
+
+| Métrica              | llama3.1:8b (R6) | qwen2.5:14b (R7) | Claude Haiku R5 | Claude + Alignment R8 | Mejor       |
+|----------------------|------------------|------------------|-----------------|----------------------|-------------|
+| Faithfulness         | 0.29             | 0.32             | **0.42**        | 0.36                 | R5 Claude   |
+| Hallucination        | 0.33             | 0.54             | **0.76**        | 0.65                 | R5 Claude   |
+| Answer Relevancy     | 0.48             | 0.60             | **0.73**        | 0.74                 | R8 ≈        |
+| Context Precision    | 0.08             | **0.35**         | 0.10-0.23       | 0.35                 | R7/R8 ≈     |
+| Context Recall       | 1.00             | 0.94             | 0.94            | **0.92**             | llama ≈     |
+
+**Config activa recomendada:** Claude Haiku + Reranker + Contextual Compression + temp 0.0 (R5 base, sin alignment).
+
+---
+
 ## Cambios aplicados en esta sesión
 
 ### Pipeline

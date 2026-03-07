@@ -8,8 +8,9 @@ Sistema RAG (Retrieval-Augmented Generation) optimizado para consultas sobre doc
 - 🔍 **Búsqueda Híbrida**: Combina BM25 + embeddings vectoriales (ensemble retriever)
 - 🔄 **Multi-Query**: Genera 3 variaciones de cada pregunta para mejor retrieval
 - 🎯 **Reranking**: Cross-encoder (bge-reranker-base) para mejorar precisión
-- 🤖 **LLM Local**: llama3.1:8b vía Ollama (sin costos de API)
-- 📊 **Base vectorial sólida**: 95% hit rate (19/20) en pure vector search
+- 🤖 **LLM**: Claude Haiku (`claude-haiku-4-5-20251001`) — mejor Faithfulness y Hallucination según evaluaciones RAGAS con juez externo (Sonnet 4.6)
+- 📊 **Base vectorial sólida**: 100% hit rate (35/35) en ensemble retrieval
+- 🗜️ **Contextual Compression**: Filtra frases ruidosas de cada chunk (threshold coseno 0.30) antes de enviar al LLM
 - 🇪🇸 **Optimizado para Español**: Modelos y prompts ajustados
 
 ### Interfaz y UX
@@ -20,9 +21,9 @@ Sistema RAG (Retrieval-Augmented Generation) optimizado para consultas sobre doc
 - 🗂️ **Gestión de Documentos**: Buscar, ordenar, eliminar documentos individuales
 
 ### Evaluación y Calidad
-- 🧪 **RAGAS Evaluation**: 9 métricas automáticas (Faithfulness, Answer Relevancy, Context Precision/Recall, etc.)
+- 🧪 **RAGAS Evaluation**: Faithfulness, Answer Relevancy, Context Precision/Recall, Hallucination
 - 🔍 **Detección de Alucinaciones**: Identificación automática de afirmaciones no soportadas
-- 📊 **Golden Dataset**: 17 casos de prueba con ground truth
+- 📊 **Golden Dataset**: 58 casos de prueba con ground truth (v2.2), 7 categorías
 - 🎯 **LLM-as-Judge**: Evaluación con Claude Sonnet 4.6 como juez externo (imparcial)
 
 ## 🚀 Quick Start
@@ -35,10 +36,11 @@ Sistema RAG (Retrieval-Augmented Generation) optimizado para consultas sobre doc
 
 ### Instalación (3 pasos)
 
-1. **Descargar modelos de Ollama**:
+1. **Descargar modelo de embeddings (Ollama)**:
 ```bash
-ollama pull llama3.1:8b           # LLM (~4.7GB)
 ollama pull mxbai-embed-large     # Embeddings (~669MB)
+# Opcional: LLM local como fallback
+ollama pull llama3.1:8b           # LLM (~4.7GB)
 ```
 
 2. **Instalar dependencias**:
@@ -127,17 +129,29 @@ Documento (.md, .html)
 
 ## 📊 Resultados de Benchmarks
 
-### Base Vectorial (pure vector search — sin BM25, sin reranker)
+### Retrieval por capas (35 queries con ground truth)
 
-| Métrica | Resultado |
-|---------|-----------|
-| Hit Rate | **95% (19/20)** |
-| Embedding model | mxbai-embed-large (1024 dims, Cosine) |
-| Queries simples (1 doc esperado) | 8/9 |
-| Queries multi-doc (2+ docs esperados) | 11/11 |
-| Único MISS | Query genérica sin términos técnicos |
+| Etapa | Hit Rate | Notas |
+|-------|----------|-------|
+| Vector only | 34/35 (97%) | Pure vector search |
+| BM25 only | 32/35 (91%) | Keyword search |
+| Ensemble (vector+BM25) | **35/35 (100%)** | Vector 0.6 + BM25 0.4 |
+| Parents post-hydration | **35/35 (100%)** | Child→Parent resolution |
+| Reranker Top 5 | 34/35 (97%) | 1 pérdida: query muy específica |
 
-El test completo está en `apps/backend/src/scripts/test-base-retrieval.ts` (20 preguntas con ground truth).
+### RAGAS (sesión 2026-03-07, 13 casos, juez Sonnet 4.6)
+
+| Métrica | Score | Config activa |
+|---------|-------|---------------|
+| Faithfulness | **0.42** | Claude Haiku + Compression + temp 0.0 |
+| Answer Relevancy | **0.74** | |
+| Context Precision | **0.35** | |
+| Context Recall | **0.92** | |
+| Hallucination | **0.76** | |
+
+Ver `benchmark/evaluation/COMPARATIVA_SESION.md` para el histórico completo (8 runs).
+
+### Stack de componentes
 
 | Componente | Modelo / Config |
 |------------|-----------------|
@@ -304,43 +318,32 @@ npm run build            # Build todo
 ### POST /api/documents/upload
 Sube y procesa un documento.
 
-**Request**:
 ```bash
 curl -X POST http://localhost:3001/api/documents/upload \
   -F "file=@documento.md"
 ```
 
-**Response**:
-```json
-{
-  "message": "Document processed successfully",
-  "filename": "documento.md",
-  "chunksCount": 15
-}
-```
-
 ### POST /api/chat/query
 Realiza una consulta RAG.
 
-**Request**:
 ```bash
 curl -X POST http://localhost:3001/api/chat/query \
   -H "Content-Type: application/json" \
   -d '{"question": "¿Qué es NgRx?"}'
 ```
 
-**Response**:
-```json
-{
-  "answer": "NgRx es una biblioteca para gestión de estado...",
-  "sources": [
-    {
-      "filename": "arquitectura.md",
-      "chunk_index": 5,
-      "uploadDate": "2024-01-31T..."
-    }
-  ]
-}
+### Alignment Optimization (background job)
+
+```bash
+# Optimizar todos los documentos (genera preguntas hipotéticas por chunk)
+curl -X POST http://localhost:3001/api/documents/optimize-all
+
+# Optimizar un documento concreto
+curl -X POST http://localhost:3001/api/documents/optimize-one/mi-doc.md
+
+# Limpiar optimización
+curl -X DELETE http://localhost:3001/api/documents/clear-optimization
+curl -X DELETE http://localhost:3001/api/documents/clear-optimization/mi-doc.md
 ```
 
 ## 🧪 Testing y Benchmarks
@@ -408,8 +411,9 @@ Ver [benchmark/evaluation/README.md](benchmark/evaluation/README.md) para detall
 - **[docs/DOCUMENT_PROCESSING.md](docs/DOCUMENT_PROCESSING.md)** - Procesamiento de documentos, templates y embeddings
 - **[docs/BM25_CONFIGURATION.md](docs/BM25_CONFIGURATION.md)** - Configuración de búsqueda híbrida
 - **[docs/RERANKING_SYSTEM.md](docs/RERANKING_SYSTEM.md)** - Sistema de reranking
-- **[benchmark/README.md](benchmark/README.md)** - Resultados de benchmarks
+- **[CHANGELOG.md](CHANGELOG.md)** - Diario de sesiones y decisiones de arquitectura
 - **[benchmark/evaluation/README.md](benchmark/evaluation/README.md)** - Sistema RAGAS de evaluación
+- **[benchmark/evaluation/COMPARATIVA_SESION.md](benchmark/evaluation/COMPARATIVA_SESION.md)** - Histórico de 8 runs con métricas comparadas
 
 ## 🔍 Troubleshooting
 
@@ -449,14 +453,17 @@ Ver [docs/RAG_SYSTEM_GUIDE.md](docs/RAG_SYSTEM_GUIDE.md) para el razonamiento co
 
 ## 🚧 Próximas Mejoras Prioritarias
 
-### En curso
-- [ ] **Añadir BM25 al pipeline** — la base vectorial (95% hit rate) ya está validada; BM25 resolverá queries genéricas sin términos técnicos (el único MISS conocido)
+### Implementado
+- [x] **Búsqueda Híbrida BM25 + Vector** — 100% hit rate (35/35)
 - [x] **Parent Document Retriever** — Small-to-Big: child 128 chars para retrieval, parent 512 chars para LLM
-- [x] **Contextual Compression** — filtra frases ruidosas de cada chunk antes del LLM (threshold coseno 0.30)
+- [x] **Reranking** — bge-reranker-base, Top 20 → Top 5
+- [x] **Contextual Compression** — filtra frases ruidosas (threshold coseno 0.30)
+- [x] **Claude Haiku como LLM** — mejor Faithfulness y Hallucination que llama/qwen
 - [x] **Temperature 0.0** — LLM más conservador, reduce alucinaciones
+- [x] **Alignment Optimization** — preguntas hipotéticas por chunk (experimental, evaluado en Run 8)
 
-### Pendiente
-- [ ] Mejorar RAGAS: más casos de prueba, dashboard visual
+### Pendiente (próximo sprint)
+- [ ] **Query decomposition** para preguntas comparativas — el retrieval trae docs poco específicos cuando la query compara dos conceptos
 - [ ] Persistir historial de chats (SQLite/PostgreSQL)
 - [ ] Soporte para PDF y DOCX
 
@@ -465,9 +472,9 @@ Ver [docs/RAG_SYSTEM_GUIDE.md](docs/RAG_SYSTEM_GUIDE.md) para el razonamiento co
 **Backend**:
 - Runtime: Node.js
 - Framework: Fastify
-- LLM: Ollama (llama3.1:8b)
+- LLM: Claude Haiku (`claude-haiku-4-5-20251001`) via Anthropic API
 - Vector Store: Qdrant
-- Embeddings: mxbai-embed-large
+- Embeddings: mxbai-embed-large (Ollama)
 - Reranker: bge-reranker-base
 - RAG: LangChain
 

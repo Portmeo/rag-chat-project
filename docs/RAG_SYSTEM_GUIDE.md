@@ -109,15 +109,44 @@ USE_CONTEXTUAL_COMPRESSION=true
 COMPRESSION_THRESHOLD=0.30
 ```
 
+## Alignment Optimization (feature experimental)
+
+Genera preguntas hipotéticas por cada parent chunk durante la indexación y las almacena en la metadata de Qdrant (`hypothetical_questions`). La idea: si cada chunk "sabe" qué preguntas puede responder, el matching semántico mejora para queries de comparación y razonamiento encadenado.
+
+**Cómo activar (background job tras indexar):**
+```bash
+# Optimizar todos los documentos
+POST /api/documents/optimize-all
+
+# Optimizar un documento concreto
+POST /api/documents/optimize-one/:filename
+
+# Limpiar optimización (global o por documento)
+DELETE /api/documents/clear-optimization
+DELETE /api/documents/clear-optimization/:filename
+```
+
+**Variables de entorno:**
+```bash
+USE_ALIGNMENT_OPTIMIZATION=true   # activa la generación de preguntas hipotéticas
+ALIGNMENT_BATCH_SIZE=5            # chunks procesados en paralelo
+```
+
+**Resultado en evaluación (Run 8):** el alignment no mejoró Faithfulness en Comparativa (0.30) y empeoró ligeramente Hallucination global (0.65 vs 0.76 sin alignment). Las preguntas hipotéticas añaden ruido al contexto. **Feature actualmente desactivada en config recomendada.**
+
+---
+
 ## Métricas RAGAS (sesión 2026-03-07, juez Sonnet 4.6)
 
-| Métrica | Score actual | Target |
-|---|---|---|
-| **Faithfulness** | 0.42 (Comparativa: 0.53) | >0.70 |
-| **Answer Relevancy** | 0.73 | >0.80 |
-| **Context Recall** | 0.94 | >0.95 |
-| **Context Precision** | 0.10-0.23 | >0.50 |
-| **Hallucination** | 0.76 | >0.90 |
+| Métrica | R5 (config activa) | R8 (+ alignment) | Target |
+|---|---|---|---|
+| **Faithfulness** | 0.42 (Comparativa: 0.53) | 0.36 | >0.70 |
+| **Answer Relevancy** | 0.73 | 0.74 | >0.80 |
+| **Context Recall** | 0.94 | 0.92 | >0.95 |
+| **Context Precision** | 0.10-0.23 | 0.35 | >0.50 |
+| **Hallucination** | 0.76 | 0.65 | >0.90 |
+
+La config activa recomendada es **R5** (Claude Haiku + Reranker + Compression + temp 0.0, sin alignment).
 
 ## Lecciones de Arquitectura
 
