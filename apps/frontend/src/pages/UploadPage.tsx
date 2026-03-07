@@ -240,7 +240,7 @@ export default function UploadPage() {
                     {optimizingAll ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
                     Optimize All
                   </Button>
-                  <Button variant="destructive" onClick={() => setShowClearDialog(true)} disabled={clearing}>
+                  <Button variant="destructive" size="sm" onClick={() => setShowClearDialog(true)} disabled={clearing}>
                     <Trash2 className="h-4 w-4 mr-2" />
                     Clear All
                   </Button>
