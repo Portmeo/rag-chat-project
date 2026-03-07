@@ -75,6 +75,36 @@ Las queries Comparativas tienen Faithfulness 0.30 porque el LLM inventa comparac
 
 ---
 
+## Sesión 2026-03-07 (continuación) — Fix BM25 + Diagnóstico Reranker
+
+### Diagnóstico reranker
+Creado script `test-reranker-inspect.ts` (`npm run test:reranker-inspect`) que muestra para cada query:
+- Pre-rerank: parents que entran con su posición ensemble
+- Post-rerank: posición nueva, score BGE y delta de movimiento (↑/↓/=)
+
+**Hallazgos:**
+- BM25 estaba indexando alignment questions (`is_alignment_question: true`) — se matchaban por estructura de pregunta ("¿Cuáles son...?") contra queries del usuario, desplazando docs relevantes
+- El reranker SÍ funciona: en 4/5 queries movió docs, en microfrontends subió el correcto de pos 3→1
+- Scores BGE muy comprimidos (-10 a -8) salvo matches claros → confirma que bge-reranker-base discrimina poco en español
+- Un reranker loss confirmado (autenticación): doc correcto en pos 2 pre-rerank, caía fuera del top-5
+
+### Fix aplicado
+`apps/backend/src/services/rag/index.ts` línea 160: añadido `&& !meta.parent_child.is_alignment_question` al filtro BM25.
+Mismo fix en `test-reranker.ts` y `test-reranker-inspect.ts`.
+
+**Resultado post-fix: 5/5 HIT** en las mismas 5 queries. El reranker loss de autenticación se resolvió — el doc correcto sube a posición 1 (score -3.35).
+
+### Prompt estricto anti-alucinaciones
+Problema: "NUNCA inventes" es ambiguo — el LLM no considera que "completa" o "elabora" sea inventar.
+
+Cambios en `apps/backend/src/services/rag/config.ts` (PROMPT_TEMPLATE.SYSTEM):
+- Instrucción 2 reformulada: "Si algo no aparece escrito en el contexto, NO lo incluyas aunque lo sepas por tu conocimiento previo"
+- Añadido explícitamente: "no inferras, deduzcas ni completes información no escrita"
+- Mención explícita a Angular/NgRx/Ionic para evitar que el LLM use training data de esos frameworks
+- Prohibición añadida: "NO uses tu conocimiento previo de frameworks para ampliar más allá del contexto"
+
+---
+
 ## Sesión 2026-03-06/07 (noche) — Optimizaciones Core + Runs 1-7
 
 ### Implementado
