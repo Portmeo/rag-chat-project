@@ -121,3 +121,4 @@ const shutdown = async () => {
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
+process.on('SIGUSR2', shutdown); // tsx watch restart signal

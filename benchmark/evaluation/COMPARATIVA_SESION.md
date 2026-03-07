@@ -192,6 +192,57 @@ Dataset: `golden_qa_v2.json` — 52 casos
 
 ---
 
+## Run 5 — Compression + Temperature 0.0 (validación de mejoras)
+
+**Objetivo**: Medir impacto de Contextual Compression + temperature 0.0. Mismos 9 casos que R4.
+**Config RAG**: Claude Haiku + Reranker + Contextual Compression (threshold 0.30) + temp 0.0
+**Resultados**: `ragas_2026-03-07T05-58-11.json`
+
+| Métrica                       | R4 sin mejoras | R5 compression+temp0 | Δ          |
+|-------------------------------|----------------|----------------------|------------|
+| Faithfulness global           | 0.28           | 0.42                 | +0.14 ↑   |
+| Faithfulness Comparativa      | 0.31           | 0.53                 | +0.22 ↑   |
+| Faithfulness Multi-Hop        | 0.22           | 0.22                 | =          |
+| Hallucination                 | 0.60           | 0.76                 | +0.16 ↑   |
+| Answer Relevancy              | 0.72           | 0.73                 | =          |
+| Context Precision Comparativa | 0.10           | 0.10                 | =          |
+| Context Recall                | 0.94           | 0.94                 | =          |
+| Answer Correctness            | 0.87           | 0.81                 | -0.06      |
+
+**Conclusiones:**
+- Contextual Compression + temp 0.0 funcionó — Faithfulness Comparativa sube de 0.31 a **0.53** (+22 puntos)
+- Hallucination mejora: 0.60 → **0.76** — el modelo inventa menos con chunks más limpios
+- Multi-Hop Faithfulness no mejora (0.22) — el problema aquí no es ruido sino falta de información específica en el contexto
+- Context Precision Comparativa sigue en 0.10 — el retrieval trae docs poco específicos para preguntas de comparación
+- Answer Correctness baja levemente (-0.06) — con temp 0.0 las respuestas son más secas/literales
+
+**Próximo paso identificado**: Alignment Optimization — generar preguntas hipotéticas por chunk durante la indexación para mejorar matching semántico en preguntas comparativas y multi-hop.
+
+---
+
+## Run 6 — llama3.1:8b + Compression + temp 0.0 (comparativa con Claude)
+
+**Objetivo**: Comparar llama vs Claude con las mismas mejoras activas (compression + temp 0.0).
+**Config RAG**: llama3.1:8b + Reranker + Contextual Compression + temp 0.0
+**Resultados**: `ragas_2026-03-07T06-12-10.json`
+
+| Métrica                  | R5 Claude Haiku | R6 llama3.1:8b | Δ          |
+|--------------------------|-----------------|----------------|------------|
+| Faithfulness global      | 0.42            | 0.29           | -0.13      |
+| Faithfulness Comparativa | 0.53            | 0.32           | -0.21      |
+| Faithfulness Multi-Hop   | 0.22            | 0.23           | ≈          |
+| Hallucination            | 0.76            | 0.33           | -0.43 ↓↓  |
+| Answer Relevancy         | 0.73            | 0.48           | -0.25      |
+| Answer Correctness       | 0.81            | 0.72           | -0.09      |
+| Context Recall           | 0.94            | 0.94           | =          |
+
+**Conclusiones:**
+- Claude Haiku gana en todas las métricas. Diferencia más crítica: Hallucination 0.76 vs 0.33 — llama inventa el doble.
+- Retrieval idéntico (Context Recall 0.94) — el pipeline de recuperación es agnóstico al LLM.
+- **Config final confirmada**: Claude Haiku + Reranker + Compression + temp 0.0
+
+---
+
 ## Cambios aplicados en esta sesión
 
 ### Pipeline
