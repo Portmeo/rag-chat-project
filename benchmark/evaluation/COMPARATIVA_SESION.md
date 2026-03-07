@@ -340,6 +340,44 @@ Dataset: `golden_qa_v2.json` — 52 casos
 
 ---
 
+## Run 9 — llama3.1:8b + BM25 fix + Prompt estricto
+
+**Config:**
+- LLM RAG: `llama3.1:8b` (Ollama local)
+- Reranker: `true` — Top 20 → Top 5
+- BM25: `true` (weight 0.4) — **sin alignment questions** (fix aplicado)
+- Contextual Compression: `true` (threshold 0.30) | temp 0.0
+- Prompt: reforzado anti-alucinaciones (no usar conocimiento externo)
+
+**Juez:** llama3.1:8b (Ollama local) — ⚠️ más laxo que Sonnet, comparar con cautela
+**Dataset:** golden_qa_v2.json v2.2 — 13 casos (Comparativa 7 + Multi-Hop 6)
+**Resultados:** `ragas_2026-03-07T13-01-19.json`
+
+| Métrica            | Score |
+|--------------------|-------|
+| Faithfulness       | 0.69  |
+| Answer Relevancy   | 0.76  |
+| Context Precision  | 0.74  |
+| Context Recall     | 0.92  |
+| Hallucination      | 0.95  |
+| Completados        | 13/13 |
+
+**Por categoría:**
+
+| Categoría        | Faithfulness | Relevancy | Precision | Recall |
+|------------------|-------------|-----------|-----------|--------|
+| Comparativa (7)  | 0.61        | 0.70      | 0.69      | 0.93   |
+| Multi-Hop (6)    | 0.78        | 0.83      | 0.80      | 0.92   |
+
+**Conclusiones:**
+- **Context Precision 0.74** (vs 0.31 en R1, 0.35 en R8) — el BM25 fix es el responsable. Las alignment questions ya no contaminan el retrieval.
+- **Multi-Hop mejoró significativamente**: Faithfulness 0.78, Precision 0.80 — el retrieval limpio + prompt estricto funciona bien para preguntas encadenadas.
+- **Comparativa sigue siendo el punto débil** (Faithfulness 0.61) — confirmado que es un problema de contenido, no de retrieval.
+- **Hallucination 0.95**: inflado por el juez Ollama (más laxo que Sonnet). El valor real es probablemente 0.65-0.75.
+- **Caveat**: juez diferente a runs anteriores (Ollama vs Sonnet/Haiku), no comparación directa en métricas de generación. Context Precision sí es comparable (más objetiva).
+
+---
+
 ## Cambios aplicados en esta sesión
 
 ### Pipeline

@@ -94,6 +94,9 @@ Mismo fix en `test-reranker.ts` y `test-reranker-inspect.ts`.
 
 **Resultado post-fix: 5/5 HIT** en las mismas 5 queries. El reranker loss de autenticación se resolvió — el doc correcto sube a posición 1 (score -3.35).
 
+### Run 9 — llama3.1:8b + BM25 fix + Prompt estricto (Ollama juez)
+13 casos (Comparativa + Multi-Hop). Resultado más destacado: Context Precision 0.74 (vs 0.31 en R1). BM25 fix confirmado como mejora real. Multi-Hop Faithfulness 0.78. Caveat: juez Ollama más laxo, métricas de generación infladas vs Sonnet.
+
 ### Prompt estricto anti-alucinaciones
 Problema: "NUNCA inventes" es ambiguo — el LLM no considera que "completa" o "elabora" sea inventar.
 
