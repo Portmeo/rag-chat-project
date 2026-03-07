@@ -33,9 +33,9 @@ export default function UploadPage() {
   const [sortField, setSortField] = useState<SortField>('uploadDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
-  const fetchDocuments = async () => {
+  const fetchDocuments = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const result = await getDocuments();
       setDocuments(result.documents || []);
     } catch (err: any) {
@@ -43,7 +43,7 @@ export default function UploadPage() {
         description: err.message || 'An error occurred while loading documents',
       });
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -54,7 +54,7 @@ export default function UploadPage() {
   useEffect(() => {
     const hasOptimizing = documents.some(d => d.alignment_status === 'optimizing');
     if (!hasOptimizing) return;
-    const interval = setInterval(fetchDocuments, 3000);
+    const interval = setInterval(() => fetchDocuments(true), 3000);
     return () => clearInterval(interval);
   }, [documents]);
 
