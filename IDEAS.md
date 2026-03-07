@@ -6,21 +6,18 @@ Sistema actual: BM25 (70%) + mxbai-embed-large (30%) + bge-reranker + llama3.1:8
 
 ## 🎯 Prioridad Alta (Siguiente Sprint)
 
-### 1. Migrar BM25 de Memoria a Qdrant ⭐ IMPORTANTE
-- [ ] Implementar BM25 usando sparse vectors de Qdrant
-  - **Problema Actual**: BM25Retriever mantiene TODOS los documentos en memoria
-  - Actualmente: `bm25RetrieverCache` se reconstruye en cada upload
-  - Memoria crece linealmente con número de documentos
-  - No es escalable para grandes volúmenes (>10k documentos)
-  - **Solución**: Usar Qdrant Sparse Vectors (BM42 algorithm)
-  - Qdrant soporta búsqueda híbrida nativa (dense + sparse vectors)
-  - Escalabilidad: millones de documentos sin problemas de memoria
-  - **Impacto**: Sistema escalable, menor uso de RAM
-  - **Tiempo**: 1-2 días
+### 1. Redis como capa de persistencia rápida ⭐ IMPORTANTE
+- [ ] Usar Redis para BM25, parents y alignment status
+  - **Problema actual**: BM25 se reconstruye en memoria en cada arranque, parents se guardan en Qdrant con vector nulo (hack), alignment status también en Qdrant
+  - **Solución Redis**:
+    - **BM25 index** → blob serializado en Redis, persist entre reinicios, reconstrucción instantánea
+    - **Parents** → Redis Hash por `parent_doc_id` → contenido, lookup O(1) vs scroll Qdrant
+    - **Alignment status** → Redis Hash por filename (`alignment:filename` → `{status, progress, total}`)
+  - **Qdrant queda solo para búsqueda vectorial de children** — su uso natural
+  - **Impacto**: arranque instantáneo del backend, hydration de parents mucho más rápida, arquitectura más limpia
+  - **Tiempo**: 2-3 días
   - **Dificultad**: Media
-  - **Referencias**:
-    - [Qdrant Sparse Vectors](https://qdrant.tech/documentation/concepts/vectors/#sparse-vectors)
-    - [Hybrid Search](https://qdrant.tech/articles/hybrid-search/)
+  - **Por qué Redis y no MongoDB**: es key-value puro, O(1) lookups, sin schema, perfecto para BM25 blob y parent lookup. Mongo añadiría complejidad innecesaria.
 
 ### 2. Mejorar RAGAS (En Progreso)
 - [ ] Optimizar prompts de evaluación para mayor consistencia
