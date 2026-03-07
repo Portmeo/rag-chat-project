@@ -157,9 +157,9 @@ async function rebuildBM25Cache(): Promise<void> {
     const originalCount = allDocuments.length;
     allDocuments = allDocuments.filter(doc => {
       const meta = doc.metadata as TechnicalMetadata;
-      return meta.parent_child && meta.parent_child.is_parent === false;
+      return meta.parent_child && meta.parent_child.is_parent === false && !meta.parent_child.is_alignment_question;
     });
-    pipelineLogger.log(`BM25 Filter: Kept ${allDocuments.length} children from ${originalCount} total points (filtered out parents)`);
+    pipelineLogger.log(`BM25 Filter: Kept ${allDocuments.length} children from ${originalCount} total points (filtered out parents + alignment questions)`);
   }
 
   pipelineLogger.log(`Rebuilding BM25 cache with ${allDocuments.length} documents`);

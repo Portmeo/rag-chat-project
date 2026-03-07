@@ -67,7 +67,7 @@ async function main() {
     client: qdrantClient, collectionName: COLLECTION_NAME,
   });
   const allDocs = await getAllDocumentsFromQdrant();
-  const childDocs = allDocs.filter((d: any) => d.metadata?.parent_child?.is_parent === false);
+  const childDocs = allDocs.filter((d: any) => d.metadata?.parent_child?.is_parent === false && !d.metadata?.parent_child?.is_alignment_question);
 
   const vectorRetriever = vectorStore.asRetriever({ k: RETRIEVAL_K });
   const bm25Retriever   = new BM25Retriever({ documents: childDocs, k: RETRIEVAL_K });
