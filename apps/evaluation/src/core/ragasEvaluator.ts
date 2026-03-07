@@ -89,7 +89,7 @@ export class RAGASEvaluator {
 
   private async callRAGAPI(question: string): Promise<RAGResponse> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60000);
+    const timeout = setTimeout(() => controller.abort(), 180000);
 
     try {
       const response = await fetch(`${this.backendUrl}/api/chat/query`, {
