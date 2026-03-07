@@ -6,6 +6,31 @@ Sistema actual: BM25 (70%) + mxbai-embed-large (30%) + bge-reranker + llama3.1:8
 
 ## 🎯 Prioridad Alta (Siguiente Sprint)
 
+### 0. Query Logging para mejora continua del RAG ⭐ MUY IMPORTANTE
+- [ ] Guardar log de todas las queries reales de los usuarios con sus respuestas y fuentes recuperadas
+  - **Problema actual**: el alignment optimizer genera preguntas hipotéticas sin saber qué preguntan los usuarios reales → preguntas genéricas que no coinciden con el vocabulario real
+  - **Solución**: log de queries reales → usar esas queries para:
+    1. **Mejorar alignment questions**: re-generar preguntas por chunk usando las queries reales más frecuentes como referencia de vocabulario
+    2. **Detectar gaps**: queries sin contexto relevante → documentación que falta
+    3. **Afinar retrieval**: queries que fallan frecuentemente → ajustar pesos BM25/vector o chunk size
+  - **Implementación**:
+    - Guardar en fichero JSONL o DB: `{ query, answer, sources, latency, timestamp }`
+    - Dashboard simple de queries frecuentes y fallidas
+    - Script para re-generar alignment questions usando queries reales como seed
+  - **Impacto**: el RAG mejora con el uso real en lugar de preguntas sintéticas — más cercano a un chatbot que aprende
+  - **Tiempo**: 1 día (logging) + iteración continua
+  - **Dificultad**: Baja (logging) / Media (mejora continua)
+
+### RAG Dinámico y Auto-mejorante
+- El sistema actual es **estático**: indexas docs y el retrieval no cambia hasta que re-indexas manualmente
+- Con query logging, el RAG se vuelve **dinámico**:
+  - Las alignment questions se regeneran automáticamente en base a queries reales frecuentes
+  - El índice evoluciona sin intervención humana
+  - Los gaps de documentación se detectan automáticamente (queries sin contexto relevante)
+  - El vocabulario del índice converge hacia el vocabulario real de los usuarios
+- **Analogía**: como un sistema de recomendación que aprende del comportamiento — no necesita reentrenar modelos, solo actualiza el índice
+- **Diferencia clave con fine-tuning**: no tocas los pesos del modelo, solo el conocimiento indexado → más rápido, más barato, más controlable
+
 ### 1. Redis como capa de persistencia rápida ⭐ IMPORTANTE
 - [ ] Usar Redis para BM25, parents y alignment status
   - **Problema actual**: BM25 se reconstruye en memoria en cada arranque, parents se guardan en Qdrant con vector nulo (hack), alignment status también en Qdrant
