@@ -328,7 +328,7 @@ export default function UploadPage() {
                           {doc.alignment_status === 'ready' && (
                             <span className="flex items-center gap-1.5 text-xs text-green-600">
                               <CheckCircle2 className="h-3.5 w-3.5" />
-                              Listo
+                              Listo ({doc.alignment_total})
                             </span>
                           )}
                           {!doc.alignment_status && (
