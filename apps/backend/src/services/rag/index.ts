@@ -63,31 +63,43 @@ const ALIGNMENT_BATCH_SIZE = 5;
 
 async function runAlignmentOptimization(filename: string, parents: Document[]): Promise<void> {
   try {
+    // 1. Limpiar alignment questions existentes del filename antes de generar
+    await qdrantClient.delete(COLLECTION_NAME, {
+      filter: {
+        must: [
+          { key: 'metadata.parent_child.is_alignment_question', match: { value: true } },
+          { key: 'metadata.filename', match: { value: filename } },
+        ],
+      },
+    });
+
     await upsertAlignmentStatusPoint(filename, 'optimizing', 0, parents.length);
 
-    const allQuestionDocs: Document[] = [];
     let progress = 0;
+    let totalIndexed = 0;
 
+    // 2. Generar e indexar por batches (no acumular todo en memoria)
     for (let i = 0; i < parents.length; i += ALIGNMENT_BATCH_SIZE) {
       const batch = parents.slice(i, i + ALIGNMENT_BATCH_SIZE);
       const batchResults = await Promise.all(
         batch.map(parent => generateAlignmentQuestions(parent, llm, ALIGNMENT_OPTIMIZATION_CONFIG.questionsPerChunk))
       );
-      for (const questions of batchResults) allQuestionDocs.push(...questions);
+      const batchDocs = batchResults.flat();
+
+      if (batchDocs.length > 0) {
+        await QdrantVectorStore.fromDocuments(batchDocs, embeddings, {
+          client: qdrantClient,
+          collectionName: COLLECTION_NAME,
+        });
+        totalIndexed += batchDocs.length;
+      }
+
       progress += batch.length;
       await upsertAlignmentStatusPoint(filename, 'optimizing', Math.min(progress, parents.length), parents.length);
     }
 
-    if (allQuestionDocs.length > 0) {
-      await QdrantVectorStore.fromDocuments(allQuestionDocs, embeddings, {
-        client: qdrantClient,
-        collectionName: COLLECTION_NAME,
-      });
-      pipelineLogger.log(`Indexed ${allQuestionDocs.length} alignment question chunks for ${filename}`);
-    }
-
     await upsertAlignmentStatusPoint(filename, 'ready', parents.length, parents.length);
-    pipelineLogger.log(`Alignment optimization complete for ${filename}`);
+    pipelineLogger.log(`Alignment optimization complete for ${filename}: ${totalIndexed} questions indexed`);
   } catch (error: any) {
     pipelineLogger.warn(`Alignment optimization failed for ${filename}: ${error.message}`);
   }
@@ -825,17 +837,38 @@ export async function clearAlignmentOptimization(): Promise<void> {
   const collectionExists = await checkCollectionExists();
   if (!collectionExists) return;
 
-  // Delete alignment question chunks
   await qdrantClient.delete(COLLECTION_NAME, {
     filter: { must: [{ key: 'metadata.parent_child.is_alignment_question', match: { value: true } }] },
   });
-
-  // Delete status points
   await qdrantClient.delete(COLLECTION_NAME, {
     filter: { must: [{ key: 'type', match: { value: ALIGNMENT_STATUS_TYPE } }] },
   });
 
   pipelineLogger.log('Cleared all alignment optimization data');
+}
+
+export async function clearDocumentAlignmentOptimization(filename: string): Promise<void> {
+  const collectionExists = await checkCollectionExists();
+  if (!collectionExists) return;
+
+  await qdrantClient.delete(COLLECTION_NAME, {
+    filter: {
+      must: [
+        { key: 'metadata.parent_child.is_alignment_question', match: { value: true } },
+        { key: 'metadata.filename', match: { value: filename } },
+      ],
+    },
+  });
+  await qdrantClient.delete(COLLECTION_NAME, {
+    filter: {
+      must: [
+        { key: 'type', match: { value: ALIGNMENT_STATUS_TYPE } },
+        { key: 'metadata.filename', match: { value: filename } },
+      ],
+    },
+  });
+
+  pipelineLogger.log(`Cleared alignment optimization for ${filename}`);
 }
 
 export async function optimizeExistingDocuments(): Promise<{ queued: number }> {

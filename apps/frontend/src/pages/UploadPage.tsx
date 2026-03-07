@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { getDocuments, clearDocuments, deleteDocument, optimizeAllDocuments, optimizeDocument, clearOptimization } from '@/services/api';
+import { getDocuments, clearDocuments, deleteDocument, optimizeAllDocuments, optimizeDocument, clearOptimization, clearDocumentOptimization } from '@/services/api';
 import FileUpload from '@/components/FileUpload';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -131,6 +131,15 @@ export default function UploadPage() {
       await clearOptimization();
       await fetchDocuments(true);
       toast.success('Optimization cleared');
+    } catch (err: any) {
+      toast.error('Failed to clear optimization', { description: err.message });
+    }
+  };
+
+  const handleClearOptimizationOne = async (filename: string) => {
+    try {
+      await clearDocumentOptimization(filename);
+      await fetchDocuments(true);
     } catch (err: any) {
       toast.error('Failed to clear optimization', { description: err.message });
     }
@@ -326,9 +335,19 @@ export default function UploadPage() {
                             </span>
                           )}
                           {doc.alignment_status === 'ready' && (
-                            <span className="flex items-center gap-1.5 text-xs text-green-600">
-                              <CheckCircle2 className="h-3.5 w-3.5" />
-                              Listo ({doc.alignment_total})
+                            <span className="flex items-center gap-2">
+                              <span className="flex items-center gap-1.5 text-xs text-green-600">
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                Listo ({doc.alignment_total})
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                                onClick={() => handleClearOptimizationOne(doc.filename)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
                             </span>
                           )}
                           {!doc.alignment_status && (

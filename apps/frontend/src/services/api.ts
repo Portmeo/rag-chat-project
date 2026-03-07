@@ -120,6 +120,15 @@ export async function clearOptimization() {
   return response.json();
 }
 
+export async function clearDocumentOptimization(filename: string) {
+  const response = await fetch(`${API_URL}/api/documents/${encodeURIComponent(filename)}/optimization`, { method: 'DELETE' });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to clear optimization');
+  }
+  return response.json();
+}
+
 export async function clearDocuments() {
   const response = await fetch(`${API_URL}/api/documents`, {
     method: 'DELETE',
