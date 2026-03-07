@@ -14,6 +14,8 @@ import {
   deleteDocument,
   getDocumentStatus,
   optimizeAll,
+  optimizeOne,
+  clearOptimization,
 } from './controllers/documentController.js';
 import { queryChat, queryChatStream } from './controllers/chatController.js';
 
@@ -95,6 +97,8 @@ fastify.post('/api/documents/upload', uploadDocument);
 fastify.delete('/api/documents/:filename', deleteDocument);
 fastify.delete('/api/documents', clearDocuments);
 fastify.post('/api/documents/optimize-all', optimizeAll);
+fastify.post('/api/documents/:filename/optimize', optimizeOne);
+fastify.delete('/api/documents/optimization', clearOptimization);
 
 // Chat routes
 fastify.post('/api/chat/query', queryChat);

@@ -93,6 +93,33 @@ export async function deleteDocument(filename: string) {
   return response.json();
 }
 
+export async function optimizeAllDocuments() {
+  const response = await fetch(`${API_URL}/api/documents/optimize-all`, { method: 'POST' });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to start optimization');
+  }
+  return response.json();
+}
+
+export async function optimizeDocument(filename: string) {
+  const response = await fetch(`${API_URL}/api/documents/${encodeURIComponent(filename)}/optimize`, { method: 'POST' });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to start optimization');
+  }
+  return response.json();
+}
+
+export async function clearOptimization() {
+  const response = await fetch(`${API_URL}/api/documents/optimization`, { method: 'DELETE' });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to clear optimization');
+  }
+  return response.json();
+}
+
 export async function clearDocuments() {
   const response = await fetch(`${API_URL}/api/documents`, {
     method: 'DELETE',

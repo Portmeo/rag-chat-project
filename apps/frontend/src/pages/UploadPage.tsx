@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { getDocuments, clearDocuments, deleteDocument } from '@/services/api';
+import { getDocuments, clearDocuments, deleteDocument, optimizeAllDocuments, optimizeDocument, clearOptimization } from '@/services/api';
 import FileUpload from '@/components/FileUpload';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { FileText, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Search, Loader2, CheckCircle2 } from 'lucide-react';
+import { FileText, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Search, Loader2, CheckCircle2, Sparkles, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Document {
@@ -25,6 +25,8 @@ export default function UploadPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [clearing, setClearing] = useState(false);
+  const [optimizingAll, setOptimizingAll] = useState(false);
+  const [optimizingFile, setOptimizingFile] = useState<string | null>(null);
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [deletingFile, setDeletingFile] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -80,6 +82,41 @@ export default function UploadPage() {
       });
     } finally {
       setDeletingFile(null);
+    }
+  };
+
+  const handleOptimizeAll = async () => {
+    try {
+      setOptimizingAll(true);
+      await optimizeAllDocuments();
+      await fetchDocuments(true);
+      toast.success('Optimization started', { description: 'Generating alignment questions in background' });
+    } catch (err: any) {
+      toast.error('Failed to start optimization', { description: err.message });
+    } finally {
+      setOptimizingAll(false);
+    }
+  };
+
+  const handleOptimizeOne = async (filename: string) => {
+    try {
+      setOptimizingFile(filename);
+      await optimizeDocument(filename);
+      await fetchDocuments(true);
+    } catch (err: any) {
+      toast.error('Failed to start optimization', { description: err.message });
+    } finally {
+      setOptimizingFile(null);
+    }
+  };
+
+  const handleClearOptimization = async () => {
+    try {
+      await clearOptimization();
+      await fetchDocuments(true);
+      toast.success('Optimization cleared');
+    } catch (err: any) {
+      toast.error('Failed to clear optimization', { description: err.message });
     }
   };
 
@@ -176,14 +213,22 @@ export default function UploadPage() {
                 Uploaded Documents ({searchQuery ? `${filteredAndSortedDocuments.length} / ${documents.length}` : documents.length})
               </h3>
               {documents.length > 0 && (
-                <Button
-                  variant="destructive"
-                  onClick={() => setShowClearDialog(true)}
-                  disabled={clearing}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Clear All
-                </Button>
+                <div className="flex gap-2">
+                  {documents.some(d => d.alignment_status === 'ready') && (
+                    <Button variant="outline" size="sm" onClick={handleClearOptimization}>
+                      <X className="h-4 w-4 mr-2" />
+                      Clear Optimization
+                    </Button>
+                  )}
+                  <Button variant="outline" size="sm" onClick={handleOptimizeAll} disabled={optimizingAll}>
+                    {optimizingAll ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                    Optimize All
+                  </Button>
+                  <Button variant="destructive" onClick={() => setShowClearDialog(true)} disabled={clearing}>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Clear All
+                  </Button>
+                </div>
               )}
             </div>
 
@@ -269,6 +314,19 @@ export default function UploadPage() {
                               <CheckCircle2 className="h-3.5 w-3.5" />
                               Listo
                             </span>
+                          )}
+                          {!doc.alignment_status && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => handleOptimizeOne(doc.filename)}
+                              disabled={optimizingFile === doc.filename}
+                            >
+                              {optimizingFile === doc.filename
+                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                : <Sparkles className="h-3.5 w-3.5" />}
+                            </Button>
                           )}
                         </TableCell>
                         <TableCell>

@@ -59,6 +59,8 @@ async function upsertAlignmentStatusPoint(
   });
 }
 
+const ALIGNMENT_BATCH_SIZE = 5;
+
 async function runAlignmentOptimization(filename: string, parents: Document[]): Promise<void> {
   try {
     await upsertAlignmentStatusPoint(filename, 'optimizing', 0, parents.length);
@@ -66,14 +68,14 @@ async function runAlignmentOptimization(filename: string, parents: Document[]): 
     const allQuestionDocs: Document[] = [];
     let progress = 0;
 
-    for (const parent of parents) {
-      const questions = await generateAlignmentQuestions(parent, llm, ALIGNMENT_OPTIMIZATION_CONFIG.questionsPerChunk);
-      allQuestionDocs.push(...questions);
-      progress++;
-
-      if (progress % 5 === 0 || progress === parents.length) {
-        await upsertAlignmentStatusPoint(filename, 'optimizing', progress, parents.length);
-      }
+    for (let i = 0; i < parents.length; i += ALIGNMENT_BATCH_SIZE) {
+      const batch = parents.slice(i, i + ALIGNMENT_BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map(parent => generateAlignmentQuestions(parent, llm, ALIGNMENT_OPTIMIZATION_CONFIG.questionsPerChunk))
+      );
+      for (const questions of batchResults) allQuestionDocs.push(...questions);
+      progress += batch.length;
+      await upsertAlignmentStatusPoint(filename, 'optimizing', Math.min(progress, parents.length), parents.length);
     }
 
     if (allQuestionDocs.length > 0) {
@@ -336,10 +338,7 @@ export async function addDocumentToVectorStore(
 
     pipelineLogger.log(`Created ${children.length} child chunks + ${parents.length} parent chunks`);
 
-    // Alignment Optimization: generate hypothetical questions in background
-    if (ALIGNMENT_OPTIMIZATION_CONFIG.enabled) {
-      setImmediate(() => runAlignmentOptimization(filename, parents));
-    }
+    // Alignment Optimization is triggered manually via /api/documents/optimize-all or /:filename/optimize
 
     // Rebuild cache asynchronously (don't block the response)
     rebuildBM25Cache().catch((error) => {
@@ -788,6 +787,57 @@ export async function listDocuments(): Promise<DocumentMetadata[]> {
   }
 }
 
+export async function optimizeDocument(filename: string): Promise<{ queued: boolean }> {
+  const collectionExists = await checkCollectionExists();
+  if (!collectionExists) return { queued: false };
+
+  const parents: Document[] = [];
+  let offset: string | number | null = null;
+
+  do {
+    const result = await qdrantClient.scroll(COLLECTION_NAME, {
+      filter: {
+        must: [
+          { key: 'metadata.parent_child.is_parent', match: { value: true } },
+          { key: 'metadata.filename', match: { value: filename } },
+        ],
+      },
+      limit: 100,
+      offset: offset ?? undefined,
+      with_payload: true,
+      with_vector: false,
+    });
+
+    for (const point of result.points) {
+      const payload = point.payload as any;
+      parents.push(new Document({ pageContent: payload.text, metadata: payload.metadata }));
+    }
+    offset = (result.next_page_offset as string | number | null) ?? null;
+  } while (offset !== null);
+
+  if (parents.length === 0) return { queued: false };
+
+  setImmediate(() => runAlignmentOptimization(filename, parents));
+  return { queued: true };
+}
+
+export async function clearAlignmentOptimization(): Promise<void> {
+  const collectionExists = await checkCollectionExists();
+  if (!collectionExists) return;
+
+  // Delete alignment question chunks
+  await qdrantClient.delete(COLLECTION_NAME, {
+    filter: { must: [{ key: 'metadata.parent_child.is_alignment_question', match: { value: true } }] },
+  });
+
+  // Delete status points
+  await qdrantClient.delete(COLLECTION_NAME, {
+    filter: { must: [{ key: 'type', match: { value: ALIGNMENT_STATUS_TYPE } }] },
+  });
+
+  pipelineLogger.log('Cleared all alignment optimization data');
+}
+
 export async function optimizeExistingDocuments(): Promise<{ queued: number }> {
   const collectionExists = await checkCollectionExists();
   if (!collectionExists) return { queued: 0 };
@@ -817,7 +867,7 @@ export async function optimizeExistingDocuments(): Promise<{ queued: number }> {
       parentsByFilename.get(filename)!.push(doc);
     }
 
-    offset = result.next_page_offset ?? null;
+    offset = (result.next_page_offset as string | number | null) ?? null;
   } while (offset !== null);
 
   for (const [filename, parents] of parentsByFilename.entries()) {

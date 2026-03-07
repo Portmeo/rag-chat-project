@@ -3,7 +3,8 @@ import type { MultipartFile } from '@fastify/multipart';
 import { unlink, writeFile, readFile, readdir, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { processDocument } from '../services/documentProcessor/index.js';
-import { addDocumentToVectorStore, listDocuments, clearBM25Cache, deleteDocumentFromVectorStore, getAlignmentStatus, optimizeExistingDocuments } from '../services/rag/index.js';
+import { addDocumentToVectorStore, listDocuments, clearBM25Cache, deleteDocumentFromVectorStore, getAlignmentStatus, optimizeExistingDocuments, optimizeDocument, clearAlignmentOptimization } from '../services/rag/index.js';
+import { ALIGNMENT_OPTIMIZATION_CONFIG } from '../services/rag/config.js';
 import { clearQdrant } from '../repositories/qdrantRepository.js';
 import { HTTP_STATUS } from '../shared/http.js';
 import { MESSAGES } from '../shared/messages.js';
@@ -149,12 +150,38 @@ export async function deleteDocument(
   }
 }
 
+function checkAlignmentEnabled(reply: FastifyReply): boolean {
+  if (!ALIGNMENT_OPTIMIZATION_CONFIG.enabled) {
+    reply.code(403).send({ error: 'Alignment optimization is disabled (USE_ALIGNMENT_OPTIMIZATION=false)' });
+    return false;
+  }
+  return true;
+}
+
 export async function optimizeAll(
-  request: FastifyRequest,
+  _request: FastifyRequest,
   reply: FastifyReply
 ) {
-  const result = await optimizeExistingDocuments();
-  return result;
+  if (!checkAlignmentEnabled(reply)) return;
+  return optimizeExistingDocuments();
+}
+
+export async function optimizeOne(
+  request: FastifyRequest<{ Params: { filename: string } }>,
+  reply: FastifyReply
+) {
+  if (!checkAlignmentEnabled(reply)) return;
+  const filename = decodeURIComponent(request.params.filename);
+  return optimizeDocument(filename);
+}
+
+export async function clearOptimization(
+  _request: FastifyRequest,
+  reply: FastifyReply
+) {
+  if (!checkAlignmentEnabled(reply)) return;
+  await clearAlignmentOptimization();
+  return { message: 'Alignment optimization data cleared' };
 }
 
 export async function getDocumentStatus(
