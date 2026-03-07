@@ -53,18 +53,13 @@ Sistema actual: BM25 (70%) + mxbai-embed-large (30%) + bge-reranker + llama3.1:8
 
 ## 🚀 Prioridad Media
 
-### 6. Parent Document Retriever ⭐ MUY RECOMENDADO
-- [ ] Implementar estrategia Small-to-Big
-  - **Qué es**: Buscar con chunks pequeños (200 chars), retornar chunks grandes (1000 chars)
-  - **Por qué**: Chunks pequeños = mejor retrieval, chunks grandes = mejor LLM
-  - Al indexar: crear child chunks (200) + parent chunks (1000)
-  - Indexar child chunks en Qdrant con `metadata.parent_id`
-  - En retrieval: buscar child → retornar parent completo
-  - **Impacto**: +15-20% precisión en retrieval, mejor contexto al LLM
-  - **Ventaja**: Lo mejor de ambos mundos (precisión + contexto)
-  - **Tiempo**: 4-6 horas
-  - **Dificultad**: Media
-  - **Referencias**: [LangChain Parent Document Retriever](https://python.langchain.com/docs/modules/data_connection/retrievers/parent_document_retriever)
+### 6. Parent Document Retriever ✅ IMPLEMENTADO
+- [x] Estrategia Small-to-Big activa (child=128, parent=512)
+  - Child chunks para retrieval vectorial preciso
+  - Parent chunks para contexto completo al LLM
+  - Hydration automática: child → parent único
+  - Validado: 100% hit rate en test de 35 preguntas
+  - **Problema detectado**: Context Precision 0.34 — los parents (512 chars) incluyen contexto ruidoso alrededor del dato relevante. Candidato a prompt compression.
 
 ### 7. Contextual Compression (Opcional)
 - [ ] Comprimir contexto antes de enviar al LLM
@@ -76,6 +71,8 @@ Sistema actual: BM25 (70%) + mxbai-embed-large (30%) + bge-reranker + llama3.1:8
   - **Tiempo**: 3-4 horas
   - **Dificultad**: Media
   - **Prioridad**: Baja (solo si hay problemas de ruido)
+
+### ❌ HyDE — Ver análisis en sección Microsoft Advanced RAG
 
 ### ❌ HyDE (NO Recomendado)
 - [x] ~~Query Expansion con Hypothetical Document Embeddings~~
@@ -236,6 +233,85 @@ Sistema actual: BM25 (70%) + mxbai-embed-large (30%) + bge-reranker + llama3.1:8
 
 ---
 
+## 🔬 Técnicas Advanced RAG (Microsoft Learn)
+
+Referencia: [Advanced RAG — Microsoft Azure](https://learn.microsoft.com/es-es/azure/developer/ai/advanced-retrieval-augmented-generation)
+
+### Estado de implementación actual
+
+| Técnica | Estado | Notas |
+|---|---|---|
+| Hybrid Search (BM25 + Vector) | ✅ Implementado | BM25 0.4 + Vector 0.6 |
+| Reranking (Cross-Encoder) | ✅ Implementado | BGE-reranker-base, Top 20 → Top 5 |
+| Small-to-Big (Parent-Child) | ✅ Implementado | Child 128 / Parent 512 |
+| Multi-query | ✅ Implementado | 3 variantes por query vía LLM |
+| Golden dataset + RAGAS | ✅ Implementado | 52 casos, métricas completas |
+| Prompt Compression | ❌ No implementado | Candidato directo para +Faithfulness |
+| Alignment Optimization | ❌ No implementado | Alto impacto, requiere re-indexar |
+| Query Router | ❌ No implementado | Útil para categorías mixtas |
+| Fact-checking post-completion | ❌ No implementado | Mitiga alucinaciones en generación |
+| Hierarchical Index (summary) | ❌ No implementado | Útil para preguntas comparativas |
+| HyDE | ⛔ Descartado | Multi-query ya cubre este caso |
+
+---
+
+### Técnicas no implementadas — detalle
+
+#### A. Prompt Compression (Contextual Compression)
+- **Qué es**: Antes de enviar el contexto al LLM, extraer solo las frases directamente relevantes a la pregunta (no el chunk entero).
+- **Por qué importa**: Context Precision actual = **0.34**. Los parent chunks (512 chars) contienen el dato relevante rodeado de ruido. El LLM lo recibe todo y "razona más allá" (Faithfulness = 0.59).
+- **Cómo implementar**: `ContextualCompressionRetriever` de LangChain con `LLMChainExtractor` o `EmbeddingsFilter`.
+- **Variante ligera** (sin LLM extra): Dividir cada parent en frases, eliminar las que no superen similarity threshold con la query.
+- **Impacto estimado**: +0.10-0.15 en Faithfulness, +0.10 en Context Precision
+- **Coste**: Latencia extra (una pasada de filtrado por chunk). Con EmbeddingsFilter es rápido (solo coseno).
+- **Dificultad**: Media
+- **Tiempo**: 3-5 horas
+
+#### B. Alignment Optimization (Preguntas por Chunk)
+- **Qué es**: Durante la indexación, para cada chunk se generan N preguntas hipotéticas que ese chunk respondería. Esas preguntas se indexan junto al chunk.
+- **Por qué importa**: Mejora el matching semántico query↔chunk porque los embeddings comparan pregunta con pregunta (mismo espacio) en lugar de pregunta con texto técnico.
+- **Impacto estimado**: +5-10% en Context Recall para preguntas comparativas/multi-hop
+- **Coste**: Requiere re-indexar todos los documentos con una llamada LLM por chunk (~1,200 chunks = caro pero one-time).
+- **Dificultad**: Media-Alta
+- **Tiempo**: 1-2 días
+
+#### C. Query Router
+- **Qué es**: Un clasificador que analiza la pregunta y decide qué estrategia de retrieval usar (vector puro, híbrido, búsqueda por metadata, respuesta directa sin RAG).
+- **Por qué importa**: Las preguntas de tipo "Edge Case" y "Comparativa" tienen baja relevancy/precision. Un router podría enviarlas a estrategias específicas.
+- **Ejemplo**: Preguntas tipo "¿Existe X en la documentación?" → búsqueda por keyword BM25; preguntas conceptuales → vector; preguntas comparativas → hierarchical index.
+- **Dificultad**: Media
+- **Tiempo**: 1 día
+
+#### D. Hierarchical Index para preguntas comparativas
+- **Qué es**: Dos niveles de índice: (1) resúmenes de cada documento completo, (2) chunks detallados. Para preguntas que comparan conceptos, buscar primero en resúmenes para obtener visión global antes de los chunks.
+- **Por qué importa**: Categoría Comparativa tiene Faithfulness = **0.33** — el modelo no tiene contexto suficiente para comparar dos tecnologías cuando la info está fragmentada en chunks separados.
+- **Dificultad**: Alta
+- **Tiempo**: 2-3 días
+
+#### E. Fact-checking post-completion
+- **Qué es**: Después de generar la respuesta, pasar una verificación LLM que compara cada afirmación de la respuesta con el contexto original y rechaza/corrige las no soportadas.
+- **Por qué importa**: Hallucination actual = **0.92** (ya bueno), pero Faithfulness = 0.59 — hay afirmaciones no directamente contradictorias pero sí inferidas que podrían filtrarse.
+- **Coste**: Una llamada LLM extra por query (+latencia).
+- **Alternativa más ligera**: Reforzar el prompt del sistema (ya se hizo parcialmente).
+- **Dificultad**: Media
+- **Tiempo**: 4-6 horas
+
+---
+
+### Recomendación de siguiente paso
+
+**Problema principal identificado (sesión 2026-03-07):**
+- Faithfulness plateau en ~0.59 incluso con Claude Haiku como LLM
+- Comparativa Faithfulness = 0.33 (el modelo razona más allá del contexto)
+- Context Precision = 0.34 (los parents tienen ruido)
+
+**Acción recomendada (por orden de impacto/esfuerzo):**
+1. **Prompt Compression** — mejor ratio impacto/tiempo. Probar `EmbeddingsFilter` primero (sin LLM extra).
+2. **Aumentar `RERANKER_FINAL_TOP_K` a 7** — más contexto para preguntas comparativas sin cambiar arquitectura.
+3. **Alignment Optimization** — mayor impacto pero requiere re-indexar. Planificar para sprint siguiente.
+
+---
+
 ## 📊 Herramientas Útiles
 
 ### Para Implementar
@@ -263,5 +339,5 @@ Sistema actual: BM25 (70%) + mxbai-embed-large (30%) + bge-reranker + llama3.1:8
 
 ---
 
-**Última actualización**: 1 de febrero de 2026
-**Estado**: Sistema RAG optimizado funcional con streaming, historial básico, gestión de documentos, y evaluación RAGAS completa. Siguiente paso prioritario: Migrar BM25 a Qdrant Sparse Vectors (escalabilidad)
+**Última actualización**: 7 de marzo de 2026
+**Estado**: Sistema RAG optimizado funcional. Pipeline completo: BM25+Vector+Reranker+Parent-Child. Evaluación RAGAS con 52 casos y Claude Haiku como juez externo. Mejor config probada: Claude Haiku + Reranker (Faithfulness 0.59, Hallucination 0.92). Siguiente paso: Prompt Compression para reducir ruido en context y subir Faithfulness.

@@ -32,20 +32,21 @@ export class RAGASEvaluator {
   constructor(
     backendUrl: string = 'http://localhost:3001',
     projectRoot?: string,
-    judge: 'ollama' | 'claude' = 'ollama'
+    judge: 'ollama' | 'claude' | 'sonnet' = 'ollama'
   ) {
     this.backendUrl = backendUrl;
     this.projectRoot = projectRoot || process.cwd();
 
-    if (judge === 'claude') {
+    if (judge === 'claude' || judge === 'sonnet') {
       const anthropicKey = process.env.ANTHROPIC_API_KEY;
       if (!anthropicKey) throw new Error('ANTHROPIC_API_KEY not set in environment');
+      const model = judge === 'sonnet' ? 'claude-sonnet-4-6' : 'claude-haiku-4-5-20251001';
       this.llm = new ChatAnthropic({
         anthropicApiKey: anthropicKey,
-        model: 'claude-haiku-4-5-20251001',
+        model,
         temperature: 0,
       });
-      console.log('[RAGAS] Judge: claude-haiku-4-5 (external, unbiased)');
+      console.log(`[RAGAS] Judge: ${model} (external, unbiased)`);
     } else {
       this.llm = new Ollama({
         baseUrl: 'http://localhost:11434',

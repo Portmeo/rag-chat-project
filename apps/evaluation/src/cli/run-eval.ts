@@ -46,7 +46,8 @@ function parseArgs() {
     dataset: options.dataset || 'golden_qa_v2.json',
     output: options.output || './benchmark/evaluation/results',
     limit: options.limit ? parseInt(options.limit) : undefined,
-    judge: (options.judge || 'ollama') as 'ollama' | 'claude',
+    judge: (options.judge || 'ollama') as 'ollama' | 'claude' | 'sonnet',
+    categories: options.categories ? options.categories.split(',').map(c => c.trim()) : undefined,
   };
 }
 
@@ -135,18 +136,21 @@ async function main() {
     validateDataset(dataset);
 
     let testCases = dataset.test_cases;
+    if (options.categories) {
+      testCases = testCases.filter(tc => options.categories!.some(c => tc.category.toLowerCase().includes(c.toLowerCase())));
+    }
     if (options.limit) {
       testCases = testCases.slice(0, options.limit);
     }
 
-    log(`Dataset: ${options.dataset} — ${testCases.length} casos | Judge: ${options.judge}`);
+    log(`Dataset: ${options.dataset} — ${testCases.length} casos | Judge: ${options.judge}${options.categories ? ` | Categorías: ${options.categories.join(',')}` : ''}`);
 
     // Get current configuration from backend .env
     const config = await getRAGConfig(projectRoot);
     log(`Config: BM25=${config.use_bm25_retriever} | Reranker=${config.use_reranker} | ParentRetriever=${config.use_parent_retriever}`);
 
     // Run evaluation in 2 phases to avoid Ollama saturation
-    const evaluator = new RAGASEvaluator('http://localhost:3001', projectRoot, options.judge);
+    const evaluator = new RAGASEvaluator('http://localhost:3001', projectRoot, options.judge as any);
     const results: EvaluationResult[] = [];
 
     // ============================================================================
