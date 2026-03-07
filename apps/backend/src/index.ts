@@ -113,3 +113,11 @@ async function startServer() {
 }
 
 startServer().catch((err) => logger.error('Failed to start server:', err));
+
+const shutdown = async () => {
+  await fastify.close();
+  process.exit(0);
+};
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

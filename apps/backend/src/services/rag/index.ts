@@ -12,7 +12,8 @@ const parentLogger = createLogger('PARENT');
 const rerankerLogger = createLogger('RERANKER');
 const llmLogger = createLogger('LLM');
 import { qdrantClient, COLLECTION_NAME } from '../../repositories/qdrantRepository';
-import { embeddings, llm, MESSAGES, SIMILARITY_SEARCH_CONFIG, TEXT_SEPARATORS, BM25_CONFIG, RERANKER_CONFIG, PARENT_RETRIEVER_CONFIG } from './config';
+import { embeddings, llm, MESSAGES, SIMILARITY_SEARCH_CONFIG, TEXT_SEPARATORS, BM25_CONFIG, RERANKER_CONFIG, PARENT_RETRIEVER_CONFIG, CONTEXTUAL_COMPRESSION_CONFIG } from './config';
+import { compressDocuments } from './contextualCompressor';
 import { createTextSplitter, buildPrompt, checkCollectionExists, getFileExtension, generateMultipleQueries, getAllDocumentsFromQdrant, limitHistory } from './helpers';
 import { extractTechnicalMetadata } from '../documentProcessor/templates';
 import type { TechnicalMetadata } from '../documentProcessor/templates/types';
@@ -461,6 +462,14 @@ async function retrieveRelevantDocuments(
   } else {
     rerankerLogger.log('Reranker disabled, using top parent chunks directly');
     relevantDocs = candidateDocs.slice(0, SIMILARITY_SEARCH_CONFIG.MAX_RESULTS);
+  }
+
+  // PASO 3: Contextual Compression (filtrar frases ruidosas de los parents)
+  if (CONTEXTUAL_COMPRESSION_CONFIG.enabled) {
+    const beforeSize = relevantDocs.reduce((sum, d) => sum + d.pageContent.length, 0);
+    relevantDocs = await compressDocuments(question, relevantDocs, embeddings, CONTEXTUAL_COMPRESSION_CONFIG.threshold);
+    const afterSize = relevantDocs.reduce((sum, d) => sum + d.pageContent.length, 0);
+    pipelineLogger.log(`Contextual compression: ${beforeSize} → ${afterSize} chars (${((1 - afterSize / beforeSize) * 100).toFixed(0)}% reducido)`);
   }
 
   // DEBUG: Log final documents

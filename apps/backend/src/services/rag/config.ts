@@ -122,13 +122,13 @@ export const llm = CLAUDE_CONFIG.enabled
   ? new ChatAnthropic({
       anthropicApiKey: CLAUDE_CONFIG.apiKey,
       model: CLAUDE_CONFIG.model,
-      temperature: 0.1,
+      temperature: 0.0,
       maxTokens: 4096,
     })
   : new Ollama({
       model: OLLAMA_CONFIG.model,
       baseUrl: OLLAMA_CONFIG.baseUrl,
-      temperature: 0.1,
+      temperature: 0.0,
     });
 
 // Log which LLM is being used
@@ -151,6 +151,12 @@ export const RERANKER_CONFIG = {
   retrievalTopK: parseInt(process.env.RERANKER_RETRIEVAL_TOP_K || '20'), // Retrieve Top 20 children candidates
   finalTopK: parseInt(process.env.RERANKER_FINAL_TOP_K || '3'),          // Top parents después de reranking
   minScore: parseFloat(process.env.MIN_RERANK_SCORE || '0.6'),           // Minimum score to show sources (estricto)
+} as const;
+
+// Contextual Compression Configuration
+export const CONTEXTUAL_COMPRESSION_CONFIG = {
+  enabled: process.env.USE_CONTEXTUAL_COMPRESSION === 'true',
+  threshold: parseFloat(process.env.COMPRESSION_THRESHOLD || '0.30'),
 } as const;
 
 // Parent Document Retriever Configuration
