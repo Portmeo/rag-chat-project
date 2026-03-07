@@ -33,8 +33,8 @@ export default function UploadPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<Document | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortField, setSortField] = useState<SortField>('uploadDate');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [sortField, setSortField] = useState<SortField>('filename');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
   const fetchDocuments = async (silent = false) => {
     try {
