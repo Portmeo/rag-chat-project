@@ -44,7 +44,31 @@ Sistema actual: BM25 (70%) + mxbai-embed-large (30%) + bge-reranker + llama3.1:8
   - **Dificultad**: Media
   - **Por qué Redis y no MongoDB**: es key-value puro, O(1) lookups, sin schema, perfecto para BM25 blob y parent lookup. Mongo añadiría complejidad innecesaria.
 
-### 2. Mejorar RAGAS (En Progreso)
+### 2. Mejoras RAG Base — Próximo Sprint ⭐
+Ordenadas por impacto esperado vs coste:
+
+#### 2a. Prompt más estricto anti-alucinaciones
+- **Problema**: Faithfulness 36%, Haiku rellena gaps con conocimiento de entrenamiento
+- **Solución**: Añadir al prompt: *"Si la información no está explícitamente en los contextos proporcionados, responde que no tienes esa información. No uses conocimiento externo."*
+- **Impacto esperado**: Faithfulness +10-15%
+- **Coste**: Mínimo — solo cambiar el prompt
+- **Riesgo**: Respuestas más cortas/conservadoras en preguntas básicas
+
+#### 2b. Query decomposition para Comparativa
+- **Problema**: Context Precision Comparativa 21% — el retriever no discrimina bien preguntas de tipo "diferencia entre X e Y"
+- **Solución**: Detectar preguntas comparativas y generar dos sub-queries independientes (una por concepto), recuperar contextos de cada una por separado y combinarlos antes del reranker
+- **Impacto esperado**: Context Precision Comparativa +15-20%
+- **Coste**: Medio — lógica adicional en el pipeline
+- **Implementación**: En `generateMultipleQueries()`, detectar patrón comparativo y añadir sub-queries específicas
+
+#### 2c. Upgrade reranker: bge-reranker-base → bge-reranker-v2-m3
+- **Problema**: Reranker actual es monolingual, peor con español
+- **Solución**: `Xenova/bge-reranker-v2-m3` — multilingual, mejor soporte español
+- **Impacto esperado**: Context Precision +5-10% en todas las categorías
+- **Coste**: Bajo — solo cambiar `RERANKER_MODEL` en `.env`
+- **Nota**: Ya estaba en IDEAS, pendiente de probar
+
+### 3. Mejorar RAGAS (En Progreso)
 - [ ] Optimizar prompts de evaluación para mayor consistencia
 - [ ] Añadir más casos de prueba al golden dataset (actualmente 17)
 - [ ] Implementar caché de evaluaciones para evitar re-evaluar queries idénticas
