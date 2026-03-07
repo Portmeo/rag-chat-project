@@ -153,6 +153,14 @@ export const RERANKER_CONFIG = {
   minScore: parseFloat(process.env.MIN_RERANK_SCORE || '0.6'),           // Minimum score to show sources (estricto)
 } as const;
 
+// Alignment Optimization Configuration
+// Generates hypothetical questions per parent chunk during indexing
+// Improves retrieval matching: query↔question instead of query↔raw text
+export const ALIGNMENT_OPTIMIZATION_CONFIG = {
+  enabled: process.env.USE_ALIGNMENT_OPTIMIZATION === 'true',
+  questionsPerChunk: parseInt(process.env.ALIGNMENT_QUESTIONS_PER_CHUNK || '3'),
+} as const;
+
 // Contextual Compression Configuration
 export const CONTEXTUAL_COMPRESSION_CONFIG = {
   enabled: process.env.USE_CONTEXTUAL_COMPRESSION === 'true',

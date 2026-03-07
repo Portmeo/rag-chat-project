@@ -243,6 +243,50 @@ Dataset: `golden_qa_v2.json` — 52 casos
 
 ---
 
+## Run 7 — qwen2.5:14b + Compression + temp 0.0 (dataset v2.2)
+
+**Config RAG**: qwen2.5:14b (Ollama local) + Reranker + Contextual Compression + temp 0.0
+**Dataset**: golden_qa_v2.json v2.2 — 13 casos (Comparativa 7 + Multi-Hop 6)
+**Juez**: claude-sonnet-4-6
+**Resultados**: `ragas_2026-03-07T06-48-01.json`
+
+| Métrica                       | Claude Haiku R5 | qwen2.5:14b R7 | Δ          |
+|-------------------------------|-----------------|----------------|------------|
+| Faithfulness global           | 0.42            | 0.32           | -0.10      |
+| Faithfulness Comparativa      | 0.53            | 0.32           | -0.21      |
+| Faithfulness Multi-Hop        | 0.22            | 0.32           | +0.10 ↑   |
+| Context Precision Comparativa | 0.10            | 0.30           | +0.20 ↑   |
+| Context Precision Multi-Hop   | 0.50            | 0.42           | -0.08      |
+| Context Recall                | 0.94 / 0.83     | 1.00 / 0.83    | ≈          |
+| Hallucination                 | 0.76            | 0.54           | -0.22      |
+| Answer Relevancy              | 0.73            | 0.60           | -0.13      |
+| Answer Correctness            | 0.81            | 0.77           | -0.04      |
+
+**Conclusiones:**
+- Claude Haiku sigue siendo mejor en Faithfulness global y Hallucination
+- qwen mejora Context Precision en Comparativa (0.30 vs 0.10) — recupera docs más relevantes
+- qwen mejora Faithfulness Multi-Hop (0.32 vs 0.22) — maneja mejor preguntas de razonamiento encadenado
+- Hallucination de qwen peor (0.54 vs 0.76) — inventa más que Claude
+- No responde en chino con el prompt actual — comportamiento correcto
+- **Mejor caso qwen**: multihop_4 (JWT flow, 86% promedio), comparativa_1 (Container-Presenter, 76%)
+
+---
+
+## Comparativa global de modelos RAG (dataset v2.2, juez Sonnet)
+
+| Métrica              | llama3.1:8b | qwen2.5:14b | Claude Haiku | Mejor       |
+|----------------------|-------------|-------------|--------------|-------------|
+| Faithfulness         | 0.29        | 0.32        | 0.42         | Claude ↑    |
+| Hallucination        | 0.33        | 0.54        | 0.76         | Claude ↑    |
+| Answer Relevancy     | 0.48        | 0.60        | 0.73         | Claude ↑    |
+| Context Precision    | 0.08        | 0.35        | 0.30         | qwen ↑      |
+| Context Recall       | 1.00        | 0.94        | 0.94         | llama ≈     |
+| Answer Correctness   | 0.72        | 0.77        | 0.81         | Claude ↑    |
+
+**Pendiente**: phi4:14b
+
+---
+
 ## Cambios aplicados en esta sesión
 
 ### Pipeline

@@ -12,8 +12,9 @@ const parentLogger = createLogger('PARENT');
 const rerankerLogger = createLogger('RERANKER');
 const llmLogger = createLogger('LLM');
 import { qdrantClient, COLLECTION_NAME } from '../../repositories/qdrantRepository';
-import { embeddings, llm, MESSAGES, SIMILARITY_SEARCH_CONFIG, TEXT_SEPARATORS, BM25_CONFIG, RERANKER_CONFIG, PARENT_RETRIEVER_CONFIG, CONTEXTUAL_COMPRESSION_CONFIG } from './config';
+import { embeddings, llm, MESSAGES, SIMILARITY_SEARCH_CONFIG, TEXT_SEPARATORS, BM25_CONFIG, RERANKER_CONFIG, PARENT_RETRIEVER_CONFIG, CONTEXTUAL_COMPRESSION_CONFIG, ALIGNMENT_OPTIMIZATION_CONFIG } from './config';
 import { compressDocuments } from './contextualCompressor';
+import { generateAlignmentQuestions } from './alignmentOptimizer';
 import { createTextSplitter, buildPrompt, checkCollectionExists, getFileExtension, generateMultipleQueries, getAllDocumentsFromQdrant, limitHistory } from './helpers';
 import { extractTechnicalMetadata } from '../documentProcessor/templates';
 import type { TechnicalMetadata } from '../documentProcessor/templates/types';
@@ -246,6 +247,22 @@ export async function addDocumentToVectorStore(
     }
 
     pipelineLogger.log(`Created ${children.length} child chunks + ${parents.length} parent chunks`);
+
+    // Alignment Optimization: generate hypothetical questions per parent and index as extra children
+    if (ALIGNMENT_OPTIMIZATION_CONFIG.enabled) {
+      const allQuestionDocs: Document[] = [];
+      for (const parent of parents) {
+        const questions = await generateAlignmentQuestions(parent, llm, ALIGNMENT_OPTIMIZATION_CONFIG.questionsPerChunk);
+        allQuestionDocs.push(...questions);
+      }
+      if (allQuestionDocs.length > 0) {
+        await QdrantVectorStore.fromDocuments(allQuestionDocs, embeddings, {
+          client: qdrantClient,
+          collectionName: COLLECTION_NAME,
+        });
+        pipelineLogger.log(`Indexed ${allQuestionDocs.length} alignment question chunks`);
+      }
+    }
 
     // Rebuild cache asynchronously (don't block the response)
     rebuildBM25Cache().catch((error) => {
