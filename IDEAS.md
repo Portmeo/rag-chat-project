@@ -1,80 +1,55 @@
 # Ideas Pendientes - RAG Chat
 
-Sistema actual: BM25 (70%) + mxbai-embed-large (30%) + bge-reranker + llama3.1:8b
+Sistema actual: BM25 (40%) + mxbai-embed-large (60%) + bge-reranker + Claude Haiku + Contextual Compression
 
 ---
 
 ## 🎯 Prioridad Alta (Siguiente Sprint)
 
-### 0. Query Logging para mejora continua del RAG ⭐ MUY IMPORTANTE
-- [ ] Guardar log de todas las queries reales de los usuarios con sus respuestas y fuentes recuperadas
-  - **Problema actual**: el alignment optimizer genera preguntas hipotéticas sin saber qué preguntan los usuarios reales → preguntas genéricas que no coinciden con el vocabulario real
-  - **Solución**: log de queries reales → usar esas queries para:
-    1. **Mejorar alignment questions**: re-generar preguntas por chunk usando las queries reales más frecuentes como referencia de vocabulario
-    2. **Detectar gaps**: queries sin contexto relevante → documentación que falta
-    3. **Afinar retrieval**: queries que fallan frecuentemente → ajustar pesos BM25/vector o chunk size
-  - **Implementación**:
-    - Guardar en fichero JSONL o DB: `{ query, answer, sources, latency, timestamp }`
-    - Dashboard simple de queries frecuentes y fallidas
-    - Script para re-generar alignment questions usando queries reales como seed
-  - **Impacto**: el RAG mejora con el uso real en lugar de preguntas sintéticas — más cercano a un chatbot que aprende
-  - **Tiempo**: 1 día (logging) + iteración continua
-  - **Dificultad**: Baja (logging) / Media (mejora continua)
+> **Decisión de dirección (2026-03-07)**: Un RAG de documentación técnica sirve para hacer accesible el conocimiento escrito — no para sintetizar comparaciones que no están en los docs. El usuario busca entender qué hay, cómo funciona, qué pasos sigue. Foco: que el RAG responda bien Básica, Conceptual, Proceso, Relación y Multi-Hop. Las Comparativas se mantienen en el dataset pero no son el objetivo de optimización.
 
-### RAG Dinámico y Auto-mejorante
-- El sistema actual es **estático**: indexas docs y el retrieval no cambia hasta que re-indexas manualmente
-- Con query logging, el RAG se vuelve **dinámico**:
-  - Las alignment questions se regeneran automáticamente en base a queries reales frecuentes
-  - El índice evoluciona sin intervención humana
-  - Los gaps de documentación se detectan automáticamente (queries sin contexto relevante)
-  - El vocabulario del índice converge hacia el vocabulario real de los usuarios
-- **Analogía**: como un sistema de recomendación que aprende del comportamiento — no necesita reentrenar modelos, solo actualiza el índice
-- **Diferencia clave con fine-tuning**: no tocas los pesos del modelo, solo el conocimiento indexado → más rápido, más barato, más controlable
+---
 
-### 1. Redis como capa de persistencia rápida ⭐ IMPORTANTE
-- [ ] Usar Redis para BM25, parents y alignment status
-  - **Problema actual**: BM25 se reconstruye en memoria en cada arranque, parents se guardan en Qdrant con vector nulo (hack), alignment status también en Qdrant
-  - **Solución Redis**:
-    - **BM25 index** → blob serializado en Redis, persist entre reinicios, reconstrucción instantánea
-    - **Parents** → Redis Hash por `parent_doc_id` → contenido, lookup O(1) vs scroll Qdrant
-    - **Alignment status** → Redis Hash por filename (`alignment:filename` → `{status, progress, total}`)
-  - **Qdrant queda solo para búsqueda vectorial de children** — su uso natural
-  - **Impacto**: arranque instantáneo del backend, hydration de parents mucho más rápida, arquitectura más limpia
-  - **Tiempo**: 2-3 días
-  - **Dificultad**: Media
-  - **Por qué Redis y no MongoDB**: es key-value puro, O(1) lookups, sin schema, perfecto para BM25 blob y parent lookup. Mongo añadiría complejidad innecesaria.
+### 1. Educación al usuario en la UI ⭐ ALTA PRIORIDAD
+- [ ] Mensaje onboarding en el chat explicando qué tipo de preguntas puede hacer
+  - Ejemplos: "¿Cómo funciona X?", "¿Qué hace Y?", "¿Cómo se configura Z?", "¿Qué pasos sigue el flujo de autenticación?"
+  - Dejar claro que es un asistente de documentación, no un chatbot general
+  - **Por qué**: Antes de optimizar el RAG para casos edge, tiene más ROI que el usuario entienda qué esperar
+  - **Impacto**: Reduce frustración, mejora percepción de calidad sin tocar el pipeline
+  - **Coste**: Mínimo — solo UI
+  - **Tiempo**: 2-3 horas
 
-### 2. Mejoras RAG Base — Próximo Sprint ⭐
-Ordenadas por impacto esperado vs coste:
+### 2. Prompt más estricto anti-alucinaciones ⭐ ALTA PRIORIDAD
+- [ ] Añadir instrucción explícita: *"Si la información no aparece en los contextos, responde que no tienes esa información. No uses conocimiento externo."*
+  - **Problema**: Faithfulness 36% en Run 8 — el LLM rellena gaps con conocimiento de entrenamiento (Angular/NgRx)
+  - **Impacto esperado**: +10-15% Faithfulness en todas las categorías
+  - **Coste**: Mínimo — solo el prompt
+  - **Riesgo**: Respuestas más secas en preguntas básicas. Aceptable — es el comportamiento correcto.
+  - **Tiempo**: 1 hora + Run 9 de evaluación
 
-#### 2a. Prompt más estricto anti-alucinaciones
-- **Problema**: Faithfulness 36%, Haiku rellena gaps con conocimiento de entrenamiento
-- **Solución**: Añadir al prompt: *"Si la información no está explícitamente en los contextos proporcionados, responde que no tienes esa información. No uses conocimiento externo."*
-- **Impacto esperado**: Faithfulness +10-15%
-- **Coste**: Mínimo — solo cambiar el prompt
-- **Riesgo**: Respuestas más cortas/conservadoras en preguntas básicas
+### 3. Upgrade reranker: bge-reranker-base → bge-reranker-v2-m3
+- [ ] Cambiar `RERANKER_MODEL` en `.env`
+  - **Problema**: Reranker actual es monolingual, rendimiento subóptimo con texto en español
+  - **Solución**: `Xenova/bge-reranker-v2-m3` — multilingual, mejor soporte español
+  - **Impacto esperado**: Context Precision +5-10% en todas las categorías
+  - **Coste**: Bajo — solo cambiar variable de entorno
+  - **Tiempo**: 30 min + test
 
-#### 2b. Query decomposition para Comparativa
-- **Problema**: Context Precision Comparativa 21% — el retriever no discrimina bien preguntas de tipo "diferencia entre X e Y"
-- **Solución**: Detectar preguntas comparativas y generar dos sub-queries independientes (una por concepto), recuperar contextos de cada una por separado y combinarlos antes del reranker
-- **Impacto esperado**: Context Precision Comparativa +15-20%
-- **Coste**: Medio — lógica adicional en el pipeline
-- **Implementación**: En `generateMultipleQueries()`, detectar patrón comparativo y añadir sub-queries específicas
+### 4. Analizar queries reales de usuarios ⭐ IMPORTANTE (cuando haya uso real)
+- [x] Query logging implementado (`d741187`) — se guardan queries con respuesta, sources y latencia
+- [ ] Revisión periódica de los logs para detectar:
+  - Queries que fallan frecuentemente → gaps en la documentación
+  - Vocabulario real de los usuarios → ajustar chunking/indexado
+  - Queries comparativas — analizar si son preguntas legítimas para este RAG o si el usuario espera algo que no aplica
+  - **Tiempo**: recurrente (no es una tarea única)
 
-#### 2c. Upgrade reranker: bge-reranker-base → bge-reranker-v2-m3
-- **Problema**: Reranker actual es monolingual, peor con español
-- **Solución**: `Xenova/bge-reranker-v2-m3` — multilingual, mejor soporte español
-- **Impacto esperado**: Context Precision +5-10% en todas las categorías
-- **Coste**: Bajo — solo cambiar `RERANKER_MODEL` en `.env`
-- **Nota**: Ya estaba en IDEAS, pendiente de probar
-
-### 3. Mejorar RAGAS (En Progreso)
-- [ ] Optimizar prompts de evaluación para mayor consistencia
-- [ ] Añadir más casos de prueba al golden dataset (actualmente 17)
-- [ ] Implementar caché de evaluaciones para evitar re-evaluar queries idénticas
-- [ ] Dashboard visual de métricas RAGAS en el tiempo
-  - **Tiempo**: 1-2 días
-  - **Dificultad**: Media
+### 5. Mejorar Multi-Hop (caso de uso legítimo complejo)
+- [ ] Las preguntas Multi-Hop SÍ aplican en documentación técnica — "¿cómo llega el JWT del login hasta las peticiones HTTP?" requiere conectar información de múltiples docs
+  - **Problema actual**: Faithfulness Multi-Hop 0.42, Precision 0.50
+  - **Opciones a evaluar**:
+    - Aumentar `RERANKER_FINAL_TOP_K` de 5 a 7 (más contexto sin cambiar arquitectura)
+    - Prompt que indique explícitamente que puede conectar información de varias fuentes cuando sea necesario
+  - **Tiempo**: 1 día + evaluación
 
 ### 3. Persistir Historial de Conversaciones
 - [ ] Guardar chats en SQLite/PostgreSQL
@@ -247,35 +222,32 @@ Ordenadas por impacto esperado vs coste:
 
 ## 🗺️ Roadmap Sugerido
 
-### Sprint 1 (1 semana) ⭐ PRIORITARIO
-1. Migrar BM25 a Qdrant Sparse Vectors
-2. Mejorar RAGAS (más casos de prueba, dashboard visual)
-3. Dark mode
-4. Mostrar chunks/tamaño por documento
+### Sprint 1 (próximo) — Calidad y UX básica
+1. **UI onboarding** — mensaje educativo de para qué sirve el RAG (2-3h)
+2. **Prompt estricto** — instrucción anti-alucinaciones + Run 9 para medir (1h)
+3. **Upgrade reranker** a bge-reranker-v2-m3 (30min)
+4. **Mostrar chunks/tamaño por documento** en UploadPage (2h)
 
-**Resultado**: Sistema escalable + mejor observabilidad
+**Resultado**: RAG con mejor Faithfulness y usuarios con expectativas correctas
 
-### Sprint 2 (1 semana)
-1. **Parent Document Retriever** ⭐ (+15-20% precisión)
-2. Persistir historial de chats
-3. Panel de configuración avanzada
-4. Mostrar chunks/tamaño por documento
+### Sprint 2 — Producto
+1. Persistir historial de chats (SQLite, sidebar)
+2. Feedback 👍👎 por respuesta — empezar a recopilar señal de calidad real
+3. Panel de configuración RAG básico en UI
 
-**Resultado**: Sistema optimizado con mejor retrieval
+**Resultado**: Producto más completo
 
-### Sprint 3 (2 semanas)
-1. Dashboard de analytics básico
-2. Metadata enriquecida (secciones, tipo de contenido)
-3. Feedback de respuestas
-4. Contextual Compression (opcional, si es necesario)
+### Sprint 3 — Observabilidad
+1. Dashboard de queries frecuentes y fallidas (usando query logging)
+2. Métricas RAGAS en el tiempo (visual)
+3. Detección automática de gaps de documentación
 
-**Resultado**: Sistema completo con observabilidad
+**Resultado**: Sistema que mejora con el uso real
 
 ### Largo Plazo
-- Multi-usuario
+- Soporte PDF/DOCX
+- Multi-usuario / autenticación
 - Tests + CI/CD
-- Deploy cloud
-- Import desde URLs
 
 ---
 
@@ -386,4 +358,4 @@ Referencia: [Advanced RAG — Microsoft Azure](https://learn.microsoft.com/es-es
 ---
 
 **Última actualización**: 7 de marzo de 2026
-**Estado**: Sistema RAG optimizado funcional. Pipeline completo: BM25+Vector+Reranker+Parent-Child. Evaluación RAGAS con 52 casos y Claude Haiku como juez externo. Mejor config probada: Claude Haiku + Reranker (Faithfulness 0.59, Hallucination 0.92). Siguiente paso: Prompt Compression para reducir ruido en context y subir Faithfulness.
+**Estado**: Pipeline completo y validado — BM25+Vector+Reranker+Parent-Child+Contextual Compression+Claude Haiku. 8 runs de evaluación completados. Decisión de dirección: foco en casos de uso reales de documentación (Básica, Conceptual, Proceso, Multi-Hop). Comparativas no son el objetivo de optimización. Siguiente sprint: prompt estricto + UI onboarding + upgrade reranker.

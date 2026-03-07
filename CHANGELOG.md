@@ -61,7 +61,17 @@ Diario cronológico de sesiones de desarrollo. Cada entrada recoge las decisione
 - RAG dinámico auto-mejorante: el sistema aprende de sus propias queries
 - Redis para BM25 persistente (implementado)
 - Query logging para análisis offline (implementado)
-- Query decomposition explícita para preguntas comparativas
+
+### Decisión de dirección — foco del RAG (2026-03-07)
+Un RAG de documentación técnica sirve para hacer accesible el conocimiento escrito. El usuario busca entender qué hay, cómo funciona, cómo configurar algo — no sintetizar comparaciones que no están escritas en los docs.
+
+Las queries Comparativas tienen Faithfulness 0.30 porque el LLM inventa comparaciones que ningún chunk contiene. Eso es el LLM haciendo lo que no debe, no un problema de retrieval. La solución correcta no es optimizar el RAG para esto sino **educar al usuario** sobre qué tipo de preguntas puede hacer, y **hacer el prompt más estricto** para que el sistema diga "no tengo esa información" en lugar de inventar.
+
+**Consecuencia**: descartada query decomposition para Comparativa. Foco del siguiente sprint:
+1. UI onboarding — qué puede preguntar el usuario
+2. Prompt estricto anti-alucinaciones
+3. Upgrade reranker (bge-reranker-v2-m3, multilingual)
+4. Multi-Hop sí es un caso de uso legítimo — mejorarlo tiene sentido
 
 ---
 
