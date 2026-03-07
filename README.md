@@ -23,7 +23,7 @@ Sistema RAG (Retrieval-Augmented Generation) optimizado para consultas sobre doc
 - 🧪 **RAGAS Evaluation**: 9 métricas automáticas (Faithfulness, Answer Relevancy, Context Precision/Recall, etc.)
 - 🔍 **Detección de Alucinaciones**: Identificación automática de afirmaciones no soportadas
 - 📊 **Golden Dataset**: 17 casos de prueba con ground truth
-- 🎯 **LLM-as-Judge**: Evaluación con llama3.1:8b (temperatura=0.1 para consistencia)
+- 🎯 **LLM-as-Judge**: Evaluación con Claude Sonnet 4.6 como juez externo (imparcial)
 
 ## 🚀 Quick Start
 
@@ -74,15 +74,22 @@ Pregunta del usuario
 1. Multi-Query Generation (3 variaciones)
     ↓
 2. Búsqueda Híbrida
-   - BM25 (70%): Keywords exactas
-   - Vectores (30%): Semántica
-   → Top 20 candidatos
+   - Vectores (60%): Semántica (mxbai-embed-large)
+   - BM25 (40%): Keywords exactas
+   → Top 20 candidatos (child chunks de 128 chars)
     ↓
-3. Reranking (bge-reranker-base)
-   → Top 5 más relevantes
+3. Parent-Child Hydration
+   → Resolución child → parent (512 chars) en 1 query a Qdrant
     ↓
-4. LLM (llama3.1:8b)
-   → Respuesta en español
+4. Reranking (bge-reranker-base)
+   → Top 5 parents más relevantes
+    ↓
+5. Contextual Compression
+   → Filtrado de frases por similitud semántica (threshold 0.30)
+   → Reduce ruido antes de enviar al LLM
+    ↓
+6. LLM (Claude Haiku, temperature 0.0)
+   → Respuesta en español estrictamente desde el contexto
 ```
 
 ### Pipeline de Ingesta (Document Upload)
@@ -132,11 +139,13 @@ Documento (.md, .html)
 
 El test completo está en `apps/backend/src/scripts/test-base-retrieval.ts` (20 preguntas con ground truth).
 
-| Componente | Modelo |
-|------------|--------|
-| **Embeddings** | mxbai-embed-large |
-| **Reranking** | bge-reranker-base |
-| **LLM** | llama3.1:8b |
+| Componente | Modelo / Config |
+|------------|-----------------|
+| **Embeddings** | mxbai-embed-large (1024 dims, Cosine) |
+| **Reranking** | bge-reranker-base (Top 20 → Top 5) |
+| **LLM** | Claude Haiku (claude-haiku-4-5-20251001, temp 0.0) |
+| **Compression** | EmbeddingsFilter (cosine threshold 0.30) |
+| **Chunks** | Child: 128 chars / Parent: 512 chars |
 
 Ver `/benchmark` y `/docs` para detalles completos.
 
@@ -442,7 +451,9 @@ Ver [docs/RAG_SYSTEM_GUIDE.md](docs/RAG_SYSTEM_GUIDE.md) para el razonamiento co
 
 ### En curso
 - [ ] **Añadir BM25 al pipeline** — la base vectorial (95% hit rate) ya está validada; BM25 resolverá queries genéricas sin términos técnicos (el único MISS conocido)
-- [ ] **Parent Document Retriever** — mejora el contexto enviado al LLM (Small-to-Big)
+- [x] **Parent Document Retriever** — Small-to-Big: child 128 chars para retrieval, parent 512 chars para LLM
+- [x] **Contextual Compression** — filtra frases ruidosas de cada chunk antes del LLM (threshold coseno 0.30)
+- [x] **Temperature 0.0** — LLM más conservador, reduce alucinaciones
 
 ### Pendiente
 - [ ] Mejorar RAGAS: más casos de prueba, dashboard visual
