@@ -27,6 +27,7 @@ export default function UploadPage() {
   const [clearing, setClearing] = useState(false);
   const [optimizingAll, setOptimizingAll] = useState(false);
   const [optimizingFile, setOptimizingFile] = useState<string | null>(null);
+  const [optimizingSet, setOptimizingSet] = useState<Set<string>>(new Set());
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [deletingFile, setDeletingFile] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -39,7 +40,9 @@ export default function UploadPage() {
     try {
       if (!silent) setLoading(true);
       const result = await getDocuments();
-      setDocuments(result.documents || []);
+      const docs: Document[] = result.documents || [];
+      setDocuments(docs);
+      return docs;
     } catch (err: any) {
       toast.error('Failed to load documents', {
         description: err.message || 'An error occurred while loading documents',
@@ -50,15 +53,26 @@ export default function UploadPage() {
   };
 
   useEffect(() => {
-    fetchDocuments();
+    fetchDocuments().then(docs => {
+      if (!docs) return;
+      const inProgress = docs.filter(d => d.alignment_status === 'optimizing').map(d => d.filename);
+      if (inProgress.length > 0) setOptimizingSet(new Set(inProgress));
+    });
   }, []);
 
   useEffect(() => {
-    const hasOptimizing = documents.some(d => d.alignment_status === 'optimizing');
-    if (!hasOptimizing) return;
-    const interval = setInterval(() => fetchDocuments(true), 3000);
+    if (optimizingSet.size === 0) return;
+    const interval = setInterval(async () => {
+      await fetchDocuments(true);
+      setOptimizingSet(prev => {
+        const next = new Set(prev);
+        documents.forEach(d => { if (d.alignment_status === 'ready') next.delete(d.filename); });
+        return next;
+      });
+    }, 10000);
     return () => clearInterval(interval);
-  }, [documents]);
+  }, [optimizingSet, documents]);
+
 
   const handleFileUploaded = () => {
     fetchDocuments();
@@ -89,6 +103,7 @@ export default function UploadPage() {
     try {
       setOptimizingAll(true);
       await optimizeAllDocuments();
+      setOptimizingSet(new Set(documents.map(d => d.filename)));
       await fetchDocuments(true);
       toast.success('Optimization started', { description: 'Generating alignment questions in background' });
     } catch (err: any) {
@@ -102,6 +117,7 @@ export default function UploadPage() {
     try {
       setOptimizingFile(filename);
       await optimizeDocument(filename);
+      setOptimizingSet(prev => new Set(prev).add(filename));
       await fetchDocuments(true);
     } catch (err: any) {
       toast.error('Failed to start optimization', { description: err.message });
@@ -214,7 +230,7 @@ export default function UploadPage() {
               </h3>
               {documents.length > 0 && (
                 <div className="flex gap-2">
-                  {documents.some(d => d.alignment_status === 'ready') && (
+                  {documents.some(d => d.alignment_status) && (
                     <Button variant="outline" size="sm" onClick={handleClearOptimization}>
                       <X className="h-4 w-4 mr-2" />
                       Clear Optimization
