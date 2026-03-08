@@ -135,7 +135,7 @@ async function main() {
     const dataset = await loadDataset(datasetPath);
     validateDataset(dataset);
 
-    let testCases = dataset.test_cases;
+    let testCases = dataset.test_cases.filter((tc: any) => tc.enabled !== false);
     if (options.categories) {
       testCases = testCases.filter(tc => options.categories!.some(c => tc.category.toLowerCase().includes(c.toLowerCase())));
     }

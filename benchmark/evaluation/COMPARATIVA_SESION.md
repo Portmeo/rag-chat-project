@@ -378,6 +378,43 @@ Dataset: `golden_qa_v2.json` — 52 casos
 
 ---
 
+## Run 10 — llama3.1:8b + mxbai-rerank-base-v1 (nuevo reranker)
+
+**Config:**
+- LLM RAG: `llama3.1:8b` (Ollama local)
+- Reranker: `mixedbread-ai/mxbai-rerank-base-v1` — Top 20 → Top 5 ← **cambio vs R9**
+- BM25: `true` (weight 0.4) — sin alignment questions
+- Contextual Compression: `true` (threshold 0.30) | temp 0.0
+- Prompt: reforzado anti-alucinaciones
+
+**Juez:** llama3.1:8b (Ollama local) — ⚠️ más laxo que Sonnet
+**Dataset:** golden_qa_v2.json v2.2 — 13 casos (Comparativa 7 + Multi-Hop 6)
+**Resultados:** `ragas_2026-03-07T13-28-47.json`
+
+| Métrica            | Score | vs R9   |
+|--------------------|-------|---------|
+| Faithfulness       | 0.78  | +0.09 ↑ |
+| Answer Relevancy   | 0.78  | +0.02 ↑ |
+| Context Precision  | 0.54  | -0.20 ↓ |
+| Context Recall     | 0.92  | =       |
+| Hallucination      | 0.91  | -0.04 ↓ |
+| Completados        | 13/13 | =       |
+
+**Por categoría:**
+
+| Categoría        | Faithfulness | Relevancy | Precision | Recall |
+|------------------|-------------|-----------|-----------|--------|
+| Comparativa (7)  | 0.76        | 0.67      | 0.50      | 0.93   |
+| Multi-Hop (6)    | 0.80        | 0.90      | 0.58      | 0.92   |
+
+**Conclusiones:**
+- **mxbai-rerank-base-v1 peor en Precision** (-20pp vs bge-reranker-base): el modelo reordena docs de forma diferente y no siempre sube el doc del golden al top. `bge-reranker-base` era mejor para este corpus en español.
+- **Faithfulness sube +9pp** pero con juez laxo — puede ser ruido del juez, no mejora real.
+- **Decisión**: **revertir a `Xenova/bge-reranker-base`**. La caída en Precision (-20pp) es objetiva y supera cualquier ganancia en Faithfulness con juez laxo.
+- La búsqueda de un reranker multilingual superior queda pendiente para cuando haya juez Sonnet disponible.
+
+---
+
 ## Cambios aplicados en esta sesión
 
 ### Pipeline

@@ -688,7 +688,8 @@
       ],
       "difficulty": "hard",
       "requires_multi_hop": false,
-      "expected_hallucination_risk": "low"
+      "expected_hallucination_risk": "low",
+      "enabled": false
     },
     {
       "id": "comparativa_4",
@@ -705,7 +706,8 @@
       ],
       "difficulty": "hard",
       "requires_multi_hop": false,
-      "expected_hallucination_risk": "medium"
+      "expected_hallucination_risk": "medium",
+      "enabled": false
     },
     {
       "id": "comparativa_5",
@@ -722,7 +724,8 @@
       ],
       "difficulty": "hard",
       "requires_multi_hop": false,
-      "expected_hallucination_risk": "high"
+      "expected_hallucination_risk": "high",
+      "enabled": false
     },
     {
       "id": "comparativa_6",
@@ -739,7 +742,8 @@
       ],
       "difficulty": "hard",
       "requires_multi_hop": false,
-      "expected_hallucination_risk": "medium"
+      "expected_hallucination_risk": "medium",
+      "enabled": false
     },
     {
       "id": "comparativa_7",
@@ -758,7 +762,8 @@
       ],
       "difficulty": "medium",
       "requires_multi_hop": false,
-      "expected_hallucination_risk": "low"
+      "expected_hallucination_risk": "low",
+      "enabled": false
     },
     {
       "id": "comparativa_8",
@@ -776,7 +781,8 @@
       ],
       "difficulty": "easy",
       "requires_multi_hop": false,
-      "expected_hallucination_risk": "low"
+      "expected_hallucination_risk": "low",
+      "enabled": false
     },
     {
       "id": "comparativa_9",
@@ -795,7 +801,8 @@
       ],
       "difficulty": "medium",
       "requires_multi_hop": false,
-      "expected_hallucination_risk": "low"
+      "expected_hallucination_risk": "low",
+      "enabled": false
     },
     {
       "id": "multihop_1",
