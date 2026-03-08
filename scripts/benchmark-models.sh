@@ -16,7 +16,7 @@ EVAL_DIR="apps/evaluation"
 ENV_FILE="apps/backend/.env"
 BACKEND_URL="http://localhost:3001"
 BACKEND_STARTUP_WAIT=15   # segundos para que arranque + reconstruya BM25
-JUDGE="ollama"
+JUDGE="sonnet"
 
 # Parsear args
 EVAL_ARGS="--judge $JUDGE"
