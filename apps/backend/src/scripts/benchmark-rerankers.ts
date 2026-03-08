@@ -47,12 +47,12 @@ async function loadModel(modelName: string) {
 async function rerankWithModel(
   query: string,
   documents: any[],
-  tokenizer: any,
-  model: any,
+  loaded: { tokenizer: any; model: any },
   topK: number
 ): Promise<Array<{ doc: any; score: number }>> {
+  const { tokenizer, model } = loaded;
+  const docs = documents.map(d => d.pageContent);
   const queries = documents.map(() => query);
-  const docs    = documents.map(d => d.pageContent);
 
   const inputs = await tokenizer(queries, { text_pair: docs, padding: true, truncation: true });
   const { logits } = await model(inputs);
@@ -160,10 +160,10 @@ for (const modelName of MODELS_TO_TEST) {
   console.log(`MODEL: ${modelName}`);
   console.log('─'.repeat(80));
 
-  let tokenizer: any, model: any;
+  let loaded: { tokenizer: any; model: any };
   const loadStart = Date.now();
   try {
-    ({ tokenizer, model } = await loadModel(modelName));
+    loaded = await loadModel(modelName);
     console.log(`  Loaded in ${Date.now() - loadStart}ms`);
   } catch (e: any) {
     console.log(`  ❌ FAILED to load: ${e.message.slice(0, 100)}`);
@@ -178,7 +178,7 @@ for (const modelName of MODELS_TO_TEST) {
 
   for (const { q, expected, parents } of queryParents) {
     const inferStart = Date.now();
-    const reranked = await rerankWithModel(q, parents, tokenizer, model, FINAL_K);
+    const reranked = await rerankWithModel(q, parents, loaded, FINAL_K);
     totalInferMs += Date.now() - inferStart;
 
     const scores = reranked.map(r => r.score);
