@@ -2,6 +2,7 @@ process.env.RAG_LOGS = 'false';
 
 import { QdrantVectorStore } from '@langchain/community/vectorstores/qdrant';
 import { qdrantClient, COLLECTION_NAME } from '../repositories/qdrantRepository';
+import { parentStorage } from '../repositories/index';
 import { embeddings, PARENT_RETRIEVER_CONFIG, RERANKER_CONFIG } from '../services/rag/config';
 import { getAllDocumentsFromQdrant } from '../services/rag/helpers';
 import { QUESTIONS } from './questions';
@@ -26,26 +27,8 @@ async function resolveParents(childDocs: any[]): Promise<{ parents: any[]; orpha
   const uniqueParentIds = [...parentGroups.keys()].filter(id => !id.startsWith('no_parent_'));
   if (uniqueParentIds.length === 0) return { parents: childDocs, orphans: 0 };
 
-  const scrollResult = await qdrantClient.scroll(COLLECTION_NAME, {
-    filter: {
-      must: [
-        { key: 'metadata.parent_child.parent_doc_id', match: { any: uniqueParentIds } },
-        { key: 'metadata.parent_child.is_parent', match: { value: true } },
-      ],
-    },
-    limit: uniqueParentIds.length + 10,
-    with_payload: true,
-    with_vector: false,
-  });
-
-  const parentMap = new Map<string, any>();
-  for (const point of scrollResult.points) {
-    const payload = point.payload as any;
-    parentMap.set(payload.metadata.parent_child.parent_doc_id, {
-      pageContent: payload.text,
-      metadata: payload.metadata,
-    });
-  }
+  // Use SQLite instead of Qdrant for parent resolution
+  const parentMap = await parentStorage.getParentsByIds(uniqueParentIds);
 
   const result: any[] = [];
   let orphans = 0;
@@ -78,19 +61,21 @@ async function main() {
     process.exit(1);
   }
 
-  // 2. Qdrant inventory
+  // 2. Inventory: Qdrant (children) + SQLite (parents)
   const allDocs = await getAllDocumentsFromQdrant();
   const children = allDocs.filter((d: any) => d.metadata?.parent_child?.is_parent === false);
-  const parents  = allDocs.filter((d: any) => d.metadata?.parent_child?.is_parent === true);
   const neither  = allDocs.filter((d: any) => !d.metadata?.parent_child);
+
+  const sqliteParents = await parentStorage.getAllGroupedByFilename();
+  const allParentDocs = [...sqliteParents.values()].flat();
 
   console.log(`\nQdrant inventory (${allDocs.length} total):`);
   console.log(`  children : ${children.length}`);
-  console.log(`  parents  : ${parents.length}`);
   console.log(`  neither  : ${neither.length}`);
+  console.log(`\nSQLite parents: ${allParentDocs.length} (across ${sqliteParents.size} files)`);
 
   const childLengths = children.map((d: any) => d.pageContent.length).filter(Boolean);
-  const parentLengths = parents.map((d: any) => d.pageContent.length).filter(Boolean);
+  const parentLengths = allParentDocs.map((d: any) => d.pageContent.length).filter(Boolean);
   const avg = (arr: number[]) => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
 
   console.log(`\nContent sizes:`);

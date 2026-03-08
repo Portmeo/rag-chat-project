@@ -507,6 +507,51 @@ Dataset: `golden_qa_v2.json` — 52 casos
 
 ---
 
+## Run 13 — llama3.1:8b + dataset propietario (baseline propietario)
+
+**Config:**
+- LLM RAG: `llama3.1:8b` (Ollama local)
+- Reranker: `Xenova/bge-reranker-base` — Top 20 → Top 5
+- BM25: `true` (weight 0.4) | Vector: `true` (weight 0.6)
+- Parent-Child: `true` (child 128 / parent 512)
+- Contextual Compression: `true` (threshold 0.40) | temp 0.0
+
+**Juez:** llama3.1:8b (Ollama local) — ⚠️ más laxo que Sonnet
+**Dataset:** `golden_qa_proprietary.json` — 32 casos (Proyecto, Microfrontends, Entornos, CICD, Autenticación, Estructura)
+**Resultados:** `ragas_2026-03-08T12-26-01.json`
+
+| Métrica            | Score |
+|--------------------|-------|
+| Faithfulness       | 0.65  |
+| Answer Relevancy   | 0.64  |
+| Context Precision  | 0.80  |
+| Context Recall     | 0.95  |
+| Answer Correctness | 0.58  |
+| Hallucination      | 0.88  |
+| Completados        | 32/32 |
+
+**Por categoría:**
+
+| Categoría        | Faithfulness | Relevancy | Precision | Recall |
+|------------------|-------------|-----------|-----------|--------|
+| Proyecto (6)     | 0.67        | 0.53      | 0.83      | 0.83   |
+| Microfrontends (7)| 0.69       | 0.77      | 0.81      | 1.00   |
+| Entornos (7)     | 0.57        | 0.59      | 1.00      | 1.00   |
+| CICD (5)         | 0.90        | 0.88      | 0.70      | 0.90   |
+| Autenticación (3)| 0.33        | 0.47      | 0.67      | 1.00   |
+| Estructura (4)   | 0.63        | 0.50      | 0.63      | 1.00   |
+
+**Conclusiones:**
+- **Context Precision 0.80** — el mejor de todos los runs con llama. El dataset propietario encaja bien con el corpus indexado.
+- **Context Recall 0.95** — retrieval excelente. Los documentos correctos se recuperan casi siempre.
+- **CICD destaca** (Faithfulness 0.90) — preguntas factuales simples donde llama no necesita razonar más allá del contexto.
+- **Autenticación es el punto débil** (Faithfulness 0.33) — preguntas que requieren inferir del contexto; llama las alucinaciones.
+- **Juez llama infla** Hallucination (0.88) y Faithfulness — comparar con cautela vs runs con juez Sonnet.
+- **Latencia 71s promedio** — multi-query + reranker + llama local es el cuello de botella.
+- **15 casos con alucinaciones** detectadas por el juez, principalmente en categorías con preguntas de detalles de configuración específicos no explícitos en los docs.
+
+---
+
 ## Cambios aplicados en esta sesión (2026-03-08)
 
 ### Pipeline (sesión 2026-03-06/07)

@@ -15,6 +15,7 @@ process.env.RAG_LOGS = 'false';
 
 import { QdrantVectorStore } from '@langchain/community/vectorstores/qdrant';
 import { qdrantClient, COLLECTION_NAME } from '../repositories/qdrantRepository.js';
+import { parentStorage } from '../repositories/index.js';
 import { embeddings, BM25_CONFIG, RERANKER_CONFIG } from '../services/rag/config.js';
 import { BM25Retriever } from '../services/rag/bm25Retriever.js';
 import { EnsembleRetriever } from '../services/rag/ensembleRetriever.js';
@@ -47,26 +48,8 @@ async function resolveParents(childDocs: any[]): Promise<any[]> {
   const uniqueIds = [...parentGroups.keys()].filter(id => !id.startsWith('no_parent_'));
   if (uniqueIds.length === 0) return childDocs;
 
-  const scrollResult = await qdrantClient.scroll(COLLECTION_NAME, {
-    filter: {
-      must: [
-        { key: 'metadata.parent_child.parent_doc_id', match: { any: uniqueIds } },
-        { key: 'metadata.parent_child.is_parent', match: { value: true } },
-      ],
-    },
-    limit: uniqueIds.length + 10,
-    with_payload: true,
-    with_vector: false,
-  });
-
-  const parentMap = new Map<string, any>();
-  for (const point of scrollResult.points) {
-    const payload = point.payload as any;
-    parentMap.set(payload.metadata.parent_child.parent_doc_id, {
-      pageContent: payload.text,
-      metadata: payload.metadata,
-    });
-  }
+  // Use SQLite instead of Qdrant for parent resolution
+  const parentMap = await parentStorage.getParentsByIds(uniqueIds);
 
   const result: any[] = [];
   for (const [pid, children] of parentGroups.entries()) {
