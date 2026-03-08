@@ -1,12 +1,12 @@
 # Ideas Pendientes - RAG Chat
 
-Sistema actual: BM25 (40%) + mxbai-embed-large (60%) + bge-reranker + Claude Haiku + Contextual Compression
+Sistema actual: BM25 (40%) + mxbai-embed-large (60%) + bge-reranker + Claude Haiku + Contextual Compression + Alignment Optimization + SQLite persistence
 
 ---
 
 ## 🎯 Prioridad Alta (Siguiente Sprint)
 
-> **Decisión de dirección (2026-03-07)**: Un RAG de documentación técnica sirve para hacer accesible el conocimiento escrito — no para sintetizar comparaciones que no están en los docs. El usuario busca entender qué hay, cómo funciona, qué pasos sigue. Foco: que el RAG responda bien Básica, Conceptual, Proceso, Relación y Multi-Hop. Las Comparativas se mantienen en el dataset pero no son el objetivo de optimización.
+> **Decisión de dirección (2026-03-07)**: Un RAG de documentación técnica sirve para hacer accesible el conocimiento escrito — no para sintetizar comparaciones que no están en los docs. El usuario busca entender qué hay, cómo funciona, qué pasos sigue. Foco: que el RAG responda bien Básica, Conceptual, Proceso, Relación y Multi-Hop. Las Comparativas no son el objetivo de optimización — un RAG propietario no tendrá esa información sintetizada.
 
 ---
 
@@ -36,7 +36,7 @@ Sistema actual: BM25 (40%) + mxbai-embed-large (60%) + bge-reranker + Claude Hai
   - **Tiempo**: 30 min + test
 
 ### 4. Analizar queries reales de usuarios ⭐ IMPORTANTE (cuando haya uso real)
-- [x] Query logging implementado (`d741187`) — se guardan queries con respuesta, sources y latencia
+- [x] Query logging implementado (SQLite `query_log`) — se guardan question, answer, model, latency_ms, sources, num_retrieved, context_size
 - [ ] Revisión periódica de los logs para detectar:
   - Queries que fallan frecuentemente → gaps en la documentación
   - Vocabulario real de los usuarios → ajustar chunking/indexado
@@ -52,9 +52,10 @@ Sistema actual: BM25 (40%) + mxbai-embed-large (60%) + bge-reranker + Claude Hai
   - **Tiempo**: 1 día + evaluación
 
 ### 3. Persistir Historial de Conversaciones
-- [ ] Guardar chats en SQLite/PostgreSQL
+- [ ] Guardar chats completos en SQLite (tabla separada de `query_log`)
   - Sidebar con lista de chats pasados
   - Recuperar conversaciones anteriores
+  - **Nota**: `query_log` ya persiste cada query individual, pero no el hilo conversacional completo
   - **Tiempo**: 1 día
   - **Dificultad**: Media
 
@@ -224,25 +225,25 @@ Sistema actual: BM25 (40%) + mxbai-embed-large (60%) + bge-reranker + Claude Hai
 
 ### Sprint 1 (próximo) — Calidad y UX básica
 1. **UI onboarding** — mensaje educativo de para qué sirve el RAG (2-3h)
-2. **Prompt estricto** — instrucción anti-alucinaciones + Run 9 para medir (1h)
-3. **Upgrade reranker** a bge-reranker-v2-m3 (30min)
+2. **Prompt estricto** — instrucción anti-alucinaciones + run eval para medir (1h)
+3. **Upgrade reranker** a bge-reranker-v2-m3 multilingual (30min)
 4. **Mostrar chunks/tamaño por documento** en UploadPage (2h)
 
 **Resultado**: RAG con mejor Faithfulness y usuarios con expectativas correctas
 
 ### Sprint 2 — Producto
-1. Persistir historial de chats (SQLite, sidebar)
+1. Persistir historial de chats (SQLite, sidebar) — la infraestructura ya existe
 2. Feedback 👍👎 por respuesta — empezar a recopilar señal de calidad real
-3. Panel de configuración RAG básico en UI
+3. Dashboard básico de query_log (queries frecuentes, latencia media)
 
-**Resultado**: Producto más completo
+**Resultado**: Producto más completo con observabilidad
 
-### Sprint 3 — Observabilidad
-1. Dashboard de queries frecuentes y fallidas (usando query logging)
-2. Métricas RAGAS en el tiempo (visual)
-3. Detección automática de gaps de documentación
+### Sprint 3 — Expansión
+1. Soporte PDF y DOCX (dependencias ya instaladas: pdf-parse, mammoth)
+2. Import desde URLs / GitHub
+3. Multi-usuario / autenticación
 
-**Resultado**: Sistema que mejora con el uso real
+**Resultado**: Sistema usable por equipos
 
 ### Largo Plazo
 - Soporte PDF/DOCX
@@ -264,8 +265,8 @@ Referencia: [Advanced RAG — Microsoft Azure](https://learn.microsoft.com/es-es
 | Small-to-Big (Parent-Child) | ✅ Implementado | Child 128 / Parent 512 |
 | Multi-query | ✅ Implementado | 3 variantes por query vía LLM |
 | Golden dataset + RAGAS | ✅ Implementado | 52 casos, métricas completas |
-| Prompt Compression | ❌ No implementado | Candidato directo para +Faithfulness |
-| Alignment Optimization | ❌ No implementado | Alto impacto, requiere re-indexar |
+| Prompt Compression | ✅ Implementado | EmbeddingsFilter coseno threshold 0.40 |
+| Alignment Optimization | ✅ Implementado | 3 preguntas/chunk, indexadas en Qdrant |
 | Query Router | ❌ No implementado | Útil para categorías mixtas |
 | Fact-checking post-completion | ❌ No implementado | Mitiga alucinaciones en generación |
 | Hierarchical Index (summary) | ❌ No implementado | Útil para preguntas comparativas |
@@ -275,23 +276,15 @@ Referencia: [Advanced RAG — Microsoft Azure](https://learn.microsoft.com/es-es
 
 ### Técnicas no implementadas — detalle
 
-#### A. Prompt Compression (Contextual Compression)
-- **Qué es**: Antes de enviar el contexto al LLM, extraer solo las frases directamente relevantes a la pregunta (no el chunk entero).
-- **Por qué importa**: Context Precision actual = **0.34**. Los parent chunks (512 chars) contienen el dato relevante rodeado de ruido. El LLM lo recibe todo y "razona más allá" (Faithfulness = 0.59).
-- **Cómo implementar**: `ContextualCompressionRetriever` de LangChain con `LLMChainExtractor` o `EmbeddingsFilter`.
-- **Variante ligera** (sin LLM extra): Dividir cada parent en frases, eliminar las que no superen similarity threshold con la query.
-- **Impacto estimado**: +0.10-0.15 en Faithfulness, +0.10 en Context Precision
-- **Coste**: Latencia extra (una pasada de filtrado por chunk). Con EmbeddingsFilter es rápido (solo coseno).
-- **Dificultad**: Media
-- **Tiempo**: 3-5 horas
+#### A. Prompt Compression (Contextual Compression) ✅ IMPLEMENTADO
+- Divide cada parent en frases y descarta las que no superen similitud coseno vs query (threshold 0.40)
+- Activado via `USE_CONTEXTUAL_COMPRESSION=true`
+- Cuidado: puede eliminar líneas de código con baja similitud semántica pero relevantes
 
-#### B. Alignment Optimization (Preguntas por Chunk)
-- **Qué es**: Durante la indexación, para cada chunk se generan N preguntas hipotéticas que ese chunk respondería. Esas preguntas se indexan junto al chunk.
-- **Por qué importa**: Mejora el matching semántico query↔chunk porque los embeddings comparan pregunta con pregunta (mismo espacio) en lugar de pregunta con texto técnico.
-- **Impacto estimado**: +5-10% en Context Recall para preguntas comparativas/multi-hop
-- **Coste**: Requiere re-indexar todos los documentos con una llamada LLM por chunk (~1,200 chunks = caro pero one-time).
-- **Dificultad**: Media-Alta
-- **Tiempo**: 1-2 días
+#### B. Alignment Optimization (Preguntas por Chunk) ✅ IMPLEMENTADO
+- Genera 3 preguntas hipotéticas por parent chunk y las indexa en Qdrant con embedding
+- Activado via `USE_ALIGNMENT_OPTIMIZATION=true` + botón en UI
+- Pendiente: medir impacto real en evaluación RAGAS post-optimización
 
 #### C. Query Router
 - **Qué es**: Un clasificador que analiza la pregunta y decide qué estrategia de retrieval usar (vector puro, híbrido, búsqueda por metadata, respuesta directa sin RAG).
@@ -357,5 +350,5 @@ Referencia: [Advanced RAG — Microsoft Azure](https://learn.microsoft.com/es-es
 
 ---
 
-**Última actualización**: 7 de marzo de 2026
-**Estado**: Pipeline completo y validado — BM25+Vector+Reranker+Parent-Child+Contextual Compression+Claude Haiku. 8 runs de evaluación completados. Decisión de dirección: foco en casos de uso reales de documentación (Básica, Conceptual, Proceso, Multi-Hop). Comparativas no son el objetivo de optimización. Siguiente sprint: prompt estricto + UI onboarding + upgrade reranker.
+**Última actualización**: 8 de marzo de 2026
+**Estado**: Pipeline completo — BM25+Vector+Reranker+Parent-Child+Contextual Compression+Alignment Optimization+Claude Haiku+SQLite persistence. Comparativas descartadas como objetivo (RAG propietario no tiene esa info). Siguiente sprint: prompt estricto + UI onboarding + upgrade reranker multilingual.

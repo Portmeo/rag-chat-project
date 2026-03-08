@@ -478,8 +478,10 @@ Ver [docs/RAG_SYSTEM_GUIDE.md](docs/RAG_SYSTEM_GUIDE.md) para el razonamiento co
 - [x] **Capa de persistencia SQLite** — parents en SQLite (sin vectores nulos en Qdrant), BM25 persistido entre reinicios, query logging automático
 
 ### Pendiente (próximo sprint)
-- [ ] **Query decomposition** para preguntas comparativas — el retrieval trae docs poco específicos cuando la query compara dos conceptos
-- [ ] Soporte para PDF y DOCX
+- [ ] **UI onboarding** — mensaje educativo sobre qué tipo de preguntas responde el RAG
+- [ ] **Prompt más estricto** anti-alucinaciones
+- [ ] **Upgrade reranker** bge-reranker-base → bge-reranker-v2-m3 (multilingual)
+- [ ] **Soporte PDF y DOCX**
 
 ## 📄 Stack Tecnológico
 
