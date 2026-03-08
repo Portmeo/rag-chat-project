@@ -50,6 +50,27 @@ export class SqliteParentStorage implements IParentStorage {
     return result;
   }
 
+  async getByFilename(filename: string): Promise<Document[]> {
+    const rows = this.db
+      .prepare('SELECT content, metadata FROM parents WHERE filename = ?')
+      .all(filename) as Array<{ content: string; metadata: string }>;
+
+    return rows.map(row => new Document({ pageContent: row.content, metadata: JSON.parse(row.metadata) }));
+  }
+
+  async getAllGroupedByFilename(): Promise<Map<string, Document[]>> {
+    const rows = this.db
+      .prepare('SELECT filename, content, metadata FROM parents ORDER BY filename')
+      .all() as Array<{ filename: string; content: string; metadata: string }>;
+
+    const result = new Map<string, Document[]>();
+    for (const row of rows) {
+      if (!result.has(row.filename)) result.set(row.filename, []);
+      result.get(row.filename)!.push(new Document({ pageContent: row.content, metadata: JSON.parse(row.metadata) }));
+    }
+    return result;
+  }
+
   async deleteByFilename(filename: string): Promise<void> {
     this.db.prepare('DELETE FROM parents WHERE filename = ?').run(filename);
   }

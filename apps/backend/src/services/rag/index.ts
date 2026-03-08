@@ -824,32 +824,7 @@ export async function listDocuments(): Promise<DocumentMetadata[]> {
 }
 
 export async function optimizeDocument(filename: string): Promise<{ queued: boolean }> {
-  const collectionExists = await checkCollectionExists();
-  if (!collectionExists) return { queued: false };
-
-  const parents: Document[] = [];
-  let offset: string | number | null = null;
-
-  do {
-    const result = await qdrantClient.scroll(COLLECTION_NAME, {
-      filter: {
-        must: [
-          { key: 'metadata.parent_child.is_parent', match: { value: true } },
-          { key: 'metadata.filename', match: { value: filename } },
-        ],
-      },
-      limit: 100,
-      offset: offset ?? undefined,
-      with_payload: true,
-      with_vector: false,
-    });
-
-    for (const point of result.points) {
-      const payload = point.payload as any;
-      parents.push(new Document({ pageContent: payload.text, metadata: payload.metadata }));
-    }
-    offset = (result.next_page_offset as string | number | null) ?? null;
-  } while (offset !== null);
+  const parents = await parentStorage.getByFilename(filename);
 
   if (parents.length === 0) return { queued: false };
 
@@ -896,36 +871,7 @@ export async function clearDocumentAlignmentOptimization(filename: string): Prom
 }
 
 export async function optimizeExistingDocuments(): Promise<{ queued: number }> {
-  const collectionExists = await checkCollectionExists();
-  if (!collectionExists) return { queued: 0 };
-
-  // Scroll all parent chunks
-  const parentsByFilename = new Map<string, Document[]>();
-  let offset: string | number | null = null;
-
-  do {
-    const result = await qdrantClient.scroll(COLLECTION_NAME, {
-      filter: {
-        must: [{ key: 'metadata.parent_child.is_parent', match: { value: true } }],
-      },
-      limit: 100,
-      offset: offset ?? undefined,
-      with_payload: true,
-      with_vector: false,
-    });
-
-    for (const point of result.points) {
-      const payload = point.payload as any;
-      const filename = payload?.metadata?.filename;
-      if (!filename) continue;
-
-      const doc = new Document({ pageContent: payload.text, metadata: payload.metadata });
-      if (!parentsByFilename.has(filename)) parentsByFilename.set(filename, []);
-      parentsByFilename.get(filename)!.push(doc);
-    }
-
-    offset = (result.next_page_offset as string | number | null) ?? null;
-  } while (offset !== null);
+  const parentsByFilename = await parentStorage.getAllGroupedByFilename();
 
   for (const [filename, parents] of parentsByFilename.entries()) {
     setImmediate(() => runAlignmentOptimization(filename, parents));

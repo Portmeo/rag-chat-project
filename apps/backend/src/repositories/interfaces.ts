@@ -11,6 +11,8 @@ export interface ParentEntry {
 export interface IParentStorage {
   saveParents(parents: ParentEntry[]): Promise<void>;
   getParentsByIds(ids: string[]): Promise<Map<string, Document>>;
+  getByFilename(filename: string): Promise<Document[]>;
+  getAllGroupedByFilename(): Promise<Map<string, Document[]>>;
   deleteByFilename(filename: string): Promise<void>;
   clear(): Promise<void>;
 }
