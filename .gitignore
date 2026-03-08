@@ -17,9 +17,9 @@ uploads
 files/*
 
 # SQLite persistence layer
-apps/backend/data/*.db
-apps/backend/data/*.db-wal
-apps/backend/data/*.db-shm
+apps/data/*.db
+apps/data/*.db-wal
+apps/data/*.db-shm
 
 # IDE
 .vscode
