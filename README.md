@@ -423,6 +423,7 @@ Ver [benchmark/evaluation/README.md](benchmark/evaluation/README.md) para detall
 - **[docs/DOCUMENT_PROCESSING.md](docs/DOCUMENT_PROCESSING.md)** - Procesamiento de documentos, templates y embeddings
 - **[docs/BM25_CONFIGURATION.md](docs/BM25_CONFIGURATION.md)** - Configuración de búsqueda híbrida
 - **[docs/RERANKING_SYSTEM.md](docs/RERANKING_SYSTEM.md)** - Sistema de reranking
+- **[docs/PERSISTENCE_LAYER.md](docs/PERSISTENCE_LAYER.md)** - Capa de persistencia SQLite (parents, BM25, query log)
 - **[CHANGELOG.md](CHANGELOG.md)** - Diario de sesiones y decisiones de arquitectura
 - **[benchmark/evaluation/README.md](benchmark/evaluation/README.md)** - Sistema RAGAS de evaluación
 - **[benchmark/evaluation/COMPARATIVA_SESION.md](benchmark/evaluation/COMPARATIVA_SESION.md)** - Histórico de 8 runs con métricas comparadas
