@@ -39,6 +39,13 @@ export interface EvaluationResult {
   hallucination_score?: number;
   hallucinations_detected?: string[];
 
+  // Judge Reasoning (for auditability)
+  faithfulness_reasoning?: string;
+  relevancy_reasoning?: string;
+  precision_reasoning?: string;
+  hallucination_reasoning?: string;
+  correctness_reasoning?: string;
+
   // Performance Metrics
   retrieval_latency_ms?: number;
   reranking_latency_ms?: number;

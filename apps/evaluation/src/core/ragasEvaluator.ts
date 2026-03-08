@@ -151,16 +151,16 @@ export class RAGASEvaluator {
 
       // ✅ ACTIVA: Detección de alucinaciones real
       const hallucinationResult = await this.detectHallucinations(ragResponse.answer, contexts);
-      
+
       // ✅ ACTIVA: Métricas CORE con razonamiento
-      const faithfulness = await this.calculateFaithfulness(ragResponse.answer, contexts);
-      const answerRelevancy = await this.calculateAnswerRelevancy(testCase.question, ragResponse.answer);
-      const contextPrecision = await this.calculateContextPrecision(testCase.question, contexts);
+      const faithfulnessResult = await this.calculateFaithfulness(ragResponse.answer, contexts);
+      const relevancyResult = await this.calculateAnswerRelevancy(testCase.question, ragResponse.answer);
+      const precisionResult = await this.calculateContextPrecision(testCase.question, contexts);
       const contextRecall = await this.calculateContextRecall(contexts, sourceFilenames, testCase.expected_contexts);
 
       // ✅ OPCIONAL: Correctness comparada con Ground Truth
-      const answerCorrectness = testCase.ground_truth_answer ? 
-        await this.calculateAnswerCorrectness(ragResponse.answer, testCase.ground_truth_answer) : 0;
+      const correctnessResult = testCase.ground_truth_answer ?
+        await this.calculateAnswerCorrectness(ragResponse.answer, testCase.ground_truth_answer) : { score: 0, reasoning: '' };
 
       const latency = Date.now() - totalStartTime;
 
@@ -171,18 +171,24 @@ export class RAGASEvaluator {
         retrieved_contexts: contexts,
         retrieved_sources: sourceFilenames,
 
-        faithfulness_score: faithfulness,
-        answer_relevancy_score: answerRelevancy,
-        context_precision_score: contextPrecision,
+        faithfulness_score: faithfulnessResult.score,
+        answer_relevancy_score: relevancyResult.score,
+        context_precision_score: precisionResult.score,
         context_recall_score: contextRecall,
 
         context_relevancy_score: 0, // not calculated
-        answer_correctness_score: answerCorrectness,
+        answer_correctness_score: correctnessResult.score,
         answer_similarity_score: 0, // not calculated
         answer_completeness_score: 0, // not calculated
 
         hallucination_score: hallucinationResult.score,
         hallucinations_detected: hallucinationResult.hallucinations,
+
+        faithfulness_reasoning: faithfulnessResult.reasoning,
+        relevancy_reasoning: relevancyResult.reasoning,
+        precision_reasoning: precisionResult.reasoning,
+        hallucination_reasoning: hallucinationResult.reasoning,
+        correctness_reasoning: correctnessResult.reasoning,
 
         retrieval_latency_ms: ragResponse.performance?.retrieval_latency_ms,
         reranking_latency_ms: ragResponse.performance?.reranking_latency_ms,
@@ -200,14 +206,14 @@ export class RAGASEvaluator {
     }
   }
 
-  private async calculateFaithfulness(answer: string, contexts: string[]): Promise<number> {
-    if (contexts.length === 0 || !answer) return 0;
+  private async calculateFaithfulness(answer: string, contexts: string[]): Promise<{ score: number; reasoning: string }> {
+    if (contexts.length === 0 || !answer) return { score: 0, reasoning: 'No contexts or answer provided' };
 
     const prompt = `Actúa como un Juez de Veracidad para un sistema RAG.
 Tu tarea es decidir si la RESPUESTA se puede deducir EXCLUSIVAMENTE de los CONTEXTOS.
 
 CONTEXTOS:
-${contexts.map((c, i) => `[${i + 1}] ${c.substring(0, 800)}...`).join('\n---\n')}
+${contexts.map((c, i) => `[${i + 1}] ${c.substring(0, 3000)}`).join('\n---\n')}
 
 RESPUESTA:
 ${answer}
@@ -227,14 +233,14 @@ SCORE: <solo el número>`;
 
     try {
       const content = await this.invokeLLMWithTimeout(prompt);
-      return this.extractScoreFromReasoning(content);
+      return this.extractScoreAndReasoning(content);
     } catch (error) {
-      return 0.5;
+      return { score: 0.5, reasoning: 'Error during evaluation' };
     }
   }
 
-  private async calculateAnswerRelevancy(question: string, answer: string): Promise<number> {
-    if (!answer || !question) return 0;
+  private async calculateAnswerRelevancy(question: string, answer: string): Promise<{ score: number; reasoning: string }> {
+    if (!answer || !question) return { score: 0, reasoning: 'No answer or question provided' };
 
     const prompt = `Evalúa si la respuesta resuelve DIRECTAMENTE la pregunta del usuario.
 
@@ -250,14 +256,14 @@ SCORE: <número entre 0.0 y 1.0>`;
 
     try {
       const content = await this.invokeLLMWithTimeout(prompt);
-      return this.extractScoreFromReasoning(content);
+      return this.extractScoreAndReasoning(content);
     } catch (error) {
-      return 0.5;
+      return { score: 0.5, reasoning: 'Error during evaluation' };
     }
   }
 
-  private async calculateContextPrecision(question: string, contexts: string[]): Promise<number> {
-    if (contexts.length === 0) return 0;
+  private async calculateContextPrecision(question: string, contexts: string[]): Promise<{ score: number; reasoning: string }> {
+    if (contexts.length === 0) return { score: 0, reasoning: 'No contexts provided' };
 
     const prompt = `Evalúa la calidad de los documentos recuperados para la pregunta.
 ¿Cuántos de estos documentos son ÚTILES para dar una respuesta correcta?
@@ -266,7 +272,7 @@ PREGUNTA:
 ${question}
 
 CONTEXTOS:
-${contexts.map((c, i) => `[${i + 1}] ${c.substring(0, 400)}...`).join('\n---\n')}
+${contexts.map((c, i) => `[${i + 1}] ${c.substring(0, 3000)}`).join('\n---\n')}
 
 SCORE:
 1.0 = Todos son muy útiles.
@@ -279,9 +285,9 @@ SCORE: <número>`;
 
     try {
       const content = await this.invokeLLMWithTimeout(prompt);
-      return this.extractScoreFromReasoning(content);
+      return this.extractScoreAndReasoning(content);
     } catch (error) {
-      return 0.5;
+      return { score: 0.5, reasoning: 'Error during evaluation' };
     }
   }
 
@@ -313,8 +319,8 @@ SCORE: <número>`;
     return matches / expectedContexts.length;
   }
 
-  private async calculateAnswerCorrectness(generatedAnswer: string, groundTruthAnswer: string): Promise<number> {
-    if (!generatedAnswer || !groundTruthAnswer) return 0;
+  private async calculateAnswerCorrectness(generatedAnswer: string, groundTruthAnswer: string): Promise<{ score: number; reasoning: string }> {
+    if (!generatedAnswer || !groundTruthAnswer) return { score: 0, reasoning: 'No answer or ground truth provided' };
 
     const prompt = `Compara la respuesta GENERADA contra la respuesta de REFERENCIA (Ground Truth).
 ¿Dicen lo mismo en esencia?
@@ -330,25 +336,26 @@ SCORE: <número>`;
 
     try {
       const content = await this.invokeLLMWithTimeout(prompt);
-      return this.extractScoreFromReasoning(content);
+      return this.extractScoreAndReasoning(content);
     } catch (error) {
-      return 0.5;
+      return { score: 0.5, reasoning: 'Error during evaluation' };
     }
   }
 
   private async detectHallucinations(answer: string, contexts: string[]): Promise<{
     score: number;
     hallucinations: string[];
+    reasoning: string;
   }> {
     if (!answer || contexts.length === 0) {
-      return { score: 1.0, hallucinations: [] };
+      return { score: 1.0, hallucinations: [], reasoning: 'No answer or contexts provided' };
     }
 
     const prompt = `Actúa como un Auditor de Alucinaciones.
 Busca datos técnicos (versiones, nombres, configuraciones) en la RESPUESTA que NO estén en los CONTEXTOS.
 
 CONTEXTOS:
-${contexts.map((c, i) => `[${i + 1}] ${c.substring(0, 600)}...`).join('\n---\n')}
+${contexts.map((c, i) => `[${i + 1}] ${c.substring(0, 3000)}`).join('\n---\n')}
 
 RESPUESTA:
 ${answer}
@@ -371,26 +378,34 @@ ALUCINACIONES:
         .map(l => l.trim().substring(1).trim());
 
       if (content.toUpperCase().includes('NINGUNA') || hallucinations.length === 0) {
-        return { score: 1.0, hallucinations: [] };
+        return { score: 1.0, hallucinations: [], reasoning: content.trim() };
       }
 
       // Penalización: -0.2 por cada alucinación
       const score = Math.max(0, 1 - hallucinations.length * 0.2);
-      return { score, hallucinations };
+      return { score, hallucinations, reasoning: content.trim() };
     } catch (error) {
-      return { score: 0.5, hallucinations: [] };
+      return { score: 0.5, hallucinations: [], reasoning: 'Error during evaluation' };
     }
   }
 
   private extractScoreFromReasoning(content: string): number {
+    return this.extractScoreAndReasoning(content).score;
+  }
+
+  private extractScoreAndReasoning(content: string): { score: number; reasoning: string } {
+    const reasoningMatch = content.match(/RAZONAMIENTO:\s*(.+?)(?=SCORE:|$)/is);
+    const reasoning = reasoningMatch ? reasoningMatch[1].trim() : content.slice(0, 300).trim();
+
     const scoreMatch = content.match(/SCORE:\s*([\d.]+)/i);
     if (scoreMatch) {
       const val = parseFloat(scoreMatch[1]);
-      return isNaN(val) ? 0.5 : Math.max(0, Math.min(1, val));
+      const score = isNaN(val) ? 0.5 : Math.max(0, Math.min(1, val));
+      return { score, reasoning };
     }
-    
-    // Fallback al extractor genérico si falla el formato estricto
+
     const decimalMatch = content.match(/\b(0\.\d+|1\.0|0\.0|1|0)\b/);
-    return decimalMatch ? parseFloat(decimalMatch[0]) : 0.5;
+    const score = decimalMatch ? parseFloat(decimalMatch[0]) : 0.5;
+    return { score, reasoning };
   }
 }
