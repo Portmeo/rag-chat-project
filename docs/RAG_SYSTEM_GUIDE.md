@@ -1,4 +1,4 @@
-# Guía del Sistema RAG - Conceptos y Decisiones
+# Guía del Sistema RAG - Arquitectura y Componentes
 
 ## ¿Qué es este sistema?
 
@@ -15,14 +15,14 @@ Un sistema RAG (Retrieval-Augmented Generation) optimizado para consultas sobre 
               ↓
 3. Hydration: Resolución de Children a PARENTS únicos (Qdrant Filter)
               ↓
-4. Reranking (bge-reranker-base) sobre PARENTS → Top 5
+4. Reranking (Cross-Encoder) sobre PARENTS → Top K
               ↓
 5. Contextual Compression
    → Cada parent se divide en frases
-   → Se descartan frases con similitud coseno < 0.30 vs la query
+   → Se descartan frases con similitud coseno < umbral vs la query
    → Reduce ruido y previene que el LLM rellene huecos con conocimiento propio
               ↓
-6. Generación (Claude Haiku, temperature 0.0)
+6. Generación (LLM configurable, temperature 0.0)
    → Respuesta estrictamente desde el contexto comprimido
 ```
 
@@ -41,15 +41,17 @@ Para optimizar el rendimiento y tener control total, el sistema implementa su pr
 
 **Almacenamiento**: Todo reside en Qdrant. Los padres actúan como un almacén de documentos integrado, recuperados mediante filtros de metadatos en una sola consulta (`match any`).
 
-### 2. Búsqueda Híbrida (40% BM25 + 60% Vectores)
+### 2. Búsqueda Híbrida (BM25 + Vectores)
 
 **¿Qué hace?**
 Combina la precisión léxica de BM25 con la potencia semántica de los embeddings.
 
-- **BM25 (Filtrado)**: El motor BM25 ha sido optimizado para **ignorar los documentos Parent**. Esto evita ruido semántico y duplicidad en los resultados iniciales, asegurando que solo se recuperen fragmentos Children.
-- **Vectores Semánticos**: Usa `mxbai-embed-large` con prefijos de instrucción asimétricos.
+- **BM25 (Filtrado)**: El motor BM25 ha sido optimizado para **ignorar los documentos Parent**. Esto evita ruido semántico y duplicidad en los resultados iniciales, asegurando que solo se recuperen fragmentos Children. También excluye las alignment questions si están indexadas.
+- **Vectores Semánticos**: Embeddings con prefijos de instrucción asimétricos (query prefix ≠ document prefix) para mejorar el matching semántico.
 
-### 3. Reranking Resiliente: bge-reranker-base
+**Pesos configurables**: Ver `.env` (`BM25_WEIGHT`, `VECTOR_WEIGHT`).
+
+### 3. Reranking con Cross-Encoder
 
 **¿Qué hace?**
 Evalúa y reordena los candidatos recuperados. A diferencia de otros sistemas, aquí el reranking se realiza sobre el **Parent Document** (el bloque completo).
@@ -58,13 +60,17 @@ Evalúa y reordena los candidatos recuperados. A diferencia de otros sistemas, a
 - **Visión Real**: El reranker evalúa exactamente lo mismo que va a leer el LLM.
 - **Fallback Automático**: El sistema incluye una lógica de seguridad: si el Worker Thread falla (común en entornos TS no compilados), el reranking se ejecuta automáticamente en el **hilo principal**, garantizando que el LLM siempre reciba los mejores documentos.
 
+**Nota sobre los scores**: Los cross-encoders típicos devuelven logits no acotados (pueden ser negativos). NO son porcentajes.
+
 ### 4. Contextual Compression
 
 **¿Qué hace?**
-Antes de enviar el contexto al LLM, filtra las frases de cada parent chunk que no son relevantes para la query. Solo las frases con similitud coseno ≥ 0.30 (mxbai-embed-large) llegan al LLM.
+Antes de enviar el contexto al LLM, filtra las frases de cada parent chunk que no son relevantes para la query. Solo las frases con similitud coseno ≥ umbral configurado llegan al LLM.
 
 **Por qué es necesario**:
-Los parent chunks (512 chars) contienen el dato relevante rodeado de texto relacionado pero no directamente útil. Sin compresión, el LLM "rellena huecos" con su conocimiento previo de Angular/NgRx → Faithfulness baja.
+Los parent chunks (512 chars) contienen el dato relevante rodeado de texto relacionado pero no directamente útil. Sin compresión, el LLM "rellena huecos" con su conocimiento previo → Faithfulness baja.
+
+**Implementación**: Custom (~60 líneas), no depende de LangChain. Usa el mismo modelo de embeddings que el retrieval para máxima coherencia semántica.
 
 **Configuración**:
 ```bash
@@ -72,19 +78,20 @@ USE_CONTEXTUAL_COMPRESSION=true
 COMPRESSION_THRESHOLD=0.30
 ```
 
-### 5. Generación: Claude Haiku con temperatura 0.0
+### 5. Generación con temperatura 0.0
 
 **¿Qué hace?**
 Sintetiza la respuesta basándose exclusivamente en el contexto comprimido. Temperatura 0.0 hace al modelo más conservador — menos tendencia a añadir información de su training data.
 
-**LLM actual**: `claude-haiku-4-5-20251001` — mejor Faithfulness y Hallucination que llama3.1:8b según evaluaciones RAGAS con juez externo (Sonnet 4.6).
+**LLM configurable**: soporta Claude (vía API Anthropic) o cualquier modelo Ollama local. Ver `.env` para la configuración activa (`USE_CLAUDE`, `CLAUDE_MODEL`, `OLLAMA_MODEL`). Ver [MODEL_DECISIONS.md](./MODEL_DECISIONS.md) para el razonamiento de selección de modelos.
 
-## Configuración Recomendada (.env)
+## Variables de Entorno (Referencia)
 
 ```bash
-# LLM
-USE_CLAUDE=true
-CLAUDE_MODEL=claude-haiku-4-5-20251001
+# LLM (ver MODEL_DECISIONS.md para justificación)
+USE_CLAUDE=true|false
+CLAUDE_MODEL=<model-id>
+OLLAMA_MODEL=<model-name>
 
 # Búsqueda Híbrida
 USE_BM25_RETRIEVER=true
@@ -94,6 +101,7 @@ SIMILARITY_SEARCH_MAX_RESULTS=25
 
 # Reranking
 USE_RERANKER=true
+RERANKER_MODEL=<model-name>
 RERANKER_RETRIEVAL_TOP_K=20
 RERANKER_FINAL_TOP_K=5
 
@@ -132,24 +140,14 @@ USE_ALIGNMENT_OPTIMIZATION=true   # activa la generación de preguntas hipotéti
 ALIGNMENT_BATCH_SIZE=5            # chunks procesados en paralelo
 ```
 
-**Resultado en evaluación (Run 8):** el alignment no mejoró Faithfulness en Comparativa (0.30) y empeoró ligeramente Hallucination global (0.65 vs 0.76 sin alignment). Las preguntas hipotéticas añaden ruido al contexto. **Feature actualmente desactivada en config recomendada.**
+**Estado actual**: Indexadas en Qdrant pero con impacto neutro o negativo en evaluaciones. El BM25 las excluye correctamente. La búsqueda vectorial puede retornarlas pero hidratan al parent correcto (no llegan al LLM). Ver resultados detallados en [MODEL_DECISIONS.md](./MODEL_DECISIONS.md).
 
 ---
 
-## Métricas RAGAS (sesión 2026-03-07, juez Sonnet 4.6)
-
-| Métrica | R5 (config activa) | R8 (+ alignment) | Target |
-|---|---|---|---|
-| **Faithfulness** | 0.42 (Comparativa: 0.53) | 0.36 | >0.70 |
-| **Answer Relevancy** | 0.73 | 0.74 | >0.80 |
-| **Context Recall** | 0.94 | 0.92 | >0.95 |
-| **Context Precision** | 0.10-0.23 | 0.35 | >0.50 |
-| **Hallucination** | 0.76 | 0.65 | >0.90 |
-
-La config activa recomendada es **R5** (Claude Haiku + Reranker + Compression + temp 0.0, sin alignment).
-
 ## Lecciones de Arquitectura
 
-1. **Rerank sobre el Padre**: Evaluar el bloque de 1000 caracteres es más preciso que evaluar la línea de 128.
-2. **Filtrar BM25**: Nunca dejes que BM25 indexe a los padres si usas una arquitectura de vectores nulos; el ruido léxico arruina el reranking.
-3. **Metadatos > Texto**: Pasar metadatos estructurados en el encabezado del fragmento reduce alucinaciones en modelos de tamaño medio (8b).
+1. **Rerank sobre el Padre**: Evaluar el bloque de 512 caracteres es más preciso que evaluar la línea de 128. El reranker y el LLM leen exactamente el mismo texto.
+2. **Filtrar BM25**: Nunca dejes que BM25 indexe a los padres ni las alignment questions si usas una arquitectura de vectores nulos; el ruido léxico arruina la precisión del reranking.
+3. **Metadatos > Texto**: Pasar metadatos estructurados en el encabezado del fragmento reduce alucinaciones en modelos de tamaño medio.
+4. **Compression antes de LLM**: El filtrado de frases por coseno mejora Faithfulness y Hallucination a coste de Answer Correctness mínimo (respuestas más literales).
+5. **El retrieval no es el problema**: En evaluaciones con dataset controlado, Context Recall supera el 90% consistentemente. La Faithfulness baja en preguntas Multi-Hop es un problema de generación, no de retrieval.

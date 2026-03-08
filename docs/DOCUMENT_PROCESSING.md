@@ -1,110 +1,157 @@
-# Procesamiento de Documentos y Sistema de Templates
+# Procesamiento de Documentos y Pipeline de Ingesta
 
-Este documento explica en detalle cómo funciona el pipeline de ingesta de documentos, incluyendo el splitting inteligente, el sistema de templates para metadata y la estrategia de recuperación jerárquica (Parent-Child).
+Explica cómo se procesan e indexan los documentos: splitting, extracción de metadata y estrategia Parent-Child.
 
-## 📋 Índice
+---
 
-1. [Flujo Completo (Parent-Child)](#flujo-completo-parent-child)
-2. [Text Splitting Inteligente](#text-splitting-inteligente)
-3. [Estrategia Parent-Child (Small-to-Big)](#estrategia-parent-child-small-to-big)
-4. [Sistema de Templates y Metadata](#sistema-de-templates)
-5. [Almacenamiento en Qdrant](#almacenamiento-en-qdrant)
-
-## Flujo Completo (Parent-Child)
+## Flujo Completo
 
 ```
-      archivo.md
-          ↓
-[1. Procesamiento Inicial]
-          ↓
-[2. Doble Splitting Inteligente]
-    ↙           ↘
-Hijos (128 chars) Padres (1000 chars)
-    ↓               ↓
-[3. Extracción de Metadata]
-    ↓               ↓
-[4. Indexación en Qdrant]
-    ↓               ↓
-Con Vector       Vector NULO (Storage)
+      archivo.md / .pdf / .docx
+              ↓
+   [1. Parsing (texto plano)]
+              ↓
+   [2. Doble Splitting]
+       ↙              ↘
+Hijos (128 chars)   Padres (512 chars)
+       ↓              ↓
+   [3. Extracción de Metadata (technical.ts)]
+       ↓              ↓
+   [4. Indexación en Qdrant]
+       ↓              ↓
+  Con vector real   Vector NULO (storage only)
 ```
 
-## Text Splitting Inteligente
+---
 
-### Splitters Especializados
+## Text Splitting
 
-El sistema usa diferentes splitters según el tipo de documento para garantizar la integridad de la información técnica:
+El sistema usa `MarkdownTextSplitter` para respetar headers, tablas y bloques de código, y `RecursiveCharacterTextSplitter` para HTML y otros formatos.
 
-- **MarkdownTextSplitter**: Respeta headers, tablas y bloques de código.
-- **RecursiveCharacterTextSplitter**: Para HTML y otros formatos, priorizando saltos de párrafo y oraciones.
+Parámetros actuales (configurables en `.env`):
+```
+CHILD_CHUNK_SIZE=128    CHILD_CHUNK_OVERLAP=25
+PARENT_CHUNK_SIZE=512   PARENT_CHUNK_OVERLAP=50
+```
+
+---
 
 ## Estrategia Parent-Child (Small-to-Big)
 
-Esta técnica separa la **unidad de búsqueda** de la **unidad de razonamiento**.
+Separa la **unidad de búsqueda** (hijo pequeño) de la **unidad de generación** (padre completo).
 
-### 1. Generación de Chunks (`parentChildChunker.ts`)
-El sistema procesa el documento dos veces en paralelo:
-- **Hijos (Children)**: Fragmentos pequeños (ej: 128 caracteres). Son óptimos para que el motor de búsqueda (Vectorial y BM25) encuentre coincidencias exactas.
-- **Padres (Parents)**: Fragmentos grandes (ej: 1000 caracteres). Contienen el contexto completo, código circundante y explicaciones detalladas.
+- **Hijos (128 chars)**: indexados con vectores reales. Son los que responden a búsqueda semántica y BM25.
+- **Padres (512 chars)**: almacenados con **vector nulo** — invisibles para búsqueda vectorial. Solo se recuperan por filtro de metadata (`match any parent_doc_id`) cuando sus hijos son seleccionados.
+- **Deduplicación**: si varios hijos apuntan al mismo padre, se recupera una sola vez.
 
-### 2. Vinculación
-Cada hijo se indexa con un ID de referencia `parent_doc_id`. Esto permite que, al encontrar un hijo relevante, el sistema "salte" automáticamente al bloque padre antes de enviar la información al LLM o al Reranker.
+---
 
-## Sistema de Templates
+## Metadata Extraída (technical.ts)
 
-### Metadata Técnica
-Ubicación: `apps/backend/src/services/documentProcessor/templates/technical.ts`
+Para cada chunk se extraen los siguientes campos. Solo se almacena lo que aporta valor al pipeline.
 
-Cada fragmento (ya sea padre o hijo) es analizado para extraer:
-- **Section Path**: Ruta jerárquica (ej: "Arquitectura > Auth > JWT").
-- **Framework/Library**: Detección de Angular, Ionic, NgRx, etc.
-- **Versión**: Extracción de números de versión de texto y JSON.
-- **Content Type**: Identificación de si el fragmento es código, tabla o texto.
+### Siempre presentes
+| Campo | Descripción | Dónde se usa |
+|-------|-------------|--------------|
+| `filename` | Nombre del archivo fuente | Header LLM, API response, dedup BM25 |
+| `uploadDate` | Timestamp de subida | Almacenado (UI futura) |
+| `chunk_index` | Índice secuencial en el documento | Logging/debug |
+| `total_chunks` | Total de chunks del documento | Almacenado (UI futura) |
 
-## Almacenamiento en Qdrant
+### Estructura jerárquica
+| Campo | Descripción | Dónde se usa |
+|-------|-------------|--------------|
+| `section_path` | Ruta del heading: `H1 > H2 > H3` | Header LLM |
 
-### Estrategia de Vectores Nulos
-Para optimizar Qdrant y evitar ruido en la búsqueda vectorial:
+> Los headers individuales (`heading_h1/h2/h3`) se computan internamente para construir `section_path` pero **no se almacenan** en Qdrant.
 
-1.  **Hijos**: Se almacenan con sus **embeddings reales** (1024 dimensiones). Son los únicos que responden a búsquedas de similitud.
-2.  **Padres**: Se almacenan con un **vector de ceros** (`[0, 0, 0, ...]`).
-    - Son invisibles para la búsqueda vectorial.
-    - **Filtrado BM25**: El motor BM25 también los ignora mediante filtros de metadatos (`is_parent: false`).
-    - Solo se recuperan mediante su ID único cuando un hijo los referencia.
+### Tipo de contenido
+| Campo | Descripción | Dónde se usa |
+|-------|-------------|--------------|
+| `content_type` | `text`, `code`, `table`, `list`, `mixed` | Header LLM (cuando es código) |
 
-### Estructura de un Punto (Hijo)
+### Contexto técnico (solo si se detecta)
+| Campo | Descripción | Dónde se usa |
+|-------|-------------|--------------|
+| `framework` | Framework detectado (Angular, React, Docker...) — requiere ≥2 keywords | Header LLM |
+| `version` | Versión detectada (`18.2`, `1.2.3`) | Header LLM |
+
+### Parent-Child
+| Campo | Descripción | Dónde se usa |
+|-------|-------------|--------------|
+| `parent_child.parent_doc_id` | ID del padre | Hydration: hijos → padres |
+| `parent_child.is_parent` | `true` padres / `false` hijos | Filtro BM25 + query hydration |
+| `parent_child.child_index` | Índice del hijo dentro del padre | Almacenado |
+| `parent_child.child_chunk_size` | Config usada al crear hijos | Almacenado |
+| `parent_child.parent_chunk_size` | Config usada al crear padres | Almacenado |
+| `parent_child.is_alignment_question` | `true` si es pregunta hipotética | Filtro BM25 |
+
+---
+
+## Header del Contexto Enviado al LLM
+
+Cada documento llega al LLM con un encabezado que combina los campos disponibles:
+
+```
+[DOCUMENTO 1 | Fuente: 04-autenticacion-guards.md | Sección: Sesión Persistente | Framework: Angular | Lenguaje: typescript | Tipo: código]
+```
+
+Solo se incluyen los campos que existen (los opcionales se omiten si no se detectaron).
+
+---
+
+## Estructura Real en Qdrant
+
+### Hijo (child)
 ```json
 {
-  "id": "uuid-hijo",
+  "id": "uuid",
   "vector": [0.12, -0.45, ...],
   "payload": {
-    "text": "Fragmento corto...",
+    "content": "## Performance Tips\n\nUsa memoization...",
     "metadata": {
+      "filename": "02-gestion-estado-ngrx.md",
+      "uploadDate": "2026-03-07T07:25:41.689Z",
+      "chunk_index": 270,
+      "total_chunks": 330,
+      "section_path": "Performance Tips",
+      "content_type": "text",
       "parent_child": {
-        "parent_doc_id": "id-del-padre",
-        "is_parent": false
+        "parent_doc_id": "02-gestion-estado-ngrx.md_parent_27",
+        "is_parent": false,
+        "child_index": 0,
+        "child_chunk_size": 128,
+        "parent_chunk_size": 512
       }
     }
   }
 }
 ```
 
-### Estructura de un Punto (Padre)
+### Padre (parent)
 ```json
 {
-  "id": "id-del-padre",
-  "vector": [0, 0, 0, ...], // Vector nulo
+  "id": "uuid",
+  "vector": [0, 0, 0, ...],
   "payload": {
-    "text": "Bloque de contexto completo (1000 chars)...",
+    "text": "## Sesión Persistente\n\n```typescript\n@Injectable...",
     "metadata": {
+      "filename": "04-autenticacion-guards.md",
+      "uploadDate": "2026-03-07T07:25:41.709Z",
+      "chunk_index": 30,
+      "total_chunks": 36,
+      "section_path": "Sesión Persistente",
+      "content_type": "mixed",
+      "framework": "Angular",
       "parent_child": {
-        "is_parent": true
+        "parent_doc_id": "04-autenticacion-guards.md_parent_30",
+        "is_parent": true,
+        "child_chunk_size": 128,
+        "parent_chunk_size": 512
       }
     }
   }
 }
 ```
 
-## Ventajas de esta Implementación
-- **Alta Precisión**: Los fragmentos pequeños reducen el ruido en el cálculo de similitud.
-- **Contexto Rico**: El LLM nunca recibe frases cortadas; siempre ve el bloque lógico completo.
-- **Eficiencia**: La recuperación de padres se hace en una sola consulta por lote (`Match Any ID`), minimizando la latencia.
+> Los hijos usan el campo `content`, los padres usan `text`. Artefacto de cómo LangChain almacena `pageContent` vs cómo se insertan los padres manualmente vía Qdrant client.

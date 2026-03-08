@@ -5,20 +5,19 @@ Documentación técnica del sistema de Retrieval-Augmented Generation.
 ## 📖 Documentos Disponibles
 
 ### 🎯 [RAG_SYSTEM_GUIDE.md](RAG_SYSTEM_GUIDE.md) - **EMPIEZA AQUÍ**
-Guía conceptual de alto nivel del sistema RAG:
-- Arquitectura completa del sistema
-- Por qué elegimos cada componente (BM25, mxbai, reranking, llama3.1)
-- Proceso de optimización y benchmarks
-- Métricas de evaluación (MRR, Recall, RAGAS)
-- Resultados finales
-- **Recomendado para entender el "por qué" de cada decisión**
+Guía de arquitectura del sistema RAG:
+- Flujo completo del pipeline (Multi-Query → Híbrida → Parent-Child → Reranker → Compression → LLM)
+- Descripción de cada componente y por qué existe
+- Variables de entorno de referencia
+- Lecciones de arquitectura
 
-### ⚙️ [BM25_CONFIGURATION.md](BM25_CONFIGURATION.md)
-Guía técnica de la configuración BM25:
-- Qué es BM25 y cómo funciona
-- Por qué usar búsqueda híbrida (BM25 + Vectores)
-- Configuración de pesos
-- Comparativa de rendimiento
+### 🧠 [MODEL_DECISIONS.md](MODEL_DECISIONS.md)
+Decisiones de modelos y configuración:
+- Por qué mxbai-embed-large para embeddings
+- Por qué bge-reranker-base (benchmark comparativo de rerankers)
+- Historial de evaluaciones RAGAS por modelo (R1-R11)
+- Por qué Claude Haiku sobre llama/qwen para generación
+- Análisis del punto débil actual (Multi-Hop Faithfulness)
 
 ### 🔄 [RERANKING_SYSTEM.md](RERANKING_SYSTEM.md)
 Documentación del sistema de reranking:
@@ -45,16 +44,15 @@ Sistema de evaluación RAGAS:
 ## 🎯 Flujo de Lectura Recomendado
 
 **Para entender el sistema completo:**
-1. RAG_SYSTEM_GUIDE.md → Conceptos y decisiones de arquitectura
-2. DOCUMENT_PROCESSING.md → Cómo se procesan e indexan los documentos
-3. BM25_CONFIGURATION.md → Detalle de búsqueda híbrida
-4. RERANKING_SYSTEM.md → Detalle de reranking
+1. RAG_SYSTEM_GUIDE.md → Arquitectura y componentes
+2. MODEL_DECISIONS.md → Por qué cada modelo y parámetro
+3. DOCUMENT_PROCESSING.md → Cómo se procesan e indexan los documentos
+4. RERANKING_SYSTEM.md → Detalle del reranker
 
 **Para configurar el sistema:**
-1. Ver sección "Configuración Final" en RAG_SYSTEM_GUIDE.md
-2. Ajustar chunk size/overlap según DOCUMENT_PROCESSING.md
-3. Ajustar pesos según BM25_CONFIGURATION.md
-4. Configurar reranking según RERANKING_SYSTEM.md
+1. Ver sección "Variables de Entorno" en RAG_SYSTEM_GUIDE.md
+2. Ver justificación de parámetros en MODEL_DECISIONS.md
+3. Ajustar chunk size/overlap según DOCUMENT_PROCESSING.md
 
 **Para implementar ingesta de documentos:**
 1. DOCUMENT_PROCESSING.md → Pipeline completo de ingesta

@@ -1,12 +1,10 @@
 export interface ParentChildMetadata {
-  // Parent-Child relationship
-  parent_doc_id: string;           // ID único del documento padre
-  is_parent: boolean;              // false = child (se indexa con vector), true = parent (se indexa sin vector)
-  child_index?: number;            // Índice del child dentro del parent (0, 1, 2...)
-
-  // Sizes para validación
-  child_chunk_size: number;        // Tamaño del chunk child (200)
-  parent_chunk_size: number;       // Tamaño del chunk parent (1000)
+  parent_doc_id: string;
+  is_parent: boolean;
+  child_index?: number;
+  child_chunk_size: number;
+  parent_chunk_size: number;
+  is_alignment_question?: boolean;
 }
 
 export interface TechnicalMetadata {
@@ -16,24 +14,10 @@ export interface TechnicalMetadata {
   total_chunks?: number;
 
   // Estructura del documento
-  heading_h1?: string;
-  heading_h2?: string;
-  heading_h3?: string;
   section_path?: string;
 
   // Tipo de contenido
   content_type?: 'text' | 'code' | 'table' | 'list' | 'mixed';
-  language?: string;
-
-  // Características
-  has_code?: boolean;
-  has_links?: boolean;
-  word_count?: number;
-
-  // Contexto técnico (detectado automáticamente)
-  framework?: string;
-  library?: string;
-  version?: string;
 
   // Parent Document Retriever
   parent_child?: ParentChildMetadata;

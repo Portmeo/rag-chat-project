@@ -599,10 +599,9 @@ async function retrieveRelevantDocuments(
 
       // Encabezado con metadata enriquecida
       let headerParts = [`DOCUMENTO ${idx + 1}`, `Fuente: ${metadata.filename}`];
-      
+
       if (metadata.section_path) headerParts.push(`Sección: ${metadata.section_path}`);
-      if (metadata.framework) headerParts.push(`Framework: ${metadata.framework}`);
-      if (metadata.version) headerParts.push(`Versión: ${metadata.version}`);
+      if (metadata.content_type === 'code' || metadata.content_type === 'mixed') headerParts.push(`Tipo: código`);
       
       const header = `[${headerParts.join(' | ')}]`;
 
