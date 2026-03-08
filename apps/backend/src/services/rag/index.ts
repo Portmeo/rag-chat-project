@@ -13,6 +13,7 @@ const rerankerLogger = createLogger('RERANKER');
 const llmLogger = createLogger('LLM');
 import { qdrantClient, COLLECTION_NAME } from '../../repositories/qdrantRepository';
 import { embeddings, llm, MESSAGES, SIMILARITY_SEARCH_CONFIG, TEXT_SEPARATORS, BM25_CONFIG, RERANKER_CONFIG, PARENT_RETRIEVER_CONFIG, CONTEXTUAL_COMPRESSION_CONFIG, ALIGNMENT_OPTIMIZATION_CONFIG } from './config';
+import { parentStorage, bm25Storage, queryLogger } from '../../repositories/index.js';
 import { compressDocuments } from './contextualCompressor';
 import { generateAlignmentQuestions } from './alignmentOptimizer';
 import { createTextSplitter, buildPrompt, checkCollectionExists, getFileExtension, generateMultipleQueries, getAllDocumentsFromQdrant, limitHistory } from './helpers';
@@ -143,6 +144,19 @@ async function rebuildBM25Cache(): Promise<void> {
     return;
   }
 
+  // Try loading from SQLite first (fast, no Qdrant call needed)
+  try {
+    const cached = await bm25Storage.load();
+    if (cached && cached.length > 0) {
+      const docs = cached.map(s => new Document({ pageContent: s.content, metadata: s.metadata }));
+      bm25RetrieverCache = new BM25Retriever({ documents: docs, k: SIMILARITY_SEARCH_CONFIG.MAX_RESULTS });
+      pipelineLogger.log(`BM25 loaded from SQLite (${docs.length} documents)`);
+      return;
+    }
+  } catch (err: any) {
+    pipelineLogger.warn(`BM25 SQLite load failed, falling back to Qdrant: ${err.message}`);
+  }
+
   let allDocuments = await getAllDocumentsFromQdrant();
 
   if (allDocuments.length === 0) {
@@ -162,12 +176,25 @@ async function rebuildBM25Cache(): Promise<void> {
     pipelineLogger.log(`BM25 Filter: Kept ${allDocuments.length} children from ${originalCount} total points (filtered out parents + alignment questions)`);
   }
 
-  pipelineLogger.log(`Rebuilding BM25 cache with ${allDocuments.length} documents`);
+  pipelineLogger.log(`Rebuilding BM25 cache with ${allDocuments.length} documents from Qdrant`);
 
   bm25RetrieverCache = new BM25Retriever({
     documents: allDocuments,
     k: SIMILARITY_SEARCH_CONFIG.MAX_RESULTS,
   });
+
+  // Persist to SQLite for future restarts
+  try {
+    const serialized = allDocuments.map(doc => ({
+      filename: (doc.metadata as any).filename ?? '',
+      content: doc.pageContent,
+      metadata: doc.metadata as Record<string, unknown>,
+    }));
+    await bm25Storage.save(serialized);
+    pipelineLogger.log(`BM25 index saved to SQLite (${serialized.length} documents)`);
+  } catch (err: any) {
+    pipelineLogger.warn(`BM25 SQLite save failed: ${err.message}`);
+  }
 }
 
 /**
@@ -217,46 +244,15 @@ async function resolveParentChunks(childDocs: Document[]): Promise<Document[]> {
     return allDocs;
   }
 
-  // 3. ✅ UNA SOLA query para TODOS los parents
-  let parentMap = new Map<string, any>();
+  // 3. ✅ UNA SOLA query a SQLite para TODOS los parents
+  let parentMap = new Map<string, Document>();
 
   try {
-    const scrollResult = await qdrantClient.scroll(COLLECTION_NAME, {
-      filter: {
-        must: [
-          {
-            key: 'metadata.parent_child.parent_doc_id',
-            match: {
-              any: uniqueParentIds  // ← Query múltiple en una sola llamada
-            }
-          },
-          {
-            key: 'metadata.parent_child.is_parent',
-            match: { value: true }
-          }
-        ]
-      },
-      limit: uniqueParentIds.length,
-      with_payload: true,
-      with_vector: false,
-    });
-
-    // 4. Crear mapa de parents recuperados
-    for (const point of scrollResult.points) {
-      const parentPayload = point.payload as any;
-      const parentId = parentPayload.metadata.parent_child.parent_doc_id;
-
-      parentMap.set(parentId, new Document({
-        pageContent: parentPayload.text,
-        metadata: parentPayload.metadata,
-      }));
-    }
-
-    parentLogger.log(`Retrieved ${scrollResult.points.length} unique parents in 1 query (from ${childDocs.length} children)`);
-
+    parentMap = await parentStorage.getParentsByIds(uniqueParentIds);
+    parentLogger.log(`Retrieved ${parentMap.size} unique parents from SQLite (from ${childDocs.length} children)`);
   } catch (error) {
-    qdrantLogger.error('Error retrieving parents from Qdrant:', error);
-    // Si falla la query, parentMap queda vacío y se usará fallback
+    parentLogger.error('Error retrieving parents from SQLite:', error);
+    // parentMap queda vacío y se usará fallback
   }
 
   // 5. Construir resultado final
@@ -331,24 +327,15 @@ export async function addDocumentToVectorStore(
       collectionName: COLLECTION_NAME,
     });
 
-    // Indexar parents SIN vector (solo storage, acceso por filtro)
-    // Usar vector nulo/dummy ya que Qdrant requiere vector
-    const nullVector = new Array(1024).fill(0); // Dimensión del embedding
+    // Guardar parents en SQLite (acceso por ID, sin necesidad de vectores en Qdrant)
+    const parentEntries = parents.map(parent => ({
+      id: (parent.metadata as any).parent_child?.parent_doc_id ?? randomUUID(),
+      filename,
+      document: parent,
+    }));
+    await parentStorage.saveParents(parentEntries);
 
-    for (const parent of parents) {
-      await qdrantClient.upsert(COLLECTION_NAME, {
-        points: [{
-          id: randomUUID(), // Usar UUID en lugar de string
-          vector: nullVector,
-          payload: {
-            text: parent.pageContent,
-            metadata: parent.metadata,
-          }
-        }]
-      });
-    }
-
-    pipelineLogger.log(`Created ${children.length} child chunks + ${parents.length} parent chunks`);
+    pipelineLogger.log(`Created ${children.length} child chunks + ${parents.length} parent chunks (saved to SQLite)`);
 
     // Alignment Optimization is triggered manually via /api/documents/optimize-all or /:filename/optimize
 
@@ -633,6 +620,7 @@ export async function queryRAG(
   try {
     const { history = [] } = options;
     const limitedHistory = limitHistory(history);
+    const startTime = Date.now();
     const retrieved = await retrieveRelevantDocuments(question, limitedHistory);
 
     if (!retrieved) {
@@ -642,10 +630,10 @@ export async function queryRAG(
       };
     }
 
-    const { relevantDocs, prompt } = retrieved;
+    const { relevantDocs, context, prompt } = retrieved;
 
     const response = await llm.invoke(prompt);
-    
+
     // Handle both ChatModel (Claude) and LLM (Ollama) responses
     let answer: string;
     if (typeof response === 'string') {
@@ -659,10 +647,27 @@ export async function queryRAG(
 
     llmLogger.log('LLM answer:', answer);
 
-    return {
+    const sources = filterSourcesByRelevance(relevantDocs);
+
+    // Log query asynchronously (don't block response)
+    queryLogger.log({
+      id: randomUUID(),
+      timestamp: new Date().toISOString(),
+      question,
       answer,
-      sources: filterSourcesByRelevance(relevantDocs),
-    };
+      model: (llm as any).modelName ?? (llm as any).model ?? 'unknown',
+      latency_ms: Date.now() - startTime,
+      sources: relevantDocs.map(doc => ({
+        filename: (doc.metadata as any).filename ?? '',
+        chunk_index: (doc.metadata as any).chunk_index ?? 0,
+        rerank_score: (doc as any).rerankScore,
+        section_path: (doc.metadata as any).section_path,
+      })),
+      num_retrieved: relevantDocs.length,
+      context_size: context.length,
+    }).catch(err => pipelineLogger.warn(`Query log failed: ${err.message}`));
+
+    return { answer, sources };
   } catch (error: any) {
     pipelineLogger.error('Error in queryRAG:', error);
     throw new Error(`${MESSAGES.ERROR_PREFIX}: ${error.message}`);
@@ -676,6 +681,7 @@ export async function* queryRAGStream(
   try {
     const limitedHistory = limitHistory(history);
     pipelineLogger.log(`Using ${limitedHistory.length} messages from history`);
+    const startTime = Date.now();
 
     const retrieved = await retrieveRelevantDocuments(question, limitedHistory);
 
@@ -685,7 +691,7 @@ export async function* queryRAGStream(
       return;
     }
 
-    const { relevantDocs, prompt } = retrieved;
+    const { relevantDocs, context, prompt } = retrieved;
 
     llmLogger.log('Starting streaming response...');
 
@@ -738,6 +744,25 @@ export async function* queryRAGStream(
     } else {
       pipelineLogger.warn('No sources to show');
     }
+
+    // Log query asynchronously (collect full answer from streamed chunks is not trivial;
+    // log with empty answer placeholder — the main value is latency + sources)
+    queryLogger.log({
+      id: randomUUID(),
+      timestamp: new Date().toISOString(),
+      question,
+      answer: '[streamed]',
+      model: (llm as any).modelName ?? (llm as any).model ?? 'unknown',
+      latency_ms: Date.now() - startTime,
+      sources: relevantDocs.map(doc => ({
+        filename: (doc.metadata as any).filename ?? '',
+        chunk_index: (doc.metadata as any).chunk_index ?? 0,
+        rerank_score: (doc as any).rerankScore,
+        section_path: (doc.metadata as any).section_path,
+      })),
+      num_retrieved: relevantDocs.length,
+      context_size: context.length,
+    }).catch(err => pipelineLogger.warn(`Query log failed: ${err.message}`));
 
     yield { event: 'done', data: { complete: true } };
 
@@ -938,6 +963,12 @@ export async function deleteDocumentFromVectorStore(filename: string): Promise<{
     const chunksDeleted = deleteResult.operation_id ? deleteResult.operation_id : 0;
 
     qdrantLogger.log(`Deleted ${chunksDeleted} chunks for file: ${filename}`);
+
+    // Delete parents from SQLite
+    await parentStorage.deleteByFilename(filename);
+
+    // Clear BM25 SQLite index so it rebuilds fresh from Qdrant on next load
+    await bm25Storage.clear();
 
     // Rebuild BM25 cache after deletion
     await rebuildBM25Cache();

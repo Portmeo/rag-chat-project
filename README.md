@@ -81,7 +81,7 @@ Pregunta del usuario
    → Top 20 candidatos (child chunks de 128 chars)
     ↓
 3. Parent-Child Hydration
-   → Resolución child → parent (512 chars) en 1 query a Qdrant
+   → Resolución child → parent (512 chars) en 1 query a SQLite
     ↓
 4. Reranking (bge-reranker-base)
    → Top 5 parents más relevantes
@@ -121,10 +121,10 @@ Documento (.md, .html)
    - Modelo: mxbai-embed-large (1024 dims, Cosine)
    - Embedding vectorial por chunk
     ↓
-5. Almacenamiento en Qdrant
-   - Vector (embedding)
-   - Payload (texto + metadata estructurada)
-   → BM25 cache rebuild automático
+5. Almacenamiento
+   - Children → Qdrant (vector + payload)
+   - Parents → SQLite (content + metadata, acceso por ID)
+   → BM25 index rebuild automático + persistido en SQLite
 ```
 
 ## 📊 Resultados de Benchmarks
@@ -264,8 +264,20 @@ Ver `apps/backend/src/services/documentProcessor/templates/technical.ts` para de
 ```
 rag-chat-project/
 ├── apps/
-│   ├── backend/           # Node.js + Express + LangChain
+│   ├── backend/           # Node.js + Fastify + LangChain
+│   │   ├── data/              # SQLite (generado, excluido de git)
+│   │   │   └── rag.db         # parents, bm25_documents, query_log
 │   │   ├── src/
+│   │   │   ├── lib/
+│   │   │   │   ├── logger.ts
+│   │   │   │   └── database.ts        # Singleton SQLite + migraciones
+│   │   │   ├── repositories/
+│   │   │   │   ├── interfaces.ts      # IParentStorage, IBM25Storage, IQueryLogger
+│   │   │   │   ├── sqliteParentStorage.ts
+│   │   │   │   ├── sqliteBM25Storage.ts
+│   │   │   │   ├── sqliteQueryLogger.ts
+│   │   │   │   ├── index.ts           # Factory de instancias concretas
+│   │   │   │   └── qdrantRepository.ts
 │   │   │   ├── services/
 │   │   │   │   └── rag/
 │   │   │   │       ├── index.ts           # Pipeline RAG principal
@@ -273,7 +285,7 @@ rag-chat-project/
 │   │   │   │       ├── ensembleRetriever.ts  # Híbrido BM25+Vector
 │   │   │   │       ├── reranker.ts        # Reranking orchestrator
 │   │   │   │       └── reranker.worker.ts # Worker thread para reranking
-│   │   │   └── routes/
+│   │   │   └── controllers/
 │   │   └── .env
 │   └── frontend/          # React + TypeScript + Vite
 │       └── .env
@@ -461,10 +473,10 @@ Ver [docs/RAG_SYSTEM_GUIDE.md](docs/RAG_SYSTEM_GUIDE.md) para el razonamiento co
 - [x] **Claude Haiku como LLM** — mejor Faithfulness y Hallucination que llama/qwen
 - [x] **Temperature 0.0** — LLM más conservador, reduce alucinaciones
 - [x] **Alignment Optimization** — preguntas hipotéticas por chunk (experimental, evaluado en Run 8)
+- [x] **Capa de persistencia SQLite** — parents en SQLite (sin vectores nulos en Qdrant), BM25 persistido entre reinicios, query logging automático
 
 ### Pendiente (próximo sprint)
 - [ ] **Query decomposition** para preguntas comparativas — el retrieval trae docs poco específicos cuando la query compara dos conceptos
-- [ ] Persistir historial de chats (SQLite/PostgreSQL)
 - [ ] Soporte para PDF y DOCX
 
 ## 📄 Stack Tecnológico

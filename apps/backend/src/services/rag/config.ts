@@ -87,7 +87,7 @@ INSTRUCCIONES:
 
   RESPONSE_PREFIX: 'Respuesta:',
 
-  MULTI_QUERY_PROMPT: `Genera 3 variantes breves de la siguiente pregunta para búsqueda semántica. 
+  MULTI_QUERY_PROMPT: `Genera 2 variantes breves de la siguiente pregunta para búsqueda semántica.
 Solo devuelve las preguntas, una por línea, sin números.
 
 Pregunta: {question}`,
