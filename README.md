@@ -461,6 +461,7 @@ npm run dev:backend
 2. **Búsqueda híbrida** BM25 + vectores: BM25 cubre queries con términos exactos, vectores capturan semántica
 3. **Reranking** con bge-reranker-base: ordena candidatos evaluando el par (query, chunk) directamente
 4. **llama3.1:8b** sobre qwen2.5: Mejor español, sin mezcla de idiomas
+5. **SQLite como capa de persistencia** (inversión de dependencias): parents y BM25 index en SQLite en lugar de Qdrant con null-vectors; interfaces intercambiables sin tocar el pipeline
 
 Ver [docs/RAG_SYSTEM_GUIDE.md](docs/RAG_SYSTEM_GUIDE.md) para el razonamiento completo.
 
