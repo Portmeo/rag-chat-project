@@ -6,6 +6,10 @@
         "shadcn@latest",
         "mcp"
       ]
+    },
+    "engram": {
+      "command": "engram",
+      "args": ["mcp"]
     }
   }
 }
