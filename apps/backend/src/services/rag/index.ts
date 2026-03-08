@@ -1,6 +1,5 @@
 import { QdrantVectorStore } from '@langchain/community/vectorstores/qdrant';
 import { Document } from 'langchain/document';
-import { BaseRetriever } from '@langchain/core/retrievers';
 import { randomUUID, createHash } from 'crypto';
 import { BM25Retriever } from './bm25Retriever';
 import { EnsembleRetriever } from './ensembleRetriever';
@@ -12,7 +11,7 @@ const parentLogger = createLogger('PARENT');
 const rerankerLogger = createLogger('RERANKER');
 const llmLogger = createLogger('LLM');
 import { qdrantClient, COLLECTION_NAME } from '../../repositories/qdrantRepository';
-import { embeddings, llm, MESSAGES, SIMILARITY_SEARCH_CONFIG, TEXT_SEPARATORS, BM25_CONFIG, RERANKER_CONFIG, PARENT_RETRIEVER_CONFIG, CONTEXTUAL_COMPRESSION_CONFIG, ALIGNMENT_OPTIMIZATION_CONFIG, ACTIVE_MODEL } from './config';
+import { embeddings, llm, MESSAGES, SIMILARITY_SEARCH_CONFIG, BM25_CONFIG, RERANKER_CONFIG, PARENT_RETRIEVER_CONFIG, CONTEXTUAL_COMPRESSION_CONFIG, ALIGNMENT_OPTIMIZATION_CONFIG, ACTIVE_MODEL } from './config';
 import { parentStorage, bm25Storage, queryLogger } from '../../repositories/index.js';
 import { compressDocuments } from './contextualCompressor';
 import { generateAlignmentQuestions } from './alignmentOptimizer';
@@ -427,7 +426,6 @@ async function retrieveRelevantDocuments(
   question: string,
   history: ConversationMessage[] = []
 ) {
-  const startTime = Date.now();
   const collectionExists = await checkCollectionExists();
 
   if (!collectionExists) {
@@ -578,22 +576,9 @@ async function retrieveRelevantDocuments(
     llmLogger.log(`Content preview: ${doc.pageContent.substring(0, 200)}...`);
   });
 
-  // Construir contexto con metadata clara para que el LLM distinga fuentes
+  // Construir contexto sin headers para evitar que el LLM los cite en la respuesta
   const context = relevantDocs
-    .map((doc: Document, idx: number) => {
-      const metadata = doc.metadata as TechnicalMetadata;
-      const rerankScore = (doc as any).rerankScore;
-
-      // Encabezado con metadata enriquecida
-      let headerParts = [`DOCUMENTO ${idx + 1}`, `Fuente: ${metadata.filename}`];
-
-      if (metadata.section_path) headerParts.push(`Sección: ${metadata.section_path}`);
-      if (metadata.content_type === 'code' || metadata.content_type === 'mixed') headerParts.push(`Tipo: código`);
-      
-      const header = `[${headerParts.join(' | ')}]`;
-
-      return `${header}\n${doc.pageContent}`;
-    })
+    .map((doc: Document) => doc.pageContent)
     .join('\n\n---\n\n');
 
   llmLogger.log('Full context length:', context.length, 'chars');
