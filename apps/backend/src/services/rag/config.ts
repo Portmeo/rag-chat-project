@@ -133,6 +133,10 @@ export const llm = CLAUDE_CONFIG.enabled
       temperature: 0.0,
     });
 
+export const ACTIVE_MODEL = CLAUDE_CONFIG.enabled
+  ? CLAUDE_CONFIG.model
+  : OLLAMA_CONFIG.model;
+
 // Log which LLM is being used
 logger.log('LLM Configuration:', CLAUDE_CONFIG.enabled
   ? `Claude API (${CLAUDE_CONFIG.model})`

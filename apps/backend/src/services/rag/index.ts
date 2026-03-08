@@ -12,7 +12,7 @@ const parentLogger = createLogger('PARENT');
 const rerankerLogger = createLogger('RERANKER');
 const llmLogger = createLogger('LLM');
 import { qdrantClient, COLLECTION_NAME } from '../../repositories/qdrantRepository';
-import { embeddings, llm, MESSAGES, SIMILARITY_SEARCH_CONFIG, TEXT_SEPARATORS, BM25_CONFIG, RERANKER_CONFIG, PARENT_RETRIEVER_CONFIG, CONTEXTUAL_COMPRESSION_CONFIG, ALIGNMENT_OPTIMIZATION_CONFIG } from './config';
+import { embeddings, llm, MESSAGES, SIMILARITY_SEARCH_CONFIG, TEXT_SEPARATORS, BM25_CONFIG, RERANKER_CONFIG, PARENT_RETRIEVER_CONFIG, CONTEXTUAL_COMPRESSION_CONFIG, ALIGNMENT_OPTIMIZATION_CONFIG, ACTIVE_MODEL } from './config';
 import { parentStorage, bm25Storage, queryLogger } from '../../repositories/index.js';
 import { compressDocuments } from './contextualCompressor';
 import { generateAlignmentQuestions } from './alignmentOptimizer';
@@ -655,7 +655,7 @@ export async function queryRAG(
       timestamp: new Date().toISOString(),
       question,
       answer,
-      model: (llm as any).modelName ?? (llm as any).model ?? 'unknown',
+      model: ACTIVE_MODEL,
       latency_ms: Date.now() - startTime,
       sources: relevantDocs.map(doc => ({
         filename: (doc.metadata as any).filename ?? '',
@@ -752,7 +752,7 @@ export async function* queryRAGStream(
       timestamp: new Date().toISOString(),
       question,
       answer: '[streamed]',
-      model: (llm as any).modelName ?? (llm as any).model ?? 'unknown',
+      model: ACTIVE_MODEL,
       latency_ms: Date.now() - startTime,
       sources: relevantDocs.map(doc => ({
         filename: (doc.metadata as any).filename ?? '',
