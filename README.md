@@ -487,7 +487,8 @@ Ver [docs/RAG_SYSTEM_GUIDE.md](docs/RAG_SYSTEM_GUIDE.md) para el razonamiento co
 - Runtime: Node.js
 - Framework: Fastify
 - LLM: Claude Haiku (`claude-haiku-4-5-20251001`) via Anthropic API
-- Vector Store: Qdrant
+- Vector Store: Qdrant (children con embeddings)
+- Persistencia: SQLite via better-sqlite3 (parents, BM25 index, query log)
 - Embeddings: mxbai-embed-large (Ollama)
 - Reranker: bge-reranker-base
 - RAG: LangChain

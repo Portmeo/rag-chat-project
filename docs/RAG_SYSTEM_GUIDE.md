@@ -13,7 +13,7 @@ Un sistema RAG (Retrieval-Augmented Generation) optimizado para consultas sobre 
               ↓
 2. Búsqueda Híbrida (BM25 40% + Vectores 60%) sobre CHILDREN
               ↓
-3. Hydration: Resolución de Children a PARENTS únicos (Qdrant Filter)
+3. Hydration: Resolución de Children a PARENTS únicos (SQLite por ID)
               ↓
 4. Reranking (Cross-Encoder) sobre PARENTS → Top K
               ↓
