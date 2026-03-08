@@ -415,9 +415,101 @@ Dataset: `golden_qa_v2.json` — 52 casos
 
 ---
 
-## Cambios aplicados en esta sesión
+## Run 11 — Claude Haiku + Multi-Hop only (verificación faithfulness)
 
-### Pipeline
+**Config:**
+- LLM RAG: `claude-haiku-4-5-20251001` (Anthropic API)
+- Reranker: `Xenova/bge-reranker-base` — Top 20 → Top 5
+- BM25: `true` (weight 0.4) — BM25 fix aplicado
+- Contextual Compression: `true` (threshold 0.30) | temp 0.0
+
+**Juez:** claude-sonnet-4-6
+**Dataset:** golden_qa_v2.json — 6 casos (Multi-Hop only)
+**Resultados:** `ragas_2026-03-08T07-01-21.json`
+
+| Métrica            | Score |
+|--------------------|-------|
+| Faithfulness       | 0.43  |
+| Answer Relevancy   | 0.60  |
+| Context Precision  | 0.58  |
+| Context Recall     | 1.00  |
+| Hallucination      | 0.67  |
+| Completados        | 6/6   |
+
+**Conclusiones:**
+- Multi-Hop sigue siendo el punto débil en Faithfulness (0.43) — alucinaciones de nombres de acciones NgRx, métodos y clases que no están en el contexto.
+- Context Recall 100% confirma que el retrieval encuentra los docs correctos. El problema es 100% generación.
+- Run de verificación, dataset demasiado pequeño para conclusiones globales.
+
+---
+
+## Run 12 — Claude Sonnet + Full eval (51 casos, primer baseline completo)
+
+**Config:**
+- LLM RAG: `claude-sonnet-4-6` (Anthropic API) ← **primer run con Sonnet como RAG**
+- Reranker: `Xenova/bge-reranker-base` — Top 20 → Top 5
+- BM25: `true` (weight 0.4) — BM25 fix aplicado
+- Contextual Compression: `true` (threshold 0.30) | temp 0.0
+- Alignment: indexado en Qdrant pero BM25 lo excluye
+
+**Juez:** claude-sonnet-4-6
+**Dataset:** golden_qa_v2.json — 51 casos (Comparativa desactivada excepto 2)
+**Resultados:** `ragas_2026-03-08T08-39-43.json`
+
+| Métrica            | Score |
+|--------------------|-------|
+| Faithfulness       | 0.51  |
+| Answer Relevancy   | 0.55  |
+| Context Precision  | 0.36  |
+| Context Recall     | 0.98  |
+| Answer Correctness | 0.73  |
+| Hallucination      | 0.42  |
+| Completados        | 51/51 |
+
+**Por categoría:**
+
+| Categoría        | Faithfulness | Relevancy | Precision | Recall |
+|------------------|-------------|-----------|-----------|--------|
+| Básica (10)      | 0.65        | 0.75      | 0.38      | 1.00   |
+| Conceptual (10)  | 0.70        | 0.42      | 0.29      | 1.00   |
+| Relación (8)     | 0.27        | 0.46      | 0.41      | 0.94   |
+| Proceso (10)     | 0.34        | 0.54      | 0.48      | 1.00   |
+| Multi-Hop (6)    | 0.33        | 0.61      | 0.42      | 0.92   |
+| Edge Cases (5)   | 0.73        | 0.66      | 0.30      | 1.00   |
+
+> Comparativa desactivada del dataset (7 casos con `enabled: false`). Los 2 casos que aparecen en el resultado son residuales — ignorar.
+
+**Conclusiones:**
+- **Hallucination 0.42** — el peor de todos los runs con juez Sonnet. Sonnet como LLM conoce Angular/NgRx tan bien que rellena huecos con conocimiento propio cuando el contexto recuperado no tiene la respuesta exacta.
+- **Context Recall 0.98** — el retrieval funciona perfectamente. El problema no es encontrar los docs.
+- **Faithfulness más alta que Haiku (0.51 vs 0.42 en R5)** pero los datasets son diferentes (51 vs 9 casos), no es comparable directamente.
+- **Comprensión contextual**: la compresión no filtra nada (100% frases kept), el threshold 0.30 es demasiado bajo.
+- **Reranker con ~47 candidatos**: el multi-query genera 4 variantes × 20 docs → ~60 children → ~47 parents únicos. El reranker tiene demasiados candidatos para discriminar bien → Context Precision baja.
+- **Peor categoría**: Relación (0.27 Faith) y Proceso (0.34 Faith) — preguntas que requieren conectar múltiples conceptos.
+- ⚠️ **Comparación directa Haiku vs Sonnet pendiente**: necesitamos el mismo dataset de 51 casos con Haiku + juez Sonnet para concluir cuál es mejor.
+
+---
+
+## Comparativa global actualizada (juez Sonnet)
+
+| Métrica              | llama R6 | qwen R7 | Haiku R5* | Haiku R11** | Sonnet R12 |
+|----------------------|----------|---------|-----------|-------------|------------|
+| Faithfulness         | 0.29     | 0.32    | 0.42      | 0.43        | 0.51       |
+| Hallucination        | 0.33     | 0.54    | 0.76      | 0.67        | **0.42**   |
+| Answer Relevancy     | 0.48     | 0.60    | 0.73      | 0.60        | 0.55       |
+| Context Precision    | 0.08     | 0.35    | 0.10-0.23 | 0.58        | 0.36       |
+| Context Recall       | 1.00     | 0.94    | 0.94      | 1.00        | **0.98**   |
+| Casos                | 13       | 13      | 9         | 6           | **51**     |
+
+*R5: 9 casos Comparativa+MultiHop | **R11: 6 casos MultiHop only
+
+**Pendiente**: full eval Claude Haiku (51 casos, juez Sonnet) para comparativa directa con R12.
+
+---
+
+## Cambios aplicados en esta sesión (2026-03-08)
+
+### Pipeline (sesión 2026-03-06/07)
 - Eliminado `Relevancia: -760%` del header de contexto (logits BGE no son porcentajes)
 - Deduplicación de sources por filename en `filterSourcesByRelevance`
 
@@ -430,3 +522,11 @@ Dataset: `golden_qa_v2.json` — 52 casos
 - Integrado Claude Haiku como juez externo (`--judge claude`)
 - Flag `--judge ollama|claude` para alternar juez
 - Logger `EVAL_LOGS=true` para verbose mode
+
+### Sesión 2026-03-08
+- Benchmark comparativo de rerankers: bge-reranker-base (9/9 hits) gana sobre mxbai y ms-marco
+- BM25 fix confirmado: excluye padres y alignment questions — Context Precision sube de 0.08 a 0.35+
+- Metadata de chunks limpiada: eliminados `heading_h1/h2/h3`, `has_code`, `has_links`, `word_count`, `library`, `language`, `framework`, `version` — solo queda lo que se usa
+- Header LLM simplificado: `[DOCUMENTO N | Fuente: filename | Sección: path | Tipo: código]`
+- Docs limpiadas: eliminados BM25_CONFIGURATION.md, RERANKING_SYSTEM.md, EVALUATION_QUICK_START.md
+- Run 12: primer full eval Sonnet RAG (51 casos) — Hallucination 0.42 peor que Haiku. Pendiente comparativa directa.
