@@ -11,7 +11,8 @@ const parentLogger = createLogger('PARENT');
 const rerankerLogger = createLogger('RERANKER');
 const llmLogger = createLogger('LLM');
 import { qdrantClient, COLLECTION_NAME } from '../../repositories/qdrantRepository';
-import { embeddings, llm, MESSAGES, SIMILARITY_SEARCH_CONFIG, BM25_CONFIG, RERANKER_CONFIG, PARENT_RETRIEVER_CONFIG, CONTEXTUAL_COMPRESSION_CONFIG, ALIGNMENT_OPTIMIZATION_CONFIG, ACTIVE_MODEL } from './config';
+import { embeddings, llm, MESSAGES, SIMILARITY_SEARCH_CONFIG, BM25_CONFIG, RERANKER_CONFIG, PARENT_RETRIEVER_CONFIG, CONTEXTUAL_COMPRESSION_CONFIG, ALIGNMENT_OPTIMIZATION_CONFIG, INTENT_CLASSIFIER_CONFIG, ACTIVE_MODEL } from './config';
+import { classifyIntent } from './intentClassifier';
 import { parentStorage, bm25Storage, queryLogger } from '../../repositories/index.js';
 import { compressDocuments } from './contextualCompressor';
 import { generateAlignmentQuestions } from './alignmentOptimizer';
@@ -603,6 +604,15 @@ export async function queryRAG(
   options: QueryRAGOptions = {}
 ): Promise<RAGResponse> {
   try {
+    // Intent Classification — early exit for casual inputs
+    if (INTENT_CLASSIFIER_CONFIG.enabled) {
+      const intent = await classifyIntent(question, INTENT_CLASSIFIER_CONFIG.mode);
+      if (intent.isCasual) {
+        pipelineLogger.log(`Intent classifier: casual input, skipping RAG pipeline`);
+        return { answer: intent.response!, sources: [] };
+      }
+    }
+
     const { history = [] } = options;
     const limitedHistory = limitHistory(history);
     const startTime = Date.now();
@@ -664,6 +674,17 @@ export async function* queryRAGStream(
   history: ConversationMessage[] = []
 ) {
   try {
+    // Intent Classification — early exit for casual inputs
+    if (INTENT_CLASSIFIER_CONFIG.enabled) {
+      const intent = await classifyIntent(question, INTENT_CLASSIFIER_CONFIG.mode);
+      if (intent.isCasual) {
+        pipelineLogger.log(`Intent classifier: casual input, skipping RAG pipeline`);
+        yield { event: 'token', data: { chunk: intent.response! } };
+        yield { event: 'done', data: { complete: true } };
+        return;
+      }
+    }
+
     const limitedHistory = limitHistory(history);
     pipelineLogger.log(`Using ${limitedHistory.length} messages from history`);
     const startTime = Date.now();

@@ -159,6 +159,14 @@ export const RERANKER_CONFIG = {
   minScore: parseFloat(process.env.MIN_RERANK_SCORE || '0.6'),           // Minimum score to show sources (estricto)
 } as const;
 
+// Intent Classifier Configuration
+// Detects casual inputs (greetings, thanks, farewells) to skip the RAG pipeline
+// Modes: 'regex' (fast, no LLM) | 'hybrid' (regex + LLM fallback) | 'llm' (all through LLM)
+export const INTENT_CLASSIFIER_CONFIG = {
+  enabled: process.env.USE_INTENT_CLASSIFIER === 'true',
+  mode: (process.env.INTENT_CLASSIFIER_MODE || 'hybrid') as 'regex' | 'hybrid' | 'llm',
+} as const;
+
 // Alignment Optimization Configuration
 // Generates hypothetical questions per parent chunk during indexing
 // Improves retrieval matching: query↔question instead of query↔raw text
