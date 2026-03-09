@@ -171,6 +171,8 @@ export default function ChatInterface() {
 
   const handleClearChat = () => {
     setMessages([]);
+    setSelectedFilenames([]);
+    setShowFilters(false);
     setShowClearDialog(false);
     toast.success('Chat cleared', {
       description: 'Conversation history has been reset',
@@ -202,8 +204,7 @@ export default function ChatInterface() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const doSend = async () => {
     if (!input.trim() || isStreaming) return;
 
     const userMessage: Message = { role: 'user', content: input };
@@ -396,7 +397,7 @@ export default function ChatInterface() {
             )}
           </div>
         )}
-        <form onSubmit={handleSubmit} className="flex gap-2">
+        <form onSubmit={(e) => { e.preventDefault(); doSend(); }} className="flex gap-2">
           <Textarea
             ref={inputRef}
             value={input}
@@ -404,7 +405,7 @@ export default function ChatInterface() {
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                handleSubmit(e as any);
+                doSend();
               }
             }}
             placeholder="Ask a question about your documents..."
