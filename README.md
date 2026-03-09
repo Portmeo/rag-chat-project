@@ -105,4 +105,4 @@ rag-chat-project/
 
 ## Licencia
 
-ISC
+[MIT](LICENSE)
