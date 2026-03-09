@@ -177,13 +177,14 @@ export default function ChatInterface() {
     });
   };
 
-  const handleSendFromWelcome = async (question: string) => {
+  const handleSendFromWelcome = async (question: string, welcomeFilter?: string[]) => {
+    const filter = welcomeFilter || filenameFilter;
     const userMessage: Message = { role: 'user', content: question };
     setMessages((prev) => [...prev, userMessage]);
     reset();
     setIsThinking(true);
     try {
-      const result = await streamQuery(question, [], filenameFilter);
+      const result = await streamQuery(question, [], filter);
       setIsThinking(false);
       const assistantMessage: Message = {
         role: 'assistant',

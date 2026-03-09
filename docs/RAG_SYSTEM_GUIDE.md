@@ -14,6 +14,8 @@ Un sistema RAG (Retrieval-Augmented Generation) optimizado para consultas sobre 
               ↓
 1. Multi-Query Generation (3-4 variaciones)
               ↓
+1.5. Metadata Filtering (Qdrant nativo, si el usuario seleccionó categorías)
+              ↓
 2. Búsqueda Híbrida (BM25 40% + Vectores 60%) sobre CHILDREN
               ↓
 3. Hydration: Resolución de Children a PARENTS únicos (SQLite por ID)
@@ -49,6 +51,27 @@ Clasifica la intención del usuario antes de entrar al pipeline RAG. Si detecta 
 **Activación**: `USE_INTENT_CLASSIFIER=true` / `false` para desactivar completamente.
 
 **Archivos**: `services/rag/intentClassifier.ts`, config en `services/rag/config.ts`.
+
+### 1.5. Metadata Filtering (Filtrado por Categoría)
+
+**¿Qué hace?**
+Permite al usuario filtrar documentos por categoría antes de la búsqueda vectorial. El filtro se aplica a nivel de Qdrant (nativo, pre-retrieval), reduciendo el espacio de búsqueda y eliminando ruido.
+
+**Cómo funciona:**
+- Las categorías se derivan automáticamente del nombre del archivo al indexar (ej: `07-ci-cd-deployment.md` → "CI CD Deployment")
+- Se almacenan en SQLite (tabla `categories`) con auto-backfill al arrancar el backend
+- El frontend muestra chips seleccionables sobre el input de texto (`GET /api/chat/categories`)
+- Cuando el usuario selecciona categorías, se pasa `filenameFilter` en el body del query
+- Qdrant aplica un filtro `match: { any: [...] }` sobre `metadata.filename` antes de la búsqueda vectorial
+
+**Flujo:**
+1. Frontend carga categorías al montar el componente chat
+2. Usuario selecciona una o más categorías (o ninguna para buscar en todo)
+3. `filenameFilter` viaja en el body de `/api/chat/query-stream`
+4. Qdrant restringe la búsqueda vectorial a los documentos seleccionados
+5. BM25 no se filtra (busca en todo el índice) — el filtro es solo vectorial
+
+**Archivos**: `services/rag/categoryExtractor.ts`, `repositories/sqliteCategoryStorage.ts`, filtro en `services/rag/index.ts` (`retrieveRelevantDocuments`).
 
 ### 1. Recuperación Jerárquica: Parent-Child (Small-to-Big)
 
@@ -158,6 +181,15 @@ PARENT_CHUNK_OVERLAP=50
 # Contextual Compression
 USE_CONTEXTUAL_COMPRESSION=true
 COMPRESSION_THRESHOLD=0.30
+
+# Intent Classifier
+USE_INTENT_CLASSIFIER=true
+INTENT_CLASSIFIER_MODE=hybrid    # regex | hybrid | llm
+
+# Similarity Drop-off
+USE_SIMILARITY_DROPOFF=true
+SIMILARITY_DROPOFF_MAX_DROP=0.20
+SIMILARITY_DROPOFF_MIN_DOCS=2
 ```
 
 ## Alignment Optimization (feature experimental)

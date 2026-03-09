@@ -43,6 +43,7 @@ lsof -i :3001 -sTCP:LISTEN -t | xargs kill -9
 ### RAG Pipeline (apps/backend/src/services/rag/index.ts)
 
 1. **Multi-query generation** — 3 query variants via LLM
+1.5. **Metadata filtering** — Qdrant native filter by filename/category (optional, user-selected)
 2. **Ensemble retrieval** — Vector (60%) + BM25 (40%) on child chunks (~200 chars)
 3. **Parent-child hydration** — children → unique parents (~1000 chars) via 1 SQLite query
 4. **Reranking** — bge-reranker-base in Worker thread (Top 20 → Top 5), 30s timeout
@@ -53,7 +54,7 @@ lsof -i :3001 -sTCP:LISTEN -t | xargs kill -9
 
 - **Qdrant** — child chunks with embeddings (mxbai-embed-large, 1024 dims, Cosine)
 - **SQLite** (`apps/backend/data/rag.db`) — parents, BM25 index, query log. WAL mode. Singleton in `lib/database.ts`
-- Repositories use interfaces (`repositories/interfaces.ts`): IParentStorage, IBM25Storage, IQueryLogger
+- Repositories use interfaces (`repositories/interfaces.ts`): IParentStorage, IBM25Storage, IQueryLogger, ICategoryStorage
 
 ### Configuration
 

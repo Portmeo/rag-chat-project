@@ -13,6 +13,7 @@ Sistema RAG (Retrieval-Augmented Generation) optimizado para consultas sobre doc
 - 🗜️ **Contextual Compression**: Filtra frases ruidosas de cada chunk (threshold coseno 0.30) antes de enviar al LLM
 - 🧠 **Intent Classifier**: Detecta saludos y charla casual para saltar el pipeline RAG (regex + LLM, configurable)
 - 📉 **Similarity Drop-off**: Descarta docs con score muy inferior al mejor resultado (adaptativo vs top-K fijo)
+- 🗂️ **Metadata Filtering**: Filtrado por categoría antes de la búsqueda vectorial (Qdrant nativo, selección en frontend)
 - 🇪🇸 **Optimizado para Español**: Modelos y prompts ajustados
 
 ### Interfaz y UX
@@ -79,6 +80,9 @@ Pregunta del usuario
    → Si es saludo/charla casual → respuesta directa, salta el pipeline
     ↓
 1. Multi-Query Generation (3 variaciones)
+    ↓
+1.5. Metadata Filtering (opcional)
+   → Si el usuario seleccionó categorías, Qdrant filtra pre-retrieval
     ↓
 2. Búsqueda Híbrida
    - Vectores (60%): Semántica (mxbai-embed-large)
@@ -280,7 +284,7 @@ rag-chat-project/
 │   │   │   │   ├── logger.ts
 │   │   │   │   └── database.ts        # Singleton SQLite + migraciones
 │   │   │   ├── repositories/
-│   │   │   │   ├── interfaces.ts      # IParentStorage, IBM25Storage, IQueryLogger
+│   │   │   │   ├── interfaces.ts      # IParentStorage, IBM25Storage, IQueryLogger, ICategoryStorage
 │   │   │   │   ├── sqliteParentStorage.ts
 │   │   │   │   ├── sqliteBM25Storage.ts
 │   │   │   │   ├── sqliteQueryLogger.ts
@@ -350,6 +354,14 @@ Realiza una consulta RAG.
 curl -X POST http://localhost:3001/api/chat/query \
   -H "Content-Type: application/json" \
   -d '{"question": "¿Qué es NgRx?"}'
+```
+
+### GET /api/chat/categories
+Devuelve las categorías disponibles para filtrar (derivadas de los nombres de archivo).
+
+```bash
+curl http://localhost:3001/api/chat/categories
+# [{"name":"CI CD Deployment","filename":"07-ci-cd-deployment.md"}, ...]
 ```
 
 ### Alignment Optimization (background job)
@@ -486,9 +498,9 @@ Ver [docs/RAG_SYSTEM_GUIDE.md](docs/RAG_SYSTEM_GUIDE.md) para el razonamiento co
 - [x] **Capa de persistencia SQLite** — parents en SQLite (sin vectores nulos en Qdrant), BM25 persistido entre reinicios, query logging automático
 - [x] **Intent Classifier** — detecta saludos/charla casual y salta el pipeline RAG. 3 modos: `regex` (solo patrones), `hybrid` (regex + LLM fallback), `llm` (todo por LLM)
 - [x] **Similarity Drop-off** — descarta docs cuyo score cae >20% del mejor resultado. Adaptativo vs top-K fijo. Siempre mantiene mínimo N docs
+- [x] **Metadata Filtering** — filtrado por categoría (derivada del nombre del archivo) antes de la búsqueda vectorial. Categorías en SQLite, backfill automático, chips seleccionables en frontend
 
 ### Pendiente (próximo sprint)
-- [ ] **Metadata Filtering** — filtrar por categoría/framework antes de la búsqueda vectorial (Qdrant nativo)
 - [ ] **Upgrade reranker** bge-reranker-base → bge-reranker-v2-m3 (multilingual)
 - [ ] **Soporte PDF y DOCX**
 

@@ -406,14 +406,12 @@ Revisión de un sistema RAG en producción usado internamente en Contact Centers
 - **Archivo**: `services/rag/similarityDropoff.ts`
 - **Dónde en pipeline**: Después del reranker (PASO 2), antes de contextual compression (PASO 3)
 
-#### Prioridad 3: Metadata Filtering en Retrieval (`USE_METADATA_FILTERING`)
-- **Qué**: Filtrar documentos por metadata (categoría, tipo de contenido, framework) antes de la búsqueda vectorial
-- **Por qué**: Reduce el espacio de búsqueda y elimina ruido. Si el usuario pregunta sobre "Angular", no necesitamos buscar en docs de "Ionic"
-- **Cómo**: Qdrant soporta filtros nativos en la query. Necesitamos: (1) detectar la categoría/framework de la pregunta, (2) pasar como filtro a Qdrant
-- **Referencia**: El sistema de referencia tiene 6 capas de filtrado por metadata aplicadas antes de la búsqueda vectorial
-- **Impacto**: +10-15% Context Precision en corpora grandes
-- **Config**: `USE_METADATA_FILTERING=true`
-- **Pendiente**: Definir qué metadata usar como filtro (ya tenemos `content_type`, `framework`, `filename` en los chunks)
+#### Prioridad 3: Metadata Filtering en Retrieval ✅ IMPLEMENTADO
+- **Qué**: Filtrar documentos por categoría antes de la búsqueda vectorial
+- **Implementación**: Categorías derivadas del nombre del archivo (ej: `07-ci-cd-deployment.md` → "CI CD Deployment"). Almacenadas en SQLite (`categories` table) con auto-backfill al arrancar. Frontend muestra chips seleccionables. Qdrant aplica filtro nativo `match: { any: filenameFilter }` sobre `metadata.filename`
+- **Referencia**: El sistema de referencia tiene 6 capas de filtrado por metadata. Nuestra versión es más simple (1 capa por filename) pero extensible
+- **Archivos**: `categoryExtractor.ts`, `sqliteCategoryStorage.ts`, `GET /api/chat/categories`, filtro en `retrieveRelevantDocuments`
+- **Frontend**: Chips de categoría sobre el input, toggle "Filter by category", clear all
 
 ### Features adicionales identificadas (segunda revisión)
 
