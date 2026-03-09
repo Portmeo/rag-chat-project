@@ -16,9 +16,8 @@ out
 uploads
 files/*
 
-# Proprietary evaluation datasets
-benchmark/evaluation/datasets/golden_qa_proprietary.json
-benchmark/evaluation/datasets/test-smoke.json
+# Evaluation (proprietary datasets, results, reports)
+benchmark/evaluation/*
 
 # SQLite persistence layer
 apps/data/*.db
@@ -38,8 +37,3 @@ Thumbs.db
 # Lock files (using npm workspaces)
 # package-lock.json is committed for reproducible builds
 
-# Benchmark results (auto-generated)
-benchmark/evaluation/results/*.json
-benchmark/evaluation/results/*.log
-benchmark/evaluation/results/*.md
-!benchmark/evaluation/results/.gitkeep
