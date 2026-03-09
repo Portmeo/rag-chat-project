@@ -1,4 +1,4 @@
-import { QdrantVectorStore } from '@langchain/community/vectorstores/qdrant';
+import { QdrantVectorStore } from '@langchain/qdrant';
 import { qdrantClient, COLLECTION_NAME } from '../repositories/qdrantRepository';
 import { embeddings } from '../services/rag/config';
 import { QUESTIONS } from './questions';

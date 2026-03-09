@@ -1,5 +1,5 @@
-import { Ollama } from '@langchain/community/llms/ollama';
-import { OllamaEmbeddings } from '@langchain/community/embeddings/ollama';
+import { Ollama } from '@langchain/ollama';
+import { OllamaEmbeddings } from '@langchain/ollama';
 import { ChatAnthropic } from '@langchain/anthropic';
 import { OLLAMA_CONFIG } from '../../config/ollama';
 import { InstructionPrefixedEmbeddings } from './instructionPrefixedEmbeddings';

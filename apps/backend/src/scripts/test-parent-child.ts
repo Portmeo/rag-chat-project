@@ -1,6 +1,6 @@
 process.env.RAG_LOGS = 'false';
 
-import { QdrantVectorStore } from '@langchain/community/vectorstores/qdrant';
+import { QdrantVectorStore } from '@langchain/qdrant';
 import { qdrantClient, COLLECTION_NAME } from '../repositories/qdrantRepository';
 import { parentStorage } from '../repositories/index';
 import { embeddings, PARENT_RETRIEVER_CONFIG, RERANKER_CONFIG } from '../services/rag/config';

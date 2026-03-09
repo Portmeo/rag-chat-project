@@ -1,4 +1,4 @@
-import { OllamaEmbeddings } from '@langchain/community/embeddings/ollama';
+import { OllamaEmbeddings } from '@langchain/ollama';
 
 export interface InstructionPrefixedEmbeddingsParams {
   model?: string;

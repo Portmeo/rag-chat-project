@@ -13,7 +13,7 @@
 
 process.env.RAG_LOGS = 'false';
 
-import { QdrantVectorStore } from '@langchain/community/vectorstores/qdrant';
+import { QdrantVectorStore } from '@langchain/qdrant';
 import { qdrantClient, COLLECTION_NAME } from '../repositories/qdrantRepository.js';
 import { parentStorage } from '../repositories/index.js';
 import { embeddings, BM25_CONFIG, RERANKER_CONFIG } from '../services/rag/config.js';

@@ -1,7 +1,7 @@
 // Silence all RAG logs during this test
 process.env.RAG_LOGS = 'false';
 
-import { QdrantVectorStore } from '@langchain/community/vectorstores/qdrant';
+import { QdrantVectorStore } from '@langchain/qdrant';
 import { qdrantClient, COLLECTION_NAME } from '../repositories/qdrantRepository';
 import { embeddings } from '../services/rag/config';
 import { BM25Retriever } from '../services/rag/bm25Retriever';

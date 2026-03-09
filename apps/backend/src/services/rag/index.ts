@@ -1,4 +1,4 @@
-import { QdrantVectorStore } from '@langchain/community/vectorstores/qdrant';
+import { QdrantVectorStore } from '@langchain/qdrant';
 import { Document } from 'langchain/document';
 import { randomUUID, createHash } from 'crypto';
 import { BM25Retriever } from './bm25Retriever';
