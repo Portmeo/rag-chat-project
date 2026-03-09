@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Send, FileText, Square, Trash2, Copy, Check, ArrowDown } from 'lucide-react';
+import WelcomeMessage from '@/components/WelcomeMessage';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -156,6 +157,30 @@ export default function ChatInterface() {
     });
   };
 
+  const handleSendFromWelcome = async (question: string) => {
+    const userMessage: Message = { role: 'user', content: question };
+    setMessages((prev) => [...prev, userMessage]);
+    reset();
+    setIsThinking(true);
+    try {
+      const result = await streamQuery(question, []);
+      setIsThinking(false);
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: result.content,
+        sources: result.sources,
+      };
+      setMessages((prev) => [...prev, assistantMessage]);
+    } catch (err) {
+      setIsThinking(false);
+      const errorMessage: Message = {
+        role: 'assistant',
+        content: `Error: ${err instanceof Error ? err.message : 'An unknown error occurred'}`,
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isStreaming) return;
@@ -208,11 +233,7 @@ export default function ChatInterface() {
       >
         <div className="space-y-4">
           {messages.length === 0 ? (
-            <div className="flex items-center justify-center h-[60vh]">
-              <p className="text-muted-foreground text-lg">
-                Upload documents and start asking questions
-              </p>
-            </div>
+            <WelcomeMessage onSendQuestion={handleSendFromWelcome} />
           ) : (
             messages.map((msg, idx) => (
               <div
