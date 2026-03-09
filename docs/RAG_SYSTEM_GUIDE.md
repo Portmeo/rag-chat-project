@@ -20,6 +20,11 @@ Un sistema RAG (Retrieval-Augmented Generation) optimizado para consultas sobre 
               ↓
 4. Reranking (Cross-Encoder) sobre PARENTS → Top K
               ↓
+4.5. Similarity Drop-off
+   → Descarta docs cuyo score cae >20% del mejor resultado
+   → Adaptativo: mantiene más docs cuando muchos son buenos, menos cuando pocos lo son
+   → Siempre mantiene mínimo N docs (configurable)
+              ↓
 5. Contextual Compression
    → Cada parent se divide en frases
    → Se descartan frases con similitud coseno < umbral vs la query
@@ -67,6 +72,27 @@ Combina la precisión léxica de BM25 con la potencia semántica de los embeddin
 - **Vectores Semánticos**: Embeddings con prefijos de instrucción asimétricos (query prefix ≠ document prefix) para mejorar el matching semántico.
 
 **Pesos configurables**: Ver `.env` (`BM25_WEIGHT`, `VECTOR_WEIGHT`).
+
+### 2.5. Similarity Drop-off
+
+**¿Qué hace?**
+En vez de usar un top-K fijo (siempre devolver 5 docs), filtra dinámicamente según la calidad relativa de los resultados. Descarta documentos cuyo score cae más de un porcentaje configurable respecto al mejor resultado.
+
+**¿Por qué?**
+Un top-K fijo tiene dos problemas: (1) si solo 2 docs son buenos, los otros 3 son ruido que confunde al LLM; (2) si hay 7 docs buenos, un top-5 descarta 2 relevantes. El drop-off se adapta a cada query.
+
+**Cómo funciona:**
+- Fórmula: `drop = 1 - (score / bestScore)`. Si `drop > maxDrop` → descartar.
+- Los scores del reranker son logits (pueden ser negativos). Se desplazan a espacio positivo antes de calcular.
+- Siempre mantiene un mínimo de docs configurable (`SIMILARITY_DROPOFF_MIN_DOCS`).
+
+**Ejemplo** con `maxDrop=0.20` y scores `[8.2, 7.9, 3.1, 1.2, -0.5]`:
+- Shifted: `[8.7, 8.4, 3.6, 1.7, 0]` → Drops: `[0%, 3.4%, 58.6%, 80.5%, 100%]`
+- Resultado: mantiene los 2 primeros (drop <20%) + mínimo garantizado.
+
+**Config**: `USE_SIMILARITY_DROPOFF=true`, `SIMILARITY_DROPOFF_MAX_DROP=0.20`, `SIMILARITY_DROPOFF_MIN_DOCS=2`
+
+**Archivo**: `services/rag/similarityDropoff.ts`
 
 ### 3. Reranking con Cross-Encoder
 

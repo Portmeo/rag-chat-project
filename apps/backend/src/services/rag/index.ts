@@ -11,8 +11,9 @@ const parentLogger = createLogger('PARENT');
 const rerankerLogger = createLogger('RERANKER');
 const llmLogger = createLogger('LLM');
 import { qdrantClient, COLLECTION_NAME } from '../../repositories/qdrantRepository';
-import { embeddings, llm, MESSAGES, SIMILARITY_SEARCH_CONFIG, BM25_CONFIG, RERANKER_CONFIG, PARENT_RETRIEVER_CONFIG, CONTEXTUAL_COMPRESSION_CONFIG, ALIGNMENT_OPTIMIZATION_CONFIG, INTENT_CLASSIFIER_CONFIG, ACTIVE_MODEL } from './config';
+import { embeddings, llm, MESSAGES, SIMILARITY_SEARCH_CONFIG, BM25_CONFIG, RERANKER_CONFIG, PARENT_RETRIEVER_CONFIG, CONTEXTUAL_COMPRESSION_CONFIG, SIMILARITY_DROPOFF_CONFIG, ALIGNMENT_OPTIMIZATION_CONFIG, INTENT_CLASSIFIER_CONFIG, ACTIVE_MODEL } from './config';
 import { classifyIntent } from './intentClassifier';
+import { applySimilarityDropoff } from './similarityDropoff';
 import { parentStorage, bm25Storage, queryLogger } from '../../repositories/index.js';
 import { compressDocuments } from './contextualCompressor';
 import { generateAlignmentQuestions } from './alignmentOptimizer';
@@ -553,6 +554,17 @@ async function retrieveRelevantDocuments(
   } else {
     rerankerLogger.log('Reranker disabled, using top parent chunks directly');
     relevantDocs = candidateDocs.slice(0, SIMILARITY_SEARCH_CONFIG.MAX_RESULTS);
+  }
+
+  // PASO 2.5: Similarity Drop-off (descartar docs con score muy inferior al mejor)
+  if (SIMILARITY_DROPOFF_CONFIG.enabled) {
+    const beforeCount = relevantDocs.length;
+    relevantDocs = applySimilarityDropoff(
+      relevantDocs,
+      SIMILARITY_DROPOFF_CONFIG.maxDrop,
+      SIMILARITY_DROPOFF_CONFIG.minDocs
+    );
+    pipelineLogger.log(`Similarity drop-off: ${beforeCount} → ${relevantDocs.length} docs`);
   }
 
   // PASO 3: Contextual Compression (filtrar frases ruidosas de los parents)

@@ -12,6 +12,7 @@ Sistema RAG (Retrieval-Augmented Generation) optimizado para consultas sobre doc
 - 📊 **Base vectorial sólida**: 100% hit rate (35/35) en ensemble retrieval
 - 🗜️ **Contextual Compression**: Filtra frases ruidosas de cada chunk (threshold coseno 0.30) antes de enviar al LLM
 - 🧠 **Intent Classifier**: Detecta saludos y charla casual para saltar el pipeline RAG (regex + LLM, configurable)
+- 📉 **Similarity Drop-off**: Descarta docs con score muy inferior al mejor resultado (adaptativo vs top-K fijo)
 - 🇪🇸 **Optimizado para Español**: Modelos y prompts ajustados
 
 ### Interfaz y UX
@@ -89,6 +90,9 @@ Pregunta del usuario
     ↓
 4. Reranking (bge-reranker-base)
    → Top 5 parents más relevantes
+    ↓
+4.5. Similarity Drop-off
+   → Descarta docs cuyo score cae >20% del mejor (adaptativo)
     ↓
 5. Contextual Compression
    → Filtrado de frases por similitud semántica (threshold 0.30)
@@ -481,9 +485,9 @@ Ver [docs/RAG_SYSTEM_GUIDE.md](docs/RAG_SYSTEM_GUIDE.md) para el razonamiento co
 - [x] **Alignment Optimization** — preguntas hipotéticas por chunk (experimental, evaluado en Run 8)
 - [x] **Capa de persistencia SQLite** — parents en SQLite (sin vectores nulos en Qdrant), BM25 persistido entre reinicios, query logging automático
 - [x] **Intent Classifier** — detecta saludos/charla casual y salta el pipeline RAG. 3 modos: `regex` (solo patrones), `hybrid` (regex + LLM fallback), `llm` (todo por LLM)
+- [x] **Similarity Drop-off** — descarta docs cuyo score cae >20% del mejor resultado. Adaptativo vs top-K fijo. Siempre mantiene mínimo N docs
 
 ### Pendiente (próximo sprint)
-- [ ] **Similarity Drop-off** — descartar docs cuyo score cae >20% del mejor resultado (en vez de top-K fijo)
 - [ ] **Metadata Filtering** — filtrar por categoría/framework antes de la búsqueda vectorial (Qdrant nativo)
 - [ ] **Upgrade reranker** bge-reranker-base → bge-reranker-v2-m3 (multilingual)
 - [ ] **Soporte PDF y DOCX**

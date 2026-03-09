@@ -61,6 +61,7 @@ All RAG config via environment variables, centralized in `services/rag/config.ts
 - `USE_CLAUDE=true` → Claude API; `false` → Ollama (`OLLAMA_MODEL`)
 - `USE_RERANKER`, `USE_BM25_RETRIEVER`, `USE_PARENT_RETRIEVER`, `USE_CONTEXTUAL_COMPRESSION`
 - `USE_INTENT_CLASSIFIER` + `INTENT_CLASSIFIER_MODE` (`regex` | `hybrid` | `llm`) — skips RAG for casual inputs
+- `USE_SIMILARITY_DROPOFF` + `SIMILARITY_DROPOFF_MAX_DROP` (default 0.20) — adaptive filtering instead of fixed top-K
 
 ### Frontend
 

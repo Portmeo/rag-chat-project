@@ -167,6 +167,15 @@ export const INTENT_CLASSIFIER_CONFIG = {
   mode: (process.env.INTENT_CLASSIFIER_MODE || 'hybrid') as 'regex' | 'hybrid' | 'llm',
 } as const;
 
+// Similarity Drop-off Configuration
+// Removes documents whose score drops too far from the best result
+// More intelligent than fixed top-K: adapts to retrieval quality
+export const SIMILARITY_DROPOFF_CONFIG = {
+  enabled: process.env.USE_SIMILARITY_DROPOFF === 'true',
+  maxDrop: parseFloat(process.env.SIMILARITY_DROPOFF_MAX_DROP || '0.20'), // 20% drop-off threshold
+  minDocs: parseInt(process.env.SIMILARITY_DROPOFF_MIN_DOCS || '2'),      // Always keep at least N docs
+} as const;
+
 // Alignment Optimization Configuration
 // Generates hypothetical questions per parent chunk during indexing
 // Improves retrieval matching: query↔question instead of query↔raw text
