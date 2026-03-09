@@ -143,6 +143,23 @@ export async function getCategories(): Promise<Category[]> {
   return response.json();
 }
 
+export interface OnboardingQuestion {
+  id: number;
+  text: string;
+  icon: string;
+  filename: string | null;
+  sort_order: number;
+}
+
+export async function getOnboardingQuestions(): Promise<OnboardingQuestion[]> {
+  const response = await fetch(`${API_URL}/api/chat/onboarding-questions`);
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to fetch onboarding questions');
+  }
+  return response.json();
+}
+
 export async function clearDocuments() {
   const response = await fetch(`${API_URL}/api/documents`, {
     method: 'DELETE',

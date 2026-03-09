@@ -70,3 +70,19 @@ export interface ICategoryStorage {
   deleteByFilename(filename: string): Promise<void>;
   backfillFromFilenames(filenames: string[]): Promise<number>;
 }
+
+// ─── Onboarding Questions ────────────────────────────────────────────────────
+
+export interface OnboardingQuestion {
+  id: number;
+  text: string;
+  icon: string;
+  filename: string | null;
+  sort_order: number;
+}
+
+export interface IOnboardingStorage {
+  getAll(): Promise<OnboardingQuestion[]>;
+  upsert(question: Omit<OnboardingQuestion, 'id'> & { id?: number }): Promise<void>;
+  delete(id: number): Promise<void>;
+}

@@ -20,7 +20,7 @@ import {
   clearOptimization,
   clearOptimizationOne,
 } from './controllers/documentController.js';
-import { queryChat, queryChatStream, getCategories } from './controllers/chatController.js';
+import { queryChat, queryChatStream, getCategories, getOnboardingQuestions, upsertOnboardingQuestion, deleteOnboardingQuestion } from './controllers/chatController.js';
 
 import { STATUS, MESSAGES } from './shared/messages.js';
 
@@ -106,6 +106,9 @@ fastify.delete('/api/documents/:filename/optimization', clearOptimizationOne);
 
 // Chat routes
 fastify.get('/api/chat/categories', getCategories);
+fastify.get('/api/chat/onboarding-questions', getOnboardingQuestions);
+fastify.post('/api/chat/onboarding-questions', upsertOnboardingQuestion);
+fastify.delete('/api/chat/onboarding-questions/:id', deleteOnboardingQuestion);
 fastify.post('/api/chat/query', queryChat);
 
 fastify.post('/api/chat/query-stream', queryChatStream);

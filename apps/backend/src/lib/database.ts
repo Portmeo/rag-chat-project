@@ -58,5 +58,32 @@ function runMigrations(db: Database.Database): void {
       filename TEXT NOT NULL UNIQUE,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS onboarding_questions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      text TEXT NOT NULL,
+      icon TEXT NOT NULL DEFAULT 'MessageSquare',
+      filename TEXT,
+      sort_order INTEGER NOT NULL DEFAULT 0
+    );
   `);
+
+  // Seed onboarding questions if table is empty
+  const count = db.prepare('SELECT COUNT(*) as n FROM onboarding_questions').get() as { n: number };
+  if (count.n === 0) {
+    const insert = db.prepare(
+      'INSERT INTO onboarding_questions (text, icon, sort_order) VALUES (?, ?, ?)'
+    );
+    const seed = db.transaction((questions: { text: string; icon: string; sort_order: number }[]) => {
+      for (const q of questions) insert.run(q.text, q.icon, q.sort_order);
+    });
+    seed([
+      { text: '¿Cuál es la arquitectura general del proyecto?', icon: 'Layers', sort_order: 1 },
+      { text: '¿Cómo funciona el sistema de autenticación?', icon: 'Shield', sort_order: 2 },
+      { text: '¿Qué tecnologías y frameworks se utilizan?', icon: 'Code', sort_order: 3 },
+      { text: '¿Cómo está configurado el pipeline de CI/CD?', icon: 'GitCompare', sort_order: 4 },
+      { text: '¿Cómo se gestiona el estado de la aplicación?', icon: 'Database', sort_order: 5 },
+      { text: '¿Qué convenciones de código sigue el proyecto?', icon: 'BookOpen', sort_order: 6 },
+    ]);
+  }
 }

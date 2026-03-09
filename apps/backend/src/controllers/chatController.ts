@@ -4,7 +4,8 @@ import { HTTP_STATUS } from '../shared/http.js';
 import { MESSAGES } from '../shared/messages.js';
 import { initSseResponse } from '../utils/sse.js';
 import { createLogger } from '../lib/logger.js';
-import { categoryStorage } from '../repositories/index.js';
+import { categoryStorage, onboardingStorage } from '../repositories/index.js';
+import type { OnboardingQuestion } from '../repositories/index.js';
 
 const logger = createLogger('CHAT');
 
@@ -88,5 +89,50 @@ export async function getCategories(
     return reply.code(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
       error: error.message,
     });
+  }
+}
+
+export async function getOnboardingQuestions(
+  _request: FastifyRequest,
+  reply: FastifyReply
+) {
+  try {
+    const questions = await onboardingStorage.getAll();
+    return questions;
+  } catch (error: any) {
+    logger.error('Error fetching onboarding questions:', error);
+    return reply.code(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
+      error: error.message,
+    });
+  }
+}
+
+export async function upsertOnboardingQuestion(
+  request: FastifyRequest<{ Body: Omit<OnboardingQuestion, 'id'> & { id?: number } }>,
+  reply: FastifyReply
+) {
+  try {
+    const { text, icon = 'MessageSquare', filename = null, sort_order = 0, id } = request.body;
+    if (!text) {
+      return reply.code(HTTP_STATUS.BAD_REQUEST).send({ error: 'Text is required' });
+    }
+    await onboardingStorage.upsert({ text, icon, filename, sort_order, ...(id ? { id } : {}) });
+    return { message: 'Question saved' };
+  } catch (error: any) {
+    logger.error('Error saving onboarding question:', error);
+    return reply.code(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({ error: error.message });
+  }
+}
+
+export async function deleteOnboardingQuestion(
+  request: FastifyRequest<{ Params: { id: string } }>,
+  reply: FastifyReply
+) {
+  try {
+    await onboardingStorage.delete(Number(request.params.id));
+    return { message: 'Question deleted' };
+  } catch (error: any) {
+    logger.error('Error deleting onboarding question:', error);
+    return reply.code(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({ error: error.message });
   }
 }
