@@ -67,7 +67,7 @@ Un RAG de documentación técnica sirve para hacer accesible el conocimiento esc
 
 Las queries Comparativas tienen Faithfulness 0.30 porque el LLM inventa comparaciones que ningún chunk contiene. Eso es el LLM haciendo lo que no debe, no un problema de retrieval. La solución correcta no es optimizar el RAG para esto sino **educar al usuario** sobre qué tipo de preguntas puede hacer, y **hacer el prompt más estricto** para que el sistema diga "no tengo esa información" en lugar de inventar.
 
-**Consecuencia**: descartada query decomposition para Comparativa. Foco del siguiente sprint:
+**Consecuencia**: descartada query decomposition para Comparativa. Próximas mejoras:
 1. UI onboarding — qué puede preguntar el usuario
 2. Prompt estricto anti-alucinaciones
 3. Upgrade reranker (bge-reranker-v2-m3, multilingual)
