@@ -8,6 +8,24 @@ import { createLogger } from '../../lib/logger.js';
 const qdrantLogger = createLogger('QDRANT');
 const multiqueryLogger = createLogger('MULTIQUERY');
 
+/**
+ * Extracts LLM text content from various response formats (string, ChatModel, etc.)
+ * and strips <think>...</think> blocks from reasoning models (e.g., qwen3.5).
+ */
+export function extractLLMContent(response: unknown): string {
+  let content: string;
+  if (typeof response === 'string') {
+    content = response;
+  } else if (response && typeof response === 'object' && 'content' in response) {
+    const responseContent = (response as any).content;
+    content = typeof responseContent === 'string' ? responseContent : String(responseContent);
+  } else {
+    content = String(response);
+  }
+  // Strip thinking tags from reasoning models (qwen3.5, deepseek, etc.)
+  return content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+}
+
 export function createTextSplitter(extension: string) {
   const baseConfig = {
     chunkSize: CHUNK_CONFIG.SIZE,
@@ -73,17 +91,7 @@ export async function generateMultipleQueries(question: string): Promise<string[
   try {
     const prompt = PROMPT_TEMPLATE.MULTI_QUERY_PROMPT.replace('{question}', question);
     const response = await llm.invoke(prompt);
-
-    // Handle both ChatModel (Claude) and LLM (Ollama) responses
-    let content: string;
-    if (typeof response === 'string') {
-      content = response;
-    } else if (response && typeof response === 'object' && 'content' in response) {
-      const responseContent = (response as any).content;
-      content = typeof responseContent === 'string' ? responseContent : String(responseContent);
-    } else {
-      content = String(response);
-    }
+    const content = extractLLMContent(response);
 
     const queries = content
       .split('\n')

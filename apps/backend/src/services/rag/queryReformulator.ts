@@ -1,4 +1,5 @@
 import { llm } from './config';
+import { extractLLMContent } from './helpers';
 import { createLogger } from '../../lib/logger.js';
 import type { ConversationMessage } from './types';
 
@@ -47,18 +48,7 @@ export async function reformulateQuery(
       .replace('{question}', question);
 
     const response = await llm.invoke(prompt);
-
-    let content: string;
-    if (typeof response === 'string') {
-      content = response;
-    } else if (response && typeof response === 'object' && 'content' in response) {
-      const responseContent = (response as any).content;
-      content = typeof responseContent === 'string' ? responseContent : String(responseContent);
-    } else {
-      content = String(response);
-    }
-
-    const standalone = content.trim();
+    const standalone = extractLLMContent(response);
     const wasReformulated = standalone.toLowerCase() !== question.toLowerCase();
 
     logger.log(`Original: "${question}"`);

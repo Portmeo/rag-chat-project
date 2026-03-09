@@ -1,4 +1,5 @@
 import { llm } from './config';
+import { extractLLMContent } from './helpers';
 import { createLogger } from '../../lib/logger.js';
 
 const logger = createLogger('INTENT');
@@ -64,19 +65,11 @@ async function classifyByLLM(input: string): Promise<IntentResult> {
   try {
     const prompt = CLASSIFICATION_PROMPT.replace('{input}', input);
     const response = await llm.invoke(prompt);
+    const content = extractLLMContent(response);
 
-    let content: string;
-    if (typeof response === 'string') {
-      content = response;
-    } else if (response && typeof response === 'object' && 'content' in response) {
-      const responseContent = (response as any).content;
-      content = typeof responseContent === 'string' ? responseContent : String(responseContent);
-    } else {
-      content = String(response);
-    }
-
-    const classification = content.trim().toLowerCase();
-    const isCasual = classification.includes('casual');
+    // Strip quotes/punctuation and normalize
+    const classification = content.trim().toLowerCase().replace(/^["']+|["'.]+$/g, '');
+    const isCasual = classification === 'casual';
 
     logger.log(`LLM classification for "${input}": ${classification} → ${isCasual ? 'casual' : 'query'}`);
 
