@@ -60,6 +60,7 @@ lsof -i :3001 -sTCP:LISTEN -t | xargs kill -9
 All RAG config via environment variables, centralized in `services/rag/config.ts`. Key toggles:
 - `USE_CLAUDE=true` → Claude API; `false` → Ollama (`OLLAMA_MODEL`)
 - `USE_RERANKER`, `USE_BM25_RETRIEVER`, `USE_PARENT_RETRIEVER`, `USE_CONTEXTUAL_COMPRESSION`
+- `USE_INTENT_CLASSIFIER` + `INTENT_CLASSIFIER_MODE` (`regex` | `hybrid` | `llm`) — skips RAG for casual inputs
 
 ### Frontend
 

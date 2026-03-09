@@ -9,6 +9,9 @@ Un sistema RAG (Retrieval-Augmented Generation) optimizado para consultas sobre 
 ```
       Pregunta del usuario
               ↓
+0. Intent Classifier (regex / hybrid / llm)
+   → Detecta saludos y charla casual → respuesta directa, salta el pipeline
+              ↓
 1. Multi-Query Generation (3-4 variaciones)
               ↓
 2. Búsqueda Híbrida (BM25 40% + Vectores 60%) sobre CHILDREN
@@ -27,6 +30,20 @@ Un sistema RAG (Retrieval-Augmented Generation) optimizado para consultas sobre 
 ```
 
 ## Componentes Principales
+
+### 0. Intent Classifier
+
+**¿Qué hace?**
+Clasifica la intención del usuario antes de entrar al pipeline RAG. Si detecta un saludo, agradecimiento, despedida o charla casual, responde directamente sin ejecutar el pipeline completo (multi-query, retrieval, reranker, compression, LLM).
+
+**3 modos de operación** (`INTENT_CLASSIFIER_MODE`):
+- **`regex`**: Solo patrones regex. Cero latencia, cero coste de tokens. Cubre saludos obvios ("hola", "gracias", "adiós") pero puede fallar en frases mixtas o ambiguas.
+- **`hybrid`** (default): Regex primero. Si no hay match, pasa al LLM para clasificar. Buen balance entre velocidad y cobertura.
+- **`llm`**: Todo pasa por el LLM. Máxima cobertura (+0.5s latencia por query). Entiende contexto, ironía y frases complejas.
+
+**Activación**: `USE_INTENT_CLASSIFIER=true` / `false` para desactivar completamente.
+
+**Archivos**: `services/rag/intentClassifier.ts`, config en `services/rag/config.ts`.
 
 ### 1. Recuperación Jerárquica: Parent-Child (Small-to-Big)
 

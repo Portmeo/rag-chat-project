@@ -11,6 +11,7 @@ Sistema RAG (Retrieval-Augmented Generation) optimizado para consultas sobre doc
 - 🤖 **LLM**: Claude Haiku (`claude-haiku-4-5-20251001`) — mejor Faithfulness y Hallucination según evaluaciones RAGAS con juez externo (Sonnet 4.6)
 - 📊 **Base vectorial sólida**: 100% hit rate (35/35) en ensemble retrieval
 - 🗜️ **Contextual Compression**: Filtra frases ruidosas de cada chunk (threshold coseno 0.30) antes de enviar al LLM
+- 🧠 **Intent Classifier**: Detecta saludos y charla casual para saltar el pipeline RAG (regex + LLM, configurable)
 - 🇪🇸 **Optimizado para Español**: Modelos y prompts ajustados
 
 ### Interfaz y UX
@@ -72,6 +73,9 @@ npm run dev:backend
 
 ```
 Pregunta del usuario
+    ↓
+0. Intent Classifier (regex/hybrid/llm)
+   → Si es saludo/charla casual → respuesta directa, salta el pipeline
     ↓
 1. Multi-Query Generation (3 variaciones)
     ↓
@@ -476,10 +480,11 @@ Ver [docs/RAG_SYSTEM_GUIDE.md](docs/RAG_SYSTEM_GUIDE.md) para el razonamiento co
 - [x] **Temperature 0.0** — LLM más conservador, reduce alucinaciones
 - [x] **Alignment Optimization** — preguntas hipotéticas por chunk (experimental, evaluado en Run 8)
 - [x] **Capa de persistencia SQLite** — parents en SQLite (sin vectores nulos en Qdrant), BM25 persistido entre reinicios, query logging automático
+- [x] **Intent Classifier** — detecta saludos/charla casual y salta el pipeline RAG. 3 modos: `regex` (solo patrones), `hybrid` (regex + LLM fallback), `llm` (todo por LLM)
 
 ### Pendiente (próximo sprint)
-- [ ] **UI onboarding** — mensaje educativo sobre qué tipo de preguntas responde el RAG
-- [ ] **Prompt más estricto** anti-alucinaciones
+- [ ] **Similarity Drop-off** — descartar docs cuyo score cae >20% del mejor resultado (en vez de top-K fijo)
+- [ ] **Metadata Filtering** — filtrar por categoría/framework antes de la búsqueda vectorial (Qdrant nativo)
 - [ ] **Upgrade reranker** bge-reranker-base → bge-reranker-v2-m3 (multilingual)
 - [ ] **Soporte PDF y DOCX**
 
