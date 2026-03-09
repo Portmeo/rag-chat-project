@@ -9,14 +9,20 @@ export async function queryRAGStream(
   question: string,
   history: Array<{ role: 'user' | 'assistant'; content: string }>,
   callbacks: StreamCallbacks,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  filenameFilter?: string[]
 ): Promise<void> {
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+  const body: Record<string, unknown> = { question, history };
+  if (filenameFilter && filenameFilter.length > 0) {
+    body.filenameFilter = filenameFilter;
+  }
 
   const response = await fetch(`${API_URL}/api/chat/query-stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question, history }),
+    body: JSON.stringify(body),
     signal,
   });
 

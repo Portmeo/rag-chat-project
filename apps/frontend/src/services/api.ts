@@ -129,6 +129,20 @@ export async function clearDocumentOptimization(filename: string) {
   return response.json();
 }
 
+export interface Category {
+  name: string;
+  filename: string;
+}
+
+export async function getCategories(): Promise<Category[]> {
+  const response = await fetch(`${API_URL}/api/chat/categories`);
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to fetch categories');
+  }
+  return response.json();
+}
+
 export async function clearDocuments() {
   const response = await fetch(`${API_URL}/api/documents`, {
     method: 'DELETE',

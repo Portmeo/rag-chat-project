@@ -4,6 +4,7 @@ import { HTTP_STATUS } from '../shared/http.js';
 import { MESSAGES } from '../shared/messages.js';
 import { initSseResponse } from '../utils/sse.js';
 import { createLogger } from '../lib/logger.js';
+import { categoryStorage } from '../repositories/index.js';
 
 const logger = createLogger('CHAT');
 
@@ -15,6 +16,7 @@ interface ChatMessage {
 interface ChatQueryBody {
   question: string;
   history?: ChatMessage[];
+  filenameFilter?: string[];
 }
 
 export async function queryChat(
@@ -22,7 +24,7 @@ export async function queryChat(
   reply: FastifyReply
 ) {
   try {
-    const { question, history = [] } = request.body;
+    const { question, history = [], filenameFilter } = request.body;
 
     if (!question) {
       return reply.code(HTTP_STATUS.BAD_REQUEST).send({
@@ -30,7 +32,7 @@ export async function queryChat(
       });
     }
 
-    const result = await queryRAG(question, { history });
+    const result = await queryRAG(question, { history, filenameFilter });
     return result;
   } catch (error: any) {
     logger.error('Error querying RAG:', error);
@@ -45,7 +47,7 @@ export async function queryChatStream(
   reply: FastifyReply
 ) {
   try {
-    const { question, history = [] } = request.body;
+    const { question, history = [], filenameFilter } = request.body;
 
     if (!question) {
       return reply.code(HTTP_STATUS.BAD_REQUEST).send({
@@ -56,7 +58,7 @@ export async function queryChatStream(
     initSseResponse(request, reply);
 
     try {
-      for await (const event of queryRAGStream(question, history)) {
+      for await (const event of queryRAGStream(question, history, filenameFilter)) {
         const message = `event: ${event.event}\ndata: ${JSON.stringify(event.data)}\n\n`;
         reply.raw.write(message);
       }
@@ -68,6 +70,21 @@ export async function queryChatStream(
     }
   } catch (error: any) {
     logger.error('Error in chat stream:', error);
+    return reply.code(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
+      error: error.message,
+    });
+  }
+}
+
+export async function getCategories(
+  _request: FastifyRequest,
+  reply: FastifyReply
+) {
+  try {
+    const categories = await categoryStorage.getAll();
+    return categories;
+  } catch (error: any) {
+    logger.error('Error fetching categories:', error);
     return reply.code(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
       error: error.message,
     });

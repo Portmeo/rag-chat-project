@@ -56,3 +56,17 @@ export interface IQueryLogger {
   log(entry: QueryLogEntry): Promise<void>;
   getRecent(limit?: number): Promise<QueryLogEntry[]>;
 }
+
+// ─── Category Storage ─────────────────────────────────────────────────────────
+
+export interface CategoryEntry {
+  name: string;
+  filename: string;
+}
+
+export interface ICategoryStorage {
+  upsert(entry: CategoryEntry): Promise<void>;
+  getAll(): Promise<CategoryEntry[]>;
+  deleteByFilename(filename: string): Promise<void>;
+  backfillFromFilenames(filenames: string[]): Promise<number>;
+}

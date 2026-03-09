@@ -14,7 +14,8 @@ import { qdrantClient, COLLECTION_NAME } from '../../repositories/qdrantReposito
 import { embeddings, llm, MESSAGES, SIMILARITY_SEARCH_CONFIG, BM25_CONFIG, RERANKER_CONFIG, PARENT_RETRIEVER_CONFIG, CONTEXTUAL_COMPRESSION_CONFIG, SIMILARITY_DROPOFF_CONFIG, ALIGNMENT_OPTIMIZATION_CONFIG, INTENT_CLASSIFIER_CONFIG, ACTIVE_MODEL } from './config';
 import { classifyIntent } from './intentClassifier';
 import { applySimilarityDropoff } from './similarityDropoff';
-import { parentStorage, bm25Storage, queryLogger } from '../../repositories/index.js';
+import { parentStorage, bm25Storage, queryLogger, categoryStorage } from '../../repositories/index.js';
+import { extractCategoryFromFilename } from './categoryExtractor';
 import { compressDocuments } from './contextualCompressor';
 import { generateAlignmentQuestions } from './alignmentOptimizer';
 import { createTextSplitter, buildPrompt, checkCollectionExists, getFileExtension, generateMultipleQueries, getAllDocumentsFromQdrant, limitHistory } from './helpers';
@@ -340,6 +341,9 @@ export async function addDocumentToVectorStore(
 
     // Alignment Optimization is triggered manually via /api/documents/optimize-all or /:filename/optimize
 
+    // Save category derived from filename
+    await categoryStorage.upsert({ name: extractCategoryFromFilename(filename), filename });
+
     // Rebuild cache asynchronously (don't block the response)
     rebuildBM25Cache().catch((error) => {
       pipelineLogger.error('Error rebuilding BM25 cache:', error);
@@ -368,6 +372,9 @@ export async function addDocumentToVectorStore(
     client: qdrantClient,
     collectionName: COLLECTION_NAME,
   });
+
+  // Save category derived from filename
+  await categoryStorage.upsert({ name: extractCategoryFromFilename(filename), filename });
 
   // Rebuild cache asynchronously (don't block the response)
   rebuildBM25Cache().catch((error) => {
@@ -426,7 +433,8 @@ function filterSourcesByRelevance(relevantDocs: Document[]): RAGSource[] {
 // Shared function to retrieve relevant documents
 async function retrieveRelevantDocuments(
   question: string,
-  history: ConversationMessage[] = []
+  history: ConversationMessage[] = [],
+  filenameFilter?: string[]
 ) {
   const collectionExists = await checkCollectionExists();
 
@@ -445,8 +453,23 @@ async function retrieveRelevantDocuments(
     ? RERANKER_CONFIG.retrievalTopK
     : SIMILARITY_SEARCH_CONFIG.MAX_RESULTS;
 
+  // Build Qdrant filter if filenameFilter is provided
+  const qdrantFilter = filenameFilter && filenameFilter.length > 0
+    ? {
+        must: [{
+          key: 'metadata.filename',
+          match: { any: filenameFilter },
+        }],
+      }
+    : undefined;
+
+  if (qdrantFilter) {
+    pipelineLogger.log(`Metadata filter active: ${filenameFilter!.join(', ')}`);
+  }
+
   const vectorRetriever = vectorStore.asRetriever({
     k: retrievalK,
+    filter: qdrantFilter,
   });
 
   let retriever: any;
@@ -609,6 +632,7 @@ async function retrieveRelevantDocuments(
 
 export interface QueryRAGOptions {
   history?: ConversationMessage[];
+  filenameFilter?: string[];
 }
 
 export async function queryRAG(
@@ -625,10 +649,10 @@ export async function queryRAG(
       }
     }
 
-    const { history = [] } = options;
+    const { history = [], filenameFilter } = options;
     const limitedHistory = limitHistory(history);
     const startTime = Date.now();
-    const retrieved = await retrieveRelevantDocuments(question, limitedHistory);
+    const retrieved = await retrieveRelevantDocuments(question, limitedHistory, filenameFilter);
 
     if (!retrieved) {
       return {
@@ -683,7 +707,8 @@ export async function queryRAG(
 
 export async function* queryRAGStream(
   question: string,
-  history: ConversationMessage[] = []
+  history: ConversationMessage[] = [],
+  filenameFilter?: string[]
 ) {
   try {
     // Intent Classification — early exit for casual inputs
@@ -701,7 +726,7 @@ export async function* queryRAGStream(
     pipelineLogger.log(`Using ${limitedHistory.length} messages from history`);
     const startTime = Date.now();
 
-    const retrieved = await retrieveRelevantDocuments(question, limitedHistory);
+    const retrieved = await retrieveRelevantDocuments(question, limitedHistory, filenameFilter);
 
     if (!retrieved) {
       yield { event: 'token', data: { chunk: MESSAGES.NO_DOCUMENTS } };
@@ -928,8 +953,9 @@ export async function deleteDocumentFromVectorStore(filename: string): Promise<{
 
     qdrantLogger.log(`Deleted ${chunksDeleted} chunks for file: ${filename}`);
 
-    // Delete parents from SQLite
+    // Delete parents and category from SQLite
     await parentStorage.deleteByFilename(filename);
+    await categoryStorage.deleteByFilename(filename);
 
     // Clear BM25 SQLite index so it rebuilds fresh from Qdrant on next load
     await bm25Storage.clear();

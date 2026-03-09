@@ -3,6 +3,8 @@ import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import { initQdrant, qdrantClient, COLLECTION_NAME } from './repositories/qdrantRepository.js';
+import { categoryStorage } from './repositories/index.js';
+import { listDocuments } from './services/rag/index.js';
 import { createLogger } from './lib/logger.js';
 
 const logger = createLogger('SERVER');
@@ -18,7 +20,7 @@ import {
   clearOptimization,
   clearOptimizationOne,
 } from './controllers/documentController.js';
-import { queryChat, queryChatStream } from './controllers/chatController.js';
+import { queryChat, queryChatStream, getCategories } from './controllers/chatController.js';
 
 import { STATUS, MESSAGES } from './shared/messages.js';
 
@@ -103,6 +105,7 @@ fastify.delete('/api/documents/optimization', clearOptimization);
 fastify.delete('/api/documents/:filename/optimization', clearOptimizationOne);
 
 // Chat routes
+fastify.get('/api/chat/categories', getCategories);
 fastify.post('/api/chat/query', queryChat);
 
 fastify.post('/api/chat/query-stream', queryChatStream);
@@ -110,6 +113,17 @@ fastify.post('/api/chat/query-stream', queryChatStream);
 // Start server
 async function startServer() {
   await initQdrant();
+
+  // Backfill categories for already-indexed documents (no-op if up to date)
+  try {
+    const docs = await listDocuments();
+    const filenames = docs.map(d => d.filename).filter(Boolean);
+    if (filenames.length > 0) {
+      await categoryStorage.backfillFromFilenames(filenames);
+    }
+  } catch (err: any) {
+    logger.warn('Category backfill skipped:', err.message);
+  }
 
   const PORT = process.env.PORT || 3001;
 

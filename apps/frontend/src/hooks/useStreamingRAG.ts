@@ -10,7 +10,8 @@ export function useStreamingRAG() {
 
   const streamQuery = useCallback(async (
     question: string,
-    history: Array<{ role: 'user' | 'assistant'; content: string }> = []
+    history: Array<{ role: 'user' | 'assistant'; content: string }> = [],
+    filenameFilter?: string[]
   ): Promise<{ content: string; sources: any[] }> => {
     // Create new AbortController for this request
     abortControllerRef.current = new AbortController();
@@ -38,7 +39,7 @@ export function useStreamingRAG() {
           setError(errorMsg);
           setIsStreaming(false);
         },
-      }, abortControllerRef.current.signal);
+      }, abortControllerRef.current.signal, filenameFilter);
 
       return { content: accumulatedContent, sources: finalSources };
     } catch (err: any) {

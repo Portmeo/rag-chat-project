@@ -25,4 +25,5 @@ export interface ConversationMessage {
 export interface QueryWithHistory {
   question: string;
   history?: ConversationMessage[];
+  filenameFilter?: string[];
 }

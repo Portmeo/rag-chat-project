@@ -16,10 +16,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Send, FileText, Square, Trash2, Copy, Check, ArrowDown } from 'lucide-react';
+import { Send, FileText, Square, Trash2, Copy, Check, ArrowDown, Filter, X } from 'lucide-react';
 import WelcomeMessage from '@/components/WelcomeMessage';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { getCategories, type Category } from '@/services/api';
 
 interface Source {
   filename: string;
@@ -67,10 +68,19 @@ export default function ChatInterface() {
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedFilenames, setSelectedFilenames] = useState<string[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
   const { isStreaming, streamedContent, streamQuery, stopStreaming, reset } = useStreamingRAG();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    getCategories()
+      .then(setCategories)
+      .catch(() => {});
+  }, []);
 
   const MarkdownComponents = {
     code({ inline, className, children, ...props }: { inline?: boolean; className?: string; children?: React.ReactNode }) {
@@ -149,6 +159,16 @@ export default function ChatInterface() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [messages.length, isStreaming, showClearDialog, stopStreaming]);
 
+  const toggleCategory = (filename: string) => {
+    setSelectedFilenames(prev =>
+      prev.includes(filename)
+        ? prev.filter(f => f !== filename)
+        : [...prev, filename]
+    );
+  };
+
+  const filenameFilter = selectedFilenames.length > 0 ? selectedFilenames : undefined;
+
   const handleClearChat = () => {
     setMessages([]);
     setShowClearDialog(false);
@@ -163,7 +183,7 @@ export default function ChatInterface() {
     reset();
     setIsThinking(true);
     try {
-      const result = await streamQuery(question, []);
+      const result = await streamQuery(question, [], filenameFilter);
       setIsThinking(false);
       const assistantMessage: Message = {
         role: 'assistant',
@@ -202,8 +222,8 @@ export default function ChatInterface() {
         content: msg.content
       }));
 
-      // Enviar pregunta con historial
-      const result = await streamQuery(questionText, history);
+      // Enviar pregunta con historial y filtro de categorías
+      const result = await streamQuery(questionText, history, filenameFilter);
 
       // Hide thinking when streaming completes
       setIsThinking(false);
@@ -326,6 +346,55 @@ export default function ChatInterface() {
       )}
 
       <div className="p-4 border-t bg-background space-y-2">
+        {categories.length > 0 && (
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Filter className="h-3 w-3" />
+              Filter by category
+              {selectedFilenames.length > 0 && (
+                <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
+                  {selectedFilenames.length}
+                </Badge>
+              )}
+            </button>
+            {showFilters && (
+              <div className="flex flex-wrap gap-1.5">
+                {categories.map((cat) => {
+                  const isSelected = selectedFilenames.includes(cat.filename);
+                  return (
+                    <button
+                      key={cat.filename}
+                      type="button"
+                      onClick={() => toggleCategory(cat.filename)}
+                      className={cn(
+                        'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors border',
+                        isSelected
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background text-muted-foreground border-border hover:bg-accent hover:text-foreground'
+                      )}
+                    >
+                      {cat.name}
+                      {isSelected && <X className="h-3 w-3" />}
+                    </button>
+                  );
+                })}
+                {selectedFilenames.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedFilenames([])}
+                    className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="flex gap-2">
           <Textarea
             ref={inputRef}
