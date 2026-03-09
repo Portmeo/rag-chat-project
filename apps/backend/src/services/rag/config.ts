@@ -33,9 +33,9 @@ export const MESSAGES = {
   ERROR_LIST_FAILED: 'Failed to list documents',
 } as const;
 
-export const CONVERSATIONAL_HISTORY_CONFIG = {
-  enabled: process.env.CONVERSATIONAL_HISTORY_ENABLED === 'true',
-  maxMessages: parseInt(process.env.MAX_HISTORY_MESSAGES || '5'),
+export const QUERY_REFORMULATION_CONFIG = {
+  enabled: process.env.QUERY_REFORMULATION_ENABLED === 'true',
+  maxMessages: parseInt(process.env.QUERY_REFORMULATION_MAX_MESSAGES || '5'),
 } as const;
 
 export const PROMPT_TEMPLATE = {
@@ -81,7 +81,6 @@ INSTRUCCIONES:
 
 
   // Estructura compacta para evitar que el modelo se pierda en espacios en blanco
-  HISTORY_PREFIX: '\n[HISTORIAL]:',
   CONTEXT_PREFIX: '\n[CONTEXTO_RELEVANTE]:',
   QUESTION_PREFIX: '\n[PREGUNTA_USUARIO]:',
 

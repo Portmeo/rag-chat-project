@@ -1,7 +1,7 @@
 import { RecursiveCharacterTextSplitter, MarkdownTextSplitter } from 'langchain/text_splitter';
 import { qdrantClient, COLLECTION_NAME } from '../../repositories/qdrantRepository';
 import { getFileExtension, isMarkdownFile, isHtmlFile } from '../documentProcessor/helpers';
-import { CHUNK_CONFIG, TEXT_SEPARATORS, PROMPT_TEMPLATE, CONVERSATIONAL_HISTORY_CONFIG, llm } from './config';
+import { CHUNK_CONFIG, TEXT_SEPARATORS, PROMPT_TEMPLATE, QUERY_REFORMULATION_CONFIG, llm } from './config';
 import type { ConversationMessage } from './types';
 import { createLogger } from '../../lib/logger.js';
 
@@ -37,27 +37,17 @@ export function createTextSplitter(extension: string) {
 
 export function buildPrompt(
   context: string,
-  question: string,
-  history: ConversationMessage[] = []
+  question: string
 ): string {
   let prompt = PROMPT_TEMPLATE.SYSTEM;
 
-  // Agregar historial si está habilitado y hay mensajes
-  if (CONVERSATIONAL_HISTORY_CONFIG.enabled && history.length > 0) {
-    const historyText = history
-      .map(msg => `${msg.role === 'user' ? 'Usuario' : 'Asistente'}: ${msg.content}`)
-      .join('\n\n');
-
-    prompt += `${PROMPT_TEMPLATE.HISTORY_PREFIX}${historyText}`;
-  }
-
-  // Agregar contexto de documentos
+  // Contexto de documentos
   prompt += `${PROMPT_TEMPLATE.CONTEXT_PREFIX}${context}`;
 
-  // Agregar pregunta actual
+  // Pregunta (ya reformulada si Query Reformulation está activo)
   prompt += `${PROMPT_TEMPLATE.QUESTION_PREFIX} ${question}`;
 
-  // Agregar prefijo de respuesta
+  // Prefijo de respuesta
   prompt += PROMPT_TEMPLATE.RESPONSE_PREFIX;
 
   return prompt;
@@ -65,13 +55,12 @@ export function buildPrompt(
 
 export function limitHistory(
   history: ConversationMessage[],
-  maxMessages: number = CONVERSATIONAL_HISTORY_CONFIG.maxMessages
+  maxMessages: number = QUERY_REFORMULATION_CONFIG.maxMessages
 ): ConversationMessage[] {
-  if (!CONVERSATIONAL_HISTORY_CONFIG.enabled || history.length === 0) {
+  if (!QUERY_REFORMULATION_CONFIG.enabled || history.length === 0) {
     return [];
   }
 
-  // Tomar solo los últimos N mensajes (ventana deslizante)
   return history.slice(-maxMessages);
 }
 

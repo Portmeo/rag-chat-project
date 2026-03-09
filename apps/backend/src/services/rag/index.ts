@@ -11,8 +11,9 @@ const parentLogger = createLogger('PARENT');
 const rerankerLogger = createLogger('RERANKER');
 const llmLogger = createLogger('LLM');
 import { qdrantClient, COLLECTION_NAME } from '../../repositories/qdrantRepository';
-import { embeddings, llm, MESSAGES, SIMILARITY_SEARCH_CONFIG, BM25_CONFIG, RERANKER_CONFIG, PARENT_RETRIEVER_CONFIG, CONTEXTUAL_COMPRESSION_CONFIG, SIMILARITY_DROPOFF_CONFIG, ALIGNMENT_OPTIMIZATION_CONFIG, INTENT_CLASSIFIER_CONFIG, ACTIVE_MODEL } from './config';
+import { embeddings, llm, MESSAGES, SIMILARITY_SEARCH_CONFIG, BM25_CONFIG, RERANKER_CONFIG, PARENT_RETRIEVER_CONFIG, CONTEXTUAL_COMPRESSION_CONFIG, SIMILARITY_DROPOFF_CONFIG, ALIGNMENT_OPTIMIZATION_CONFIG, INTENT_CLASSIFIER_CONFIG, QUERY_REFORMULATION_CONFIG, ACTIVE_MODEL } from './config';
 import { classifyIntent } from './intentClassifier';
+import { reformulateQuery } from './queryReformulator';
 import { applySimilarityDropoff } from './similarityDropoff';
 import { parentStorage, bm25Storage, queryLogger, categoryStorage } from '../../repositories/index.js';
 import { extractCategoryFromFilename } from './categoryExtractor';
@@ -620,7 +621,7 @@ async function retrieveRelevantDocuments(
   llmLogger.log('Full context length:', context.length, 'chars');
   llmLogger.log('Full context being sent to LLM:\n', context);
 
-  const prompt = buildPrompt(context, question, history);
+  const prompt = buildPrompt(context, question);
   llmLogger.log('Full prompt being sent:\n', prompt);
 
   return {
@@ -640,8 +641,11 @@ export async function queryRAG(
   options: QueryRAGOptions = {}
 ): Promise<RAGResponse> {
   try {
-    // Intent Classification — early exit for casual inputs
-    if (INTENT_CLASSIFIER_CONFIG.enabled) {
+    const { history = [], filenameFilter } = options;
+    const limitedHistory = limitHistory(history);
+
+    // Intent Classification — skip if there's history (short follow-ups like "listalos" are valid)
+    if (INTENT_CLASSIFIER_CONFIG.enabled && limitedHistory.length === 0) {
       const intent = await classifyIntent(question, INTENT_CLASSIFIER_CONFIG.mode);
       if (intent.isCasual) {
         pipelineLogger.log(`Intent classifier: casual input, skipping RAG pipeline`);
@@ -649,10 +653,16 @@ export async function queryRAG(
       }
     }
 
-    const { history = [], filenameFilter } = options;
-    const limitedHistory = limitHistory(history);
+    // Query Reformulation: rewrite follow-up into standalone question
+    let effectiveQuestion = question;
+    if (QUERY_REFORMULATION_CONFIG.enabled && limitedHistory.length > 0) {
+      const result = await reformulateQuery(question, limitedHistory);
+      effectiveQuestion = result.standaloneQuestion;
+      pipelineLogger.log(`Query reformulated: "${question}" → "${effectiveQuestion}"`);
+    }
+
     const startTime = Date.now();
-    const retrieved = await retrieveRelevantDocuments(question, limitedHistory, filenameFilter);
+    const retrieved = await retrieveRelevantDocuments(effectiveQuestion, limitedHistory, filenameFilter);
 
     if (!retrieved) {
       return {
@@ -711,8 +721,10 @@ export async function* queryRAGStream(
   filenameFilter?: string[]
 ) {
   try {
-    // Intent Classification — early exit for casual inputs
-    if (INTENT_CLASSIFIER_CONFIG.enabled) {
+    const limitedHistory = limitHistory(history);
+
+    // Intent Classification — skip if there's history (short follow-ups like "listalos" are valid)
+    if (INTENT_CLASSIFIER_CONFIG.enabled && limitedHistory.length === 0) {
       const intent = await classifyIntent(question, INTENT_CLASSIFIER_CONFIG.mode);
       if (intent.isCasual) {
         pipelineLogger.log(`Intent classifier: casual input, skipping RAG pipeline`);
@@ -722,11 +734,17 @@ export async function* queryRAGStream(
       }
     }
 
-    const limitedHistory = limitHistory(history);
-    pipelineLogger.log(`Using ${limitedHistory.length} messages from history`);
+    // Query Reformulation: rewrite follow-up into standalone question
+    let effectiveQuestion = question;
+    if (QUERY_REFORMULATION_CONFIG.enabled && limitedHistory.length > 0) {
+      const result = await reformulateQuery(question, limitedHistory);
+      effectiveQuestion = result.standaloneQuestion;
+      pipelineLogger.log(`Query reformulated: "${question}" → "${effectiveQuestion}"`);
+    }
+
     const startTime = Date.now();
 
-    const retrieved = await retrieveRelevantDocuments(question, limitedHistory, filenameFilter);
+    const retrieved = await retrieveRelevantDocuments(effectiveQuestion, limitedHistory, filenameFilter);
 
     if (!retrieved) {
       yield { event: 'token', data: { chunk: MESSAGES.NO_DOCUMENTS } };
