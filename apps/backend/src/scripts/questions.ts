@@ -15,7 +15,7 @@ export const QUESTIONS: Question[] = [
   { category: 'simple', q: "¿Cómo se integran los web components en Angular?", expected: ["03-microfrontends-web-components.md"] },
   { category: 'simple', q: "¿Cómo funciona el flujo de autenticación con JWT?", expected: ["04-autenticacion-guards.md"] },
   { category: 'simple', q: "¿Cuál es la diferencia entre Container y Presenter components?", expected: ["08-patron-container-presenter.md"] },
-  { category: 'simple', q: "¿Qué versión de React se usa?", expected: ["01-arquitectura-general.md"] },
+  { category: 'simple', q: "¿Qué versión de Angular se usa en el proyecto?", expected: ["01-arquitectura-general.md"] },
   { category: 'simple', q: "¿Cuál es el ciclo completo de un cambio de estado en NgRx?", expected: ["02-gestion-estado-ngrx.md"] },
 
   // ============================================================
@@ -41,7 +41,7 @@ export const QUESTIONS: Question[] = [
   { category: 'paraphrase', q: "¿Qué solución de state management utiliza la aplicación?", expected: ["02-gestion-estado-ngrx.md"] },
   { category: 'paraphrase', q: "¿Qué son los Smart y Dumb components?", expected: ["08-patron-container-presenter.md"] },
   { category: 'paraphrase', q: "¿Cómo se protegen las rutas privadas de la aplicación?", expected: ["04-autenticacion-guards.md"] },
-  { category: 'paraphrase', q: "¿Cómo se despliega la aplicación para web, Android e iOS?", expected: ["07-ci-cd-deployment.md"] },
+  { category: 'complex', q: "¿Cómo se despliega la aplicación para web, Android e iOS?", expected: ["07-ci-cd-deployment.md", "06-desarrollo-movil-capacitor.md"] },
 
   // ============================================================
   // VAGUE — lenguaje natural informal, sin términos técnicos
@@ -50,7 +50,7 @@ export const QUESTIONS: Question[] = [
   { category: 'vague', q: "¿Cómo funciona el login?", expected: ["04-autenticacion-guards.md"] },
   { category: 'vague', q: "¿Cómo se hace el deploy a producción?", expected: ["07-ci-cd-deployment.md"] },
   { category: 'vague', q: "¿Qué microfrontends tiene la aplicación?", expected: ["03-microfrontends-web-components.md"] },
-  { category: 'vague', q: "¿Cómo funciona la aplicación en el móvil?", expected: ["06-desarrollo-movil-capacitor.md"] },
+  { category: 'vague', q: "¿Cómo funciona la aplicación en el móvil?", expected: ["06-desarrollo-movil-capacitor.md", "01-arquitectura-general.md"] },
   { category: 'vague', q: "¿Dónde se guarda el estado de la aplicación?", expected: ["02-gestion-estado-ngrx.md"] },
 
   // ============================================================
