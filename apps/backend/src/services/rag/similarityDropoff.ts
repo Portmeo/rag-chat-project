@@ -4,62 +4,57 @@ import { createLogger } from '../../lib/logger.js';
 const logger = createLogger('DROPOFF');
 
 /**
- * Filters documents using similarity drop-off: removes documents whose
- * score drops more than `maxDrop` relative to the best result.
+ * Filters documents using similarity drop-off with normalized real scores.
  *
- * Formula: drop = 1 - (shiftedScore / bestShiftedScore)
+ * If docs have vectorScore and/or bm25Score (real relevance scores),
+ * normalizes them to 0-1 via min-max and combines with weights.
+ * Falls back to scoreField (e.g. ensembleScore) if no real scores available.
+ *
+ * Formula: drop = 1 - (normalizedScore / bestNormalizedScore)
  * If drop > maxDrop → discard
  *
- * Handles rerank scores (logits, can be negative) by shifting to positive space.
  * Always keeps at least `minDocs` documents.
- *
- * Example with maxDrop=0.20:
- *   Scores: [8.2, 7.9, 3.1, 1.2, -0.5] → shifted: [8.7, 8.4, 3.6, 1.7, 0]
- *   Drops:  [0%, 3.4%, 58.6%, 80.5%, 100%]
- *   Result: keeps first 2 (+ minDocs guarantee)
  */
 export function applySimilarityDropoff(
   docs: Document[],
   maxDrop: number,
   minDocs: number = 1,
-  scoreField: string = 'rerankScore'
+  scoreField: string = 'ensembleScore',
+  weights: { vector: number; bm25: number } = { vector: 0.6, bm25: 0.4 }
 ): Document[] {
   if (docs.length <= minDocs) {
     return docs;
   }
 
-  const scores = docs.map(doc => (doc as any)[scoreField] as number | undefined);
-  const validScores = scores.filter((s): s is number => s !== undefined);
+  // Try to use real scores (vectorScore + bm25Score)
+  const hasVectorScores = docs.some(d => (d as any).vectorScore !== undefined);
+  const hasBm25Scores = docs.some(d => (d as any).bm25Score !== undefined);
+  const hasRealScores = hasVectorScores || hasBm25Scores;
 
-  if (validScores.length === 0) {
-    logger.log('No scores found, skipping drop-off filter');
-    return docs;
+  let normalizedScores: number[];
+
+  if (hasRealScores) {
+    logger.log(`Using real scores: vector=${hasVectorScores}, bm25=${hasBm25Scores}`);
+    normalizedScores = computeNormalizedScores(docs, hasVectorScores, hasBm25Scores, weights);
+  } else {
+    // Fallback to positional score (ensembleScore, rerankScore, etc.)
+    logger.log(`No real scores found, falling back to ${scoreField}`);
+    const rawScores = docs.map(d => (d as any)[scoreField] as number ?? 0);
+    normalizedScores = minMaxNormalize(rawScores);
   }
 
-  const minScore = Math.min(...validScores);
-  const maxScore = Math.max(...validScores);
+  const bestScore = Math.max(...normalizedScores);
 
-  if (maxScore === minScore) {
-    logger.log('All scores identical, keeping all documents');
+  if (bestScore === 0) {
+    logger.log('All scores are zero, keeping all documents');
     return docs;
   }
-
-  // Shift to positive space if there are negative values (logits from reranker)
-  const shift = minScore < 0 ? Math.abs(minScore) : 0;
-  const bestScore = maxScore + shift;
 
   const filtered: Document[] = [];
 
   for (let i = 0; i < docs.length; i++) {
-    const score = scores[i];
-
-    if (score === undefined) {
-      if (filtered.length < minDocs) filtered.push(docs[i]);
-      continue;
-    }
-
-    const shiftedScore = score + shift;
-    const drop = 1 - (shiftedScore / bestScore);
+    const score = normalizedScores[i];
+    const drop = 1 - (score / bestScore);
 
     if (drop <= maxDrop || filtered.length < minDocs) {
       filtered.push(docs[i]);
@@ -71,4 +66,34 @@ export function applySimilarityDropoff(
 
   logger.log(`Similarity drop-off: ${docs.length} → ${filtered.length} docs (maxDrop=${(maxDrop * 100).toFixed(0)}%, minDocs=${minDocs})`);
   return filtered;
+}
+
+function computeNormalizedScores(
+  docs: Document[],
+  hasVector: boolean,
+  hasBm25: boolean,
+  weights: { vector: number; bm25: number }
+): number[] {
+  const vectorScores = docs.map(d => (d as any).vectorScore as number ?? 0);
+  const bm25Scores = docs.map(d => (d as any).bm25Score as number ?? 0);
+
+  const normVector = hasVector ? minMaxNormalize(vectorScores) : vectorScores.map(() => 0);
+  const normBm25 = hasBm25 ? minMaxNormalize(bm25Scores) : bm25Scores.map(() => 0);
+
+  // Adjust weights if only one score type is available
+  let vWeight = weights.vector;
+  let bWeight = weights.bm25;
+  if (!hasVector) { vWeight = 0; bWeight = 1; }
+  if (!hasBm25) { vWeight = 1; bWeight = 0; }
+
+  return docs.map((_, i) => normVector[i] * vWeight + normBm25[i] * bWeight);
+}
+
+function minMaxNormalize(scores: number[]): number[] {
+  const min = Math.min(...scores);
+  const max = Math.max(...scores);
+
+  if (max === min) return scores.map(() => 1);
+
+  return scores.map(s => (s - min) / (max - min));
 }

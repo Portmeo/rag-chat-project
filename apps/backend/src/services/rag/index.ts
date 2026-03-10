@@ -282,9 +282,14 @@ async function resolveParentChunks(childDocs: Document[]): Promise<Document[]> {
       return currentScore > bestScore ? current : best;
     }, children[0]);
 
-    // Transferir rerank score si existe
-    if ((bestChild as any).rerankScore !== undefined) {
-      (parentDoc as any).rerankScore = (bestChild as any).rerankScore;
+    // Transferir scores del mejor child al parent
+    for (const scoreKey of ['rerankScore', 'ensembleScore', 'vectorScore', 'bm25Score']) {
+      const bestForScore = children.reduce((best, current) =>
+        ((current as any)[scoreKey] ?? -Infinity) > ((best as any)[scoreKey] ?? -Infinity) ? current : best
+      , children[0]);
+      if ((bestForScore as any)[scoreKey] !== undefined) {
+        (parentDoc as any)[scoreKey] = (bestForScore as any)[scoreKey];
+      }
     }
 
     // NUEVO: Agregar metadata útil para debugging y métricas
@@ -468,10 +473,16 @@ async function retrieveRelevantDocuments(
     pipelineLogger.log(`Metadata filter active: ${filenameFilter!.join(', ')}`);
   }
 
-  const vectorRetriever = vectorStore.asRetriever({
-    k: retrievalK,
-    filter: qdrantFilter,
-  });
+  // Wrapper that propagates cosine similarity score to each doc
+  const vectorRetriever = {
+    invoke: async (query: string) => {
+      const results = await vectorStore.similaritySearchWithScore(query, retrievalK, qdrantFilter);
+      return results.map(([doc, score]) => {
+        (doc as any).vectorScore = score;
+        return doc;
+      });
+    },
+  };
 
   let retriever: any;
 
@@ -550,6 +561,19 @@ async function retrieveRelevantDocuments(
     parentLogger.log(`Hydration metrics:`, JSON.stringify(metrics, null, 2));
   }
 
+  // PASO 1.5: Similarity Drop-off pre-reranker (descartar parents con score muy inferior al mejor)
+  if (SIMILARITY_DROPOFF_CONFIG.enabled) {
+    const beforeCount = candidateDocs.length;
+    candidateDocs = applySimilarityDropoff(
+      candidateDocs,
+      SIMILARITY_DROPOFF_CONFIG.maxDrop,
+      SIMILARITY_DROPOFF_CONFIG.minDocs,
+      'ensembleScore',
+      { vector: BM25_CONFIG.vectorWeight, bm25: BM25_CONFIG.weight }
+    );
+    pipelineLogger.log(`Similarity drop-off: ${beforeCount} → ${candidateDocs.length} parents (pre-reranker)`);
+  }
+
   // PASO 2: Rerank los parents (tienen contexto completo de 512 tokens)
   let relevantDocs: Document[];
 
@@ -578,17 +602,6 @@ async function retrieveRelevantDocuments(
   } else {
     rerankerLogger.log('Reranker disabled, using top parent chunks directly');
     relevantDocs = candidateDocs.slice(0, SIMILARITY_SEARCH_CONFIG.MAX_RESULTS);
-  }
-
-  // PASO 2.5: Similarity Drop-off (descartar docs con score muy inferior al mejor)
-  if (SIMILARITY_DROPOFF_CONFIG.enabled) {
-    const beforeCount = relevantDocs.length;
-    relevantDocs = applySimilarityDropoff(
-      relevantDocs,
-      SIMILARITY_DROPOFF_CONFIG.maxDrop,
-      SIMILARITY_DROPOFF_CONFIG.minDocs
-    );
-    pipelineLogger.log(`Similarity drop-off: ${beforeCount} → ${relevantDocs.length} docs`);
   }
 
   // PASO 3: Contextual Compression (filtrar frases ruidosas de los parents)

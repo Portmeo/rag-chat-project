@@ -66,6 +66,31 @@ Valores actuales calibrados para **~1000 children** (8 documentos .md, ~200 pare
 
 ---
 
+## Similarity Drop-off
+
+| Parámetro                    | Valor actual | Criterio                                              |
+|------------------------------|--------------|-------------------------------------------------------|
+| `SIMILARITY_DROPOFF_MAX_DROP` | 0.50        | % máximo de caída respecto al mejor. Subir = más permisivo |
+| `SIMILARITY_DROPOFF_MIN_DOCS` | 2           | Mínimo de docs que siempre se mantienen               |
+
+**Posición en el pipeline**: Pre-reranker (después de hydration, antes del reranker)
+
+**Cómo funciona**:
+1. Lee `vectorScore` (coseno) y `bm25Score` (TF-IDF) de cada doc
+2. Normaliza ambos a 0-1 con min-max
+3. Combina con pesos (vector 0.6 / BM25 0.4)
+4. Descarta docs cuyo score combinado cae más del `MAX_DROP` respecto al mejor
+
+**Importante**: NO usar con scores posicionales (RRF/ensembleScore) — decaen exponencialmente y filtran docs relevantes. Solo funciona con scores de relevancia real (coseno, TF-IDF, logits).
+
+**Notas**:
+- Con corpus pequeño (~1000 docs), filtra de ~27 parents a ~15 (elimina ruido real)
+- Con corpus grande, más útil porque hay más candidatos ruidosos pre-reranker
+- `MAX_DROP=0.20` es demasiado agresivo para corpus pequeño (filtra a 2 docs)
+- `MAX_DROP=0.50` funciona bien: mantiene 100% hit rate y reduce candidatos al reranker
+
+---
+
 ## Contextual Compression
 
 | Parámetro              | Valor actual | Criterio                                         |

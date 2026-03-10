@@ -185,6 +185,48 @@ _Saltado_ — requiere re-indexar con generación LLM de preguntas hipotéticas 
 
 ---
 
+## Paso 7 — + Similarity Drop-off (scores normalizados)
+
+**Config**: `USE_SIMILARITY_DROPOFF=true` (max_drop 0.50, min_docs 2)
+**Re-indexar**: No
+**Cambio clave**: Movido a pre-reranker. Usa scores reales (vectorScore coseno + bm25Score TF-IDF) normalizados min-max a 0-1, en vez de scores posicionales RRF.
+
+### Iteración 1 — Scores RRF posicionales (max_drop 0.20)
+
+| Métrica              | Hit Rate        |
+|----------------------|-----------------|
+| After drop-off       | 31/35 (89%)     |
+| After reranker       | 31/35 (89%)     |
+
+**Problema**: Los scores RRF decaen exponencialmente (rank 0 = 0.60, rank 1 = 0.30, rank 2 = 0.20). El dropoff interpretaba que el doc #2 era 67% peor que el #1, cuando en realidad era igual de relevante. Filtraba de ~17 parents a solo 2.
+
+### Iteración 2 — Scores reales normalizados (max_drop 0.50)
+
+| Métrica              | Hit Rate        |
+|----------------------|-----------------|
+| Parents (hydrated)   | 35/35 (100%)    |
+| After drop-off       | 35/35 (100%)    |
+| **After reranker**   | **34/35 (97%)** |
+
+| Categoría    | After Reranker |
+|--------------|----------------|
+| simple       | 8/9 (89%)      |
+| complex      | 12/12 (100%)   |
+| paraphrase   | 4/4 (100%)     |
+| vague        | 5/5 (100%)     |
+| specific     | 5/5 (100%)     |
+
+**MISSES (1)**:
+- `[simple]` "¿Qué tipo de autenticación se usa?" — mismo miss que Paso 4 (reranker descarta del Top 5)
+
+**Observaciones**:
+- Drop-off no pierde ningún doc relevante (100% → 100%)
+- Filtra de ~27 parents a ~15 — elimina ruido real (docs con score normalizado <0.13)
+- El reranker trabaja con menos candidatos (15 vs 27) = más rápido y preciso
+- Implementación: `vectorScore` (coseno) y `bm25Score` (TF-IDF) se propagan desde los retrievers, se normalizan min-max a 0-1, y se combinan con pesos (0.6/0.4)
+
+---
+
 ## Resumen comparativo
 
 | Paso | Feature                | Total           | simple | complex | paraphrase | vague | specific |
@@ -196,3 +238,4 @@ _Saltado_ — requiere re-indexar con generación LLM de preguntas hipotéticas 
 | 4    | + Reranker (Top 5)     | 34/35 (97%)     | 8/9    | 12/12   | 4/4        | 5/5   | 5/5      |
 | 5    | + Compression          | 34/35 (97%)     | 8/9    | 12/12   | 4/4        | 5/5   | 5/5      |
 | 6    | + Alignment            | —  (saltado)    | —      | —       | —          | —     | —        |
+| 7    | + Drop-off (normalizado)| 34/35 (97%)    | 8/9    | 12/12   | 4/4        | 5/5   | 5/5      |

@@ -57,6 +57,9 @@ export class BM25Retriever extends BaseRetriever {
       logger.log(`  ${idx + 1}. Score: ${item.score.toFixed(4)} | File: ${metadata.filename} | Chunk: ${metadata.chunk_index} | Preview: ${item.doc.pageContent.substring(0, 80)}...`);
     });
 
-    return scores.slice(0, this.k).map((item) => item.doc);
+    return scores.slice(0, this.k).map((item) => {
+      (item.doc as any).bm25Score = item.score;
+      return item.doc;
+    });
   }
 }

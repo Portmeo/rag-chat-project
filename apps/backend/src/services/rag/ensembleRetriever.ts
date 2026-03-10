@@ -52,6 +52,14 @@ export class EnsembleRetriever extends BaseRetriever {
       });
     });
 
+    // Propagate original retriever scores to each doc
+    allResults.forEach((docs) => {
+      docs.forEach((doc) => {
+        // bm25Score is already set by BM25Retriever
+        // vectorScore needs to be preserved if present
+      });
+    });
+
     const docScores = new Map<string, { doc: Document; score: number }>();
 
     allResults.forEach((docs, retrieverIndex) => {
@@ -66,6 +74,9 @@ export class EnsembleRetriever extends BaseRetriever {
         if (docScores.has(key)) {
           const existing = docScores.get(key)!;
           existing.score += score;
+          // Merge retriever-specific scores
+          if ((doc as any).bm25Score !== undefined) (existing.doc as any).bm25Score = (doc as any).bm25Score;
+          if ((doc as any).vectorScore !== undefined) (existing.doc as any).vectorScore = (doc as any).vectorScore;
         } else {
           docScores.set(key, { doc, score });
         }
@@ -74,7 +85,10 @@ export class EnsembleRetriever extends BaseRetriever {
 
     const sortedDocs = Array.from(docScores.values())
       .sort((a, b) => b.score - a.score)
-      .map((item) => item.doc);
+      .map((item) => {
+        (item.doc as any).ensembleScore = item.score;
+        return item.doc;
+      });
 
     logger.log(`Final ensemble results: ${sortedDocs.length} docs`);
     sortedDocs.slice(0, 5).forEach((doc, idx) => {
