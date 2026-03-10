@@ -89,6 +89,11 @@ Valores actuales calibrados para **~1000 children** (8 documentos .md, ~200 pare
 - `MAX_DROP=0.20` es demasiado agresivo para corpus pequeño (filtra a 2 docs)
 - `MAX_DROP=0.50` funciona bien: mantiene 100% hit rate y reduce candidatos al reranker
 
+**Punto a revisar si crece el corpus**:
+- La normalización min-max es sensible a outliers: un score muy alto aplasta el resto hacia 0 y el dropoff descarta docs relevantes
+- Alternativas a evaluar: z-score normalización, percentiles, o logarítmica
+- Validar siempre comparando hit rate con y sin dropoff después de cambios de corpus
+
 ---
 
 ## Contextual Compression
