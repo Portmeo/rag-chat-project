@@ -58,7 +58,8 @@ export class EnsembleRetriever extends BaseRetriever {
       const weight = this.weights[retrieverIndex];
 
       docs.forEach((doc, rank) => {
-        const score = weight / (rank + 1);
+        const k = 60; // RRF standard constant
+        const score = weight * (1 / (k + rank + 1));
         const key = doc.pageContent;
 
         if (docScores.has(key)) {
