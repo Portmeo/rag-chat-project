@@ -25,7 +25,7 @@ export async function compressDocuments(
   query: string,
   docs: Document[],
   embeddingsModel: { embedQuery: (text: string) => Promise<number[]>; embedDocuments: (texts: string[]) => Promise<number[][]> },
-  threshold: number = 0.30
+  threshold: number = 0.20
 ): Promise<Document[]> {
   if (docs.length === 0) return docs;
 
@@ -42,10 +42,19 @@ export async function compressDocuments(
 
     const sentenceEmbeddings = await embeddingsModel.embedDocuments(sentences);
 
-    const relevantSentences = sentences.filter((_, i) => {
+    // Expansión de ventana ±1: si la oración i es relevante,
+    // incluir también i-1 e i+1 para preservar contexto gramatical
+    const relevantIndices = new Set<number>();
+    sentences.forEach((_, i) => {
       const sim = cosineSimilarity(queryEmbedding, sentenceEmbeddings[i]);
-      return sim >= threshold;
+      if (sim >= threshold) {
+        if (i > 0) relevantIndices.add(i - 1);
+        relevantIndices.add(i);
+        if (i < sentences.length - 1) relevantIndices.add(i + 1);
+      }
     });
+
+    const relevantSentences = sentences.filter((_, i) => relevantIndices.has(i));
 
     // Si nada pasa el threshold, conservar las 2 primeras frases
     const finalSentences = relevantSentences.length > 0
@@ -53,10 +62,10 @@ export async function compressDocuments(
       : sentences.slice(0, 2);
 
     const ratio = (finalSentences.length / sentences.length * 100).toFixed(0);
-    logger.log(`${(doc.metadata as any).filename}: ${sentences.length} → ${finalSentences.length} frases (${ratio}% kept)`);
+    logger.log(`${(doc.metadata as any).filename}: ${sentences.length} → ${finalSentences.length} frases (${ratio}% kept, threshold=${threshold})`);
 
     const compressedDoc = new Document({
-      pageContent: finalSentences.join(' '),
+      pageContent: finalSentences.join('\n'),
       metadata: doc.metadata,
     });
 

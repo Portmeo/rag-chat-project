@@ -186,7 +186,7 @@ export const ALIGNMENT_OPTIMIZATION_CONFIG = {
 // Contextual Compression Configuration
 export const CONTEXTUAL_COMPRESSION_CONFIG = {
   enabled: process.env.USE_CONTEXTUAL_COMPRESSION === 'true',
-  threshold: parseFloat(process.env.COMPRESSION_THRESHOLD || '0.30'),
+  threshold: parseFloat(process.env.COMPRESSION_THRESHOLD || '0.20'),
 } as const;
 
 // Parent Document Retriever Configuration
